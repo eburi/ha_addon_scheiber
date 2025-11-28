@@ -88,13 +88,7 @@ software expecting the YD RAW protocol can connect without modification.
 
 ## 🔧 Installation
 
-1. Create a GitHub repository for this add-on, e.g.:
-
-   ```
-   https://github.com/<your_username>/ha-addon-can-raw
-   ```
-
-2. Add the repository to Home Assistant:
+q. Add the repository to Home Assistant:
    - **Settings → Add-ons → Add-on Store**
    - Top-right menu → **Repositories**
    - Enter your repository URL
@@ -159,8 +153,40 @@ Add-on will echo:
 
 ---
 
+## CAN HATs in HomeAssistant OS
+
+This AddOn depends on the can interface to be present in the HAOS.
+
+Here is how I enabled the dtoverlay necessary for the 2CH CAN HAT+ from Waveshare for HAOS running on Raspberry Pi5 with an SSD:
+
+```
+mkdir /mnt/boot
+mount -t vfat /dev/nvme0n1p1 /mnt/boot
+cd /mnt/boot
+nano config.txt
+```
+
+Add: 
+
+```
+dtparam=spi=on
+dtoverlay=i2c0 
+dtoverlay=spi1-3cs
+dtoverlay=mcp2515,spi1-1,oscillator=16000000,interrupt=22
+dtoverlay=mcp2515,spi1-2,oscillator=16000000,interrupt=13
+```
+
+See here: https://www.waveshare.com/wiki/2-CH_CAN_HAT+
+
+Other CAN-Interface HATs follow the same pattern.
+
+---
+
+
 ## 🛠 Notes
 
+- Add support for read-only mode
+- Split in two containers, one running in mode network=host, reading and writing CAN frames and connecting to a server-container that will expose the actual TCP port
 - The add-on **does not** perform fast-packet reassembly  
 - Frames larger than 8 bytes appear as raw CAN fragments  
 - Future versions may add optional fast-packet support
