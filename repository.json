@@ -1,0 +1,5 @@
+{
+  "name": "HA AddOn CAN RAW Gateway",
+  "url": "https://github.com/eburi/ha_addon_can_tcp_gateway",
+  "maintainer": "eburi"
+}
