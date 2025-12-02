@@ -24,5 +24,6 @@ ip link set can0 type can bitrate 250000 fd off restart-ms 100
 ip link set can0 up
 ifconfig can0 txqueuelen 10000
 
-# Start gateway
-exec python3 /gateway.py
+sleep 365d
+# Start scheiber-handler
+#exec python3 /scheiber.py

@@ -1,0 +1,30 @@
+name: scheiber
+slug: scheiber
+version: "0.1.0"
+description: >
+  Interface to scheiber
+
+arch:
+  - amd64
+  - armv7
+  - aarch64
+
+startup: services
+init: false
+host_network: true
+
+privileged:
+  - NET_ADMIN
+  - SYS_RAWIO
+
+options:
+  can_interface: can1
+  mqtt_url: mqtt://mqtt_user:mqtt@localhost:1883
+  mqtt_topic_prefix: scheiber
+  log_level: info
+
+schema:
+  can_interface: str
+  mqtt_url: str
+  mqtt_topic_prefix: str
+  log_level: list(info|debug|warning|error)
