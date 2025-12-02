@@ -13,6 +13,4 @@ COPY tools/ /tools
 
 RUN chmod a+x /run.sh
 
-WORKDIR /usr/src/app
-
 CMD [ "/run.sh" ]
