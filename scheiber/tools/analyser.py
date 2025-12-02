@@ -345,6 +345,9 @@ def main():
                 binary_mode = not binary_mode
             elif key == "s":
                 stats_mode = not stats_mode
+            elif key == "q":
+                print("\n[QUIT] User requested exit. Shutting down...\n")
+                return
 
             # Read CAN
             msg = bus.recv(timeout=0.05)
