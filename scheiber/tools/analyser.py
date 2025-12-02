@@ -16,6 +16,8 @@ import argparse
 key_pressed = None
 binary_mode = False       # toggled by 'b'
 stats_mode = False        # toggled by 's'
+canid_name_map = {}
+name_col_width = 0
 
 # per CAN ID:
 # entry = {
@@ -27,6 +29,10 @@ stats_mode = False        # toggled by 's'
 # }
 can_table = {}
 
+# ANSI colors
+CLR_RESET = "\033[0m"
+CLR_GREEN = "\033[92m"
+CLR_YELLOW = "\033[93m"
 
 # ------------------------------------------
 # Keyboard listener (nonblocking)
@@ -55,26 +61,48 @@ def read_key_nonblocking():
 # Formatting helpers
 # ------------------------------------------
 
-def fmt_hex(data):
-    return " ".join(f"{b:02X}" for b in data)
+def fmt_hex(data, prev=None):
+    """HEX output, colorized if prev provided."""
+    out = []
+    for i, b in enumerate(data):
+        if prev is not None and i < len(prev) and b != prev[i]:
+            out.append(f"{CLR_GREEN}{b:02X}{CLR_RESET}")
+        else:
+            out.append(f"{b:02X}")
+    return " ".join(out)
 
-def fmt_bin(data):
-    return " ".join(f"{b:08b}" for b in data)
+def fmt_bin(data, prev=None):
+    """Binary output, colorized if prev provided."""
+    out = []
+    for i, b in enumerate(data):
+        bits = f"{b:08b}"
+        if prev is not None and i < len(prev) and b != prev[i]:
+            out.append(f"{CLR_GREEN}{bits}{CLR_RESET}")
+        else:
+            out.append(bits)
+    return " ".join(out)
 
 def diff_mask(prev, curr, binary):
-    out = []
+    if prev is None:
+        return ""
 
     if binary:
+        mask_parts = []
         for (a, b) in zip(prev, curr):
-            ab = f"{a:08b}"
-            bb = f"{b:08b}"
-            out.append("".join("^" if x != y else " " for x, y in zip(ab, bb)))
-        return " ".join(out)
-    else:
-        for (a, b) in zip(prev, curr):
-            out.append("^^" if a != b else "  ")
-        return " ".join(out)
+            if a != b:
+                mask_parts.append(f"{CLR_YELLOW}^^^^^^^^ {CLR_RESET}")
+            else:
+                mask_parts.append("         ")
+        return "".join(mask_parts).rstrip()
 
+    else:
+        mask_parts = []
+        for (a, b) in zip(prev, curr):
+            if a != b:
+                mask_parts.append(f"{CLR_YELLOW}^^ {CLR_RESET}")
+            else:
+                mask_parts.append("   ")
+        return "".join(mask_parts).rstrip() 
 
 # ------------------------------------------
 # Display modes
@@ -90,7 +118,10 @@ def show_histogram_view():
     global can_table, binary_mode
 
     clear_screen()
-    print("|  Δt(ms) |  CAN ID  | Len | Data")
+    if name_col_width > 0:
+        print(f"|  Δt(ms) |  CAN ID  | {'Name':<{name_col_width}} | Len | Data")
+    else:
+        print("|  Δt(ms) |  CAN ID  | Len | Data")
     print("-" * 80)
 
     for cid, entry in sorted(can_table.items()):
@@ -99,16 +130,27 @@ def show_histogram_view():
         length = len(data)
 
         if binary_mode:
-            data_str = fmt_bin(data)
+            data_str = fmt_bin(data, prev=entry.get("prev_data"))
         else:
-            data_str = fmt_hex(data)
+            data_str = fmt_hex(data, prev=entry.get("prev_data"))
 
-        print(f"| {delta:7.1f} | {cid:08X} | {length:3d} | {data_str}")
+        name = canid_name_map.get(cid, "")
+        if name_col_width > 0:
+            print(f"| {delta:7.1f} | {cid:08X} | {name:<{name_col_width}} | {length:3d} | {data_str}")
+        else:
+            print(f"| {delta:7.1f} | {cid:08X} | {length:3d} | {data_str}")
 
         # diff mask only if we have older data
+        mask = ""
         if entry.get("prev_data") is not None:
             mask = diff_mask(entry["prev_data"], data, binary_mode)
-            print(f"|{' ' * 9}|{' ' * 10}|{' ' * 5}| {mask}")
+        if name_col_width > 0:
+            # prefix: time column + ID + name + len column + separator
+            prefix = f"|{' ' * 9}|{' ' * 10}| {' ' * name_col_width} |{' ' * 5}| "
+        else:
+            prefix = f"|{' ' * 9}|{' ' * 10}|{' ' * 5}| "
+        
+        print(prefix + mask)
 
     print("\nPress 'b' for HEX/BIN, 's' for stats, Ctrl+C to quit.")
 
@@ -198,12 +240,49 @@ def parse_canutils_filter(fstr):
         "inverted": inverted
     }
 
+def load_canid_map(path):
+    """
+    Load CANID→Name mappings from a CSV file with format:
+    CANID;Name;
+    """
+    mapping = {}
+    try:
+        with open(path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+
+                parts = line.split(";")
+                if len(parts) < 2:
+                    continue
+
+                cid_str = parts[0].strip()
+                name = parts[1].strip()
+
+                # Remove optional 0x
+                if cid_str.lower().startswith("0x"):
+                    cid_str = cid_str[2:]
+
+                try:
+                    cid = int(cid_str, 16)
+                except ValueError:
+                    continue
+
+                mapping[cid] = name
+
+    except FileNotFoundError:
+        print(f"ERROR: CANID map file '{path}' not found.")
+
+    return mapping
+
+
 # ------------------------------------------
 # Main loop
 # ------------------------------------------
 
 def main():
-    global key_pressed, binary_mode, stats_mode
+    global key_pressed, binary_mode, stats_mode, canid_name_map, name_col_width
 
     set_raw_terminal()
 
@@ -217,6 +296,10 @@ def main():
         "-f", "--filter",
         action="append",
         help="CAN filter in can-utils format: <id>:<mask> (multiple allowed)"
+    )
+    parser.add_argument(
+        "--canid-map",
+        help="Path to CSV file mapping CAN IDs to device names (format: CANID;Name;)"
     )
     args = parser.parse_args()
 
@@ -240,6 +323,17 @@ def main():
         interface="socketcan",
         can_filters=filters if len(filters) > 0 else None
     )
+
+    if args.canid_map:
+        canid_name_map = load_canid_map(args.canid_map)
+        print(f"Loaded {len(canid_name_map)} CAN ID mappings.")
+    if canid_name_map:
+        # longest name length
+        name_col_width = max(len(n) for n in canid_name_map.values())
+        # add at least 1 space padding
+        name_col_width += 1
+        print(f"Loaded {len(canid_name_map)} CAN ID mappings (name column width: {name_col_width}).")
+
 
     last_refresh = 0
     try:
