@@ -24,6 +24,12 @@ ip link set can0 type can bitrate 250000 fd off restart-ms 100
 ip link set can0 up
 ifconfig can0 txqueuelen 10000
 
+# Init can1
+ip link set can1 down 2>/dev/null
+ip link set can1 type can bitrate 250000 fd off restart-ms 100
+ip link set can1 up
+ifconfig can1 txqueuelen 10000
+
 sleep 365d
 # Start scheiber-handler
 #exec python3 /scheiber.py
