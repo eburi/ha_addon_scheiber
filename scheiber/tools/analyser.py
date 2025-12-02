@@ -8,6 +8,7 @@ import termios
 import tty
 import atexit
 import argparse
+import pprint
 
 # ------------------------------------------
 # GLOBAL STATE
@@ -166,11 +167,11 @@ def show_stats_view():
         first = entry["first_seen"]
         freq = count / (now - first) if now > first else 0
 
-        print(f"ID {cid:08X}")
-        print(f"  Messages: {count}")
-        print(f"  First seen: {time.strftime('%H:%M:%S', time.localtime(first))}")
-        print(f"  Last seen:  {time.strftime('%H:%M:%S', time.localtime(entry['last_time']))}")
-        print(f"  Frequency:  {freq:.2f} msg/sec\n")
+        print(f"ID {cid:08X}: Messages: {count:5d} Frequency:  {freq:.2f}msg/sec First seen: {time.strftime('%H:%M:%S', time.localtime(first))} Last seen:  {time.strftime('%H:%M:%S', time.localtime(entry['last_time']))}")
+
+    print("\nFilters used for canbus-init:\n")
+    hex_pp = HexPrettyPrinter()
+    hex_pp.pprint(filters)
 
     print("Press 's' to return to histogram view.")
 
@@ -276,6 +277,15 @@ def load_canid_map(path):
 
     return mapping
 
+class HexPrettyPrinter(pprint.PrettyPrinter):
+    def format(self, object, context, maxlevels, level):
+        if isinstance(object, int):
+            # Convert integer to hex string and return it with a flag indicating
+            # it's a string, not a structure that needs further formatting.
+            return hex(object), True, False
+        else:
+            # For other types, defer to the base class's format method.
+            return pprint.PrettyPrinter.format(self, object, context, maxlevels, level)
 
 # ------------------------------------------
 # Main loop
@@ -307,11 +317,13 @@ def main():
     print(f"Opening CAN interface {interface}...")
 
     filters = []
+    inverted_filters = []
     if args.filter:
         for f in args.filter:
             info = parse_canutils_filter(f)
             if info["inverted"]:
                 print(f"WARNING: Inverted filter '{f}' not supported at driver-level; applying software filter.")
+                inverted_filters.append(info)
             else:
                 filters.append({
                     "can_id": info["can_id"],
@@ -334,7 +346,6 @@ def main():
         name_col_width += 1
         print(f"Loaded {len(canid_name_map)} CAN ID mappings (name column width: {name_col_width}).")
 
-
     last_refresh = 0
     try:
         while True:
@@ -351,7 +362,7 @@ def main():
 
             # Read CAN
             msg = bus.recv(timeout=0.05)
-            if msg and match_inverted_filters(msg, filters):
+            if msg and match_inverted_filters(msg, inverted_filters):
                 update_can_entry(msg)
 
             # Refresh display ~10 times per second
