@@ -19,6 +19,8 @@ binary_mode = False       # toggled by 'b'
 stats_mode = False        # toggled by 's'
 canid_name_map = {}
 name_col_width = 0
+filters = []
+inverted_filters = []
 
 # per CAN ID:
 # entry = {
@@ -157,6 +159,8 @@ def show_histogram_view():
 
 
 def show_stats_view():
+    global filters, inverted_filters
+
     """Display basic message statistics."""
     clear_screen()
     print("========= STATISTICS =========\n")
@@ -169,9 +173,13 @@ def show_stats_view():
 
         print(f"ID {cid:08X}: Messages: {count:5d} Frequency:  {freq:.2f}msg/sec First seen: {time.strftime('%H:%M:%S', time.localtime(first))} Last seen:  {time.strftime('%H:%M:%S', time.localtime(entry['last_time']))}")
 
-    print("\nFilters used for canbus-init:\n")
     hex_pp = HexPrettyPrinter()
+
+    print("\nFilters used for canbus-init:\n")
     hex_pp.pprint(filters)
+
+    print("\nInverted Filters used for canbus-init:\n")
+    hex_pp.pprint(inverted_filters)
 
     print("Press 's' to return to histogram view.")
 
@@ -292,7 +300,7 @@ class HexPrettyPrinter(pprint.PrettyPrinter):
 # ------------------------------------------
 
 def main():
-    global key_pressed, binary_mode, stats_mode, canid_name_map, name_col_width
+    global key_pressed, binary_mode, stats_mode, canid_name_map, name_col_width,filters,inverted_filters
 
     set_raw_terminal()
 
