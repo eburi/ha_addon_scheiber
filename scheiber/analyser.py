@@ -1,15 +1,13 @@
-import can
+import can # type: ignore
 import time
-import threading
 import sys
 import termios
 import tty
-import os
-import sys
 import select
 import termios
 import tty
 import atexit
+import argparse
 
 # ------------------------------------------
 # GLOBAL STATE
@@ -110,7 +108,7 @@ def show_histogram_view():
         # diff mask only if we have older data
         if entry.get("prev_data") is not None:
             mask = diff_mask(entry["prev_data"], data, binary_mode)
-            print(f"|{' ' * 11}|{' ' * 11}|{' ' * 5} {mask}")
+            print(f"|{' ' * 9}|{' ' * 10}|{' ' * 5}| {mask}")
 
     print("\nPress 'b' for HEX/BIN, 's' for stats, Ctrl+C to quit.")
 
@@ -138,6 +136,12 @@ def show_stats_view():
 # ------------------------------------------
 # CAN message processing
 # ------------------------------------------
+def match_inverted_filters(msg, filter_list):
+    for f in filter_list:
+        if f["inverted"]:
+            if (msg.arbitration_id & f["can_mask"]) == (f["can_id"] & f["can_mask"]):
+                return False  # reject this one
+    return True
 
 def update_can_entry(msg):
     """Update stored stats + diff tracking for a CAN message."""
@@ -163,6 +167,36 @@ def update_can_entry(msg):
         entry["last_time"] = now
         entry["count"] += 1
 
+# ------------------------------------------
+# Argument Handling
+# ------------------------------------------
+def parse_canutils_filter(fstr):
+    """
+    Parse a can-utils format filter like '123:7FF' or '1ABCDE:1FFFFFFF'
+    Returns a dict for python-can.
+    """
+    fstr = fstr.strip()
+
+    # Inverted mask form: ID~MASK (rarely used)
+    inverted = False
+    if "~" in fstr:
+        cid, mask = fstr.split("~", 1)
+        inverted = True
+    else:
+        cid, mask = fstr.split(":", 1)
+
+    can_id = int(cid, 16)
+    can_mask = int(mask, 16)
+
+    # Determine if extended frame
+    extended = can_id > 0x7FF or can_mask > 0x7FF
+
+    return {
+        "can_id": can_id,
+        "can_mask": can_mask,
+        "extended": extended,
+        "inverted": inverted
+    }
 
 # ------------------------------------------
 # Main loop
@@ -173,11 +207,41 @@ def main():
 
     set_raw_terminal()
 
-    print("Opening CAN interface can0...")
-    bus = can.interface.Bus(channel="can0", interface="socketcan")
+    parser = argparse.ArgumentParser(description="CAN sniffer tool")
+    parser.add_argument(
+        "-i", "--interface",
+        default="can0",
+        help="CAN interface to use (default: can0)"
+    )
+    parser.add_argument(
+        "-f", "--filter",
+        action="append",
+        help="CAN filter in can-utils format: <id>:<mask> (multiple allowed)"
+    )
+    args = parser.parse_args()
+
+    interface = args.interface
+    print(f"Opening CAN interface {interface}...")
+
+    filters = []
+    if args.filter:
+        for f in args.filter:
+            info = parse_canutils_filter(f)
+            if info["inverted"]:
+                print(f"WARNING: Inverted filter '{f}' not supported at driver-level; applying software filter.")
+            else:
+                filters.append({
+                    "can_id": info["can_id"],
+                    "can_mask": info["can_mask"],
+                    "extended": info["extended"]
+                })
+    bus = can.interface.Bus(
+        channel=interface,
+        interface="socketcan",
+        can_filters=filters if len(filters) > 0 else None
+    )
 
     last_refresh = 0
-
     try:
         while True:
 
@@ -190,7 +254,7 @@ def main():
 
             # Read CAN
             msg = bus.recv(timeout=0.05)
-            if msg:
+            if msg and match_inverted_filters(msg, filters):
                 update_can_entry(msg)
 
             # Refresh display ~10 times per second
