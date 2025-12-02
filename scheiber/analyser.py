@@ -90,7 +90,7 @@ def show_histogram_view():
     global can_table, binary_mode
 
     clear_screen()
-    print("|  Δt(ms) |   CAN ID  | Len | Data")
+    print("|  Δt(ms) |  CAN ID  | Len | Data")
     print("-" * 80)
 
     for cid, entry in sorted(can_table.items()):
