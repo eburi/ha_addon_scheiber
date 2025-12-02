@@ -10,6 +10,7 @@ WORKDIR /
 COPY run.sh .
 COPY gateway.py .
 COPY tools/ /tools
+RUN chmod u+x /tools/*.sh
 
 RUN chmod a+x /run.sh
 
