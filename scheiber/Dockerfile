@@ -2,7 +2,7 @@ ARG BUILD_FROM
 FROM $BUILD_FROM
 
 # Install Python dependencies
-RUN apk add --no-cache python3 py3-pip iproute2
+RUN apk add --no-cache python3 py3-pip iproute2 vim
 RUN pip3 install --break-system-packages python-can
 
 COPY run.sh /
