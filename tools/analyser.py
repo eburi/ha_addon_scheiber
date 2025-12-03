@@ -17,6 +17,8 @@ import pprint
 key_pressed = None
 binary_mode = False       # toggled by 'b'
 stats_mode = False        # toggled by 's'
+dump_mode = False         # toggled by 'd'
+change_only_mode = False  # toggled by 'c'
 canid_name_map = {}
 name_col_width = 0
 filters = []
@@ -96,7 +98,13 @@ def diff_mask(prev, curr, binary):
         mask_parts = []
         for (a, b) in zip(prev, curr):
             if a != b:
-                mask_parts.append(f"{CLR_YELLOW}^^^^^^^^ {CLR_RESET}")
+                bits_prev = f"{a:08b}"
+                bits_current = f"{b:08b}"
+                mask_parts.append(f"{CLR_YELLOW}")
+                for (prev_bit, curr_bit) in zip(bits_prev,bits_current):
+                    mask_parts.append("^" if prev_bit != curr_bit else " ")
+                mask_parts.append(f"{CLR_RESET}")
+                mask_parts.append(" ") # Spacer
             else:
                 mask_parts.append("         ")
         return "".join(mask_parts).rstrip()
@@ -207,6 +215,43 @@ def show_stats_view():
     hex_pp.pprint(inverted_filters)
 
     print("Press 's' to return to histogram view.")
+
+def show_dump_message(msg):
+    """Print a single CAN frame in dump mode."""
+    entry = can_table.get(msg.arbitration_id)
+    if not entry:
+        return
+    
+    # Determine if this message changed
+    prev = entry.get("prev_data")
+    curr = entry.get("last_data")
+    changed = (prev is None) or (prev != curr)
+    # In change-only mode: skip unchanged messages
+    if change_only_mode and not changed:
+        return
+
+    ts = time.localtime(entry["last_time"])
+    ms = int((entry["last_time"] % 1) * 1000)
+    timestamp = time.strftime("%H:%M:%S", ts) + f".{ms:03d}"
+
+    prev = entry.get("prev_data")
+    data = entry["last_data"]
+
+    if binary_mode:
+        data_str = fmt_bin(data, prev=prev)
+    else:
+        data_str = fmt_hex(data, prev=prev)
+
+    name = canid_name_map.get(msg.arbitration_id, "")
+    diff = diff_mask(prev, data, binary_mode)
+
+    if name_col_width > 0:
+        print(f"{timestamp}  {msg.arbitration_id:08X}  {name:<{name_col_width}}  {data_str}")
+    else:
+        print(f"{timestamp}  {msg.arbitration_id:08X}  {data_str}")
+
+    if diff:
+        print(" " * (len(timestamp) + 1 + 8 + 3 + name_col_width + 2) + diff)
 
 
 # ------------------------------------------
@@ -344,6 +389,8 @@ def main():
     global filters
     global inverted_filters
     global record_mode
+    global dump_mode
+    global change_only_mode
 
     set_raw_terminal()
 
@@ -413,21 +460,35 @@ def main():
             elif key == "r":
                 record_mode = not record_mode
                 print(f"\n[RECORD] History recording is now {'ON' if record_mode else 'OFF'}.\n")
+            elif key == "c":
+                change_only_mode = not change_only_mode
+                print(f"\n[CHANGED ONLY MODE {'ON' if change_only_mode else 'OFF'}]\n")
+            elif key == "d":
+                dump_mode = not dump_mode
+                if dump_mode:
+                    print("\n[DUMP MODE ON]\n")
+                else:
+                    print("\n[DUMP MODE OFF – returning to histogram]\n")                
 
             # Read CAN
             msg = bus.recv(timeout=0.05)
             if msg and match_inverted_filters(msg, inverted_filters):
                 update_can_entry(msg)
+                if dump_mode:
+                    show_dump_message(msg)
 
             # Refresh display ~10 times per second
             now = time.time()
             if now - last_refresh > 0.10:
                 last_refresh = now
 
-                if stats_mode:
-                    show_stats_view()
-                else:
-                    show_histogram_view()
+            if dump_mode:
+                # Don't refresh whole screen, just print incoming messages
+                pass
+            elif stats_mode:
+                show_stats_view()
+            else:
+                show_histogram_view()
 
     except KeyboardInterrupt:
         print("\nExiting…")
