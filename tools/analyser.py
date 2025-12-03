@@ -248,13 +248,11 @@ def dump_message(msg):
     changed = (prev is None) or (prev != curr)
     # In change-only mode: skip unchanged messages
     if change_only_mode:
-        if not changed:
-            return
-        else:
-            dump_message_print(msg, entry)
+        if changed:
+            dump_message_print(msg, entry, binary_mode=False)
             dump_message_print(msg, entry, binary_mode=True)
-
-    dump_message_print(msg, entry, binary_mode)
+    else:
+        dump_message_print(msg, entry, binary_mode)
 
 
 def dump_message_print(msg, entry, binary_mode=False):
