@@ -1,0 +1,38 @@
+{
+  "project_name": "ha_addon_scheiber_experiment",
+  "owner": "eburi",
+  "branch": "main",
+  "created_by": "GitHub Copilot",
+  "created_at": "2025-12-03T00:00:00Z",
+  "description": "Helper metadata file used by the assistant to keep repository context: important files, commands, environment, and dependencies.",
+  "files_of_interest": [
+    "scheiber.py",
+    "analyser.py",
+    "change_dump_staircase_light.md",
+    "can_names.csv",
+    ".vscode/settings.json",
+    ".gitignore"
+  ],
+  "python": {
+    "venv_path": ".venv",
+    "python_executable": "./.venv/bin/python",
+    "dependencies": [
+      "black",
+      "python-can"
+    ]
+  },
+  "run_commands": {
+    "scheiber": "./.venv/bin/python scheiber.py [can_interface]  # default: can1",
+    "analyser": "./.venv/bin/python analyser.py -i can0"
+  },
+  "vscode": {
+    "settings": ".vscode/settings.json",
+    "formatter": "black",
+    "format_on_save": true
+  },
+  "notes": [
+    "sendBurst(bus, senderId, data) is used by scheiber.py to send simulated CAN bursts.",
+    "push_light_button(can_interface='can1') will initialize socketcan on the interface and send two message bursts with 200ms between them.",
+    "analyser.py is an interactive CAN sniffer; press spacebar to clear the screen."
+  ]
+}

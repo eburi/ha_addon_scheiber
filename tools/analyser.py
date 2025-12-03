@@ -1,4 +1,4 @@
-import can # type: ignore
+import can  # type: ignore
 import time
 import sys
 import termios
@@ -15,17 +15,17 @@ import pprint
 # ------------------------------------------
 
 key_pressed = None
-binary_mode = False       # toggled by 'b'
-stats_mode = False        # toggled by 's'
-dump_mode = False         # toggled by 'd'
+binary_mode = False  # toggled by 'b'
+stats_mode = False  # toggled by 's'
+dump_mode = False  # toggled by 'd'
 change_only_mode = True  # toggled by 'c'
 canid_name_map = {}
 name_col_width = 0
 filters = []
 inverted_filters = []
 
-record_mode = False      # toggled by 'r'
-MAX_HISTORY = 10         # last 10 messages per sender
+record_mode = False  # toggled by 'r'
+MAX_HISTORY = 10  # last 10 messages per sender
 
 # per CAN ID:
 # entry = {
@@ -49,14 +49,18 @@ CLR_YELLOW = "\033[93m"
 # Save original terminal settings
 orig_termios = termios.tcgetattr(sys.stdin)
 
+
 def restore_terminal():
     termios.tcsetattr(sys.stdin, termios.TCSADRAIN, orig_termios)
+
 
 # Ensure terminal is restored no matter what
 atexit.register(restore_terminal)
 
+
 def set_raw_terminal():
     tty.setcbreak(sys.stdin.fileno())
+
 
 def read_key_nonblocking():
     """Returns one character if available, otherwise None."""
@@ -65,9 +69,11 @@ def read_key_nonblocking():
         return sys.stdin.read(1)
     return None
 
+
 # ------------------------------------------
 # Formatting helpers
 # ------------------------------------------
+
 
 def fmt_hex(data, prev=None):
     """HEX output, colorized if prev provided."""
@@ -79,6 +85,7 @@ def fmt_hex(data, prev=None):
             out.append(f"{b:02X}")
     return " ".join(out)
 
+
 def fmt_bin(data, prev=None):
     """Binary output, colorized if prev provided."""
     out = []
@@ -86,11 +93,15 @@ def fmt_bin(data, prev=None):
         curr_bits = f"{b:08b}"
         if prev is not None and i < len(prev) and b != prev[i]:
             prev_bits = f"{prev[i]:08b}"
-            bitwise_colored = [f"{CLR_GREEN if prev_bit != curr_bit else ''}{curr_bit}{CLR_RESET if prev_bit != curr_bit else ''}" for (prev_bit, curr_bit) in zip(prev_bits, curr_bits)]
+            bitwise_colored = [
+                f"{CLR_GREEN if prev_bit != curr_bit else ''}{curr_bit}{CLR_RESET if prev_bit != curr_bit else ''}"
+                for (prev_bit, curr_bit) in zip(prev_bits, curr_bits)
+            ]
             out.append("".join(bitwise_colored))
         else:
             out.append(curr_bits)
     return " ".join(out)
+
 
 def diff_mask(prev, curr, binary):
     if prev is None:
@@ -98,31 +109,33 @@ def diff_mask(prev, curr, binary):
 
     if binary:
         mask_parts = []
-        for (a, b) in zip(prev, curr):
+        for a, b in zip(prev, curr):
             if a != b:
                 bits_prev = f"{a:08b}"
                 bits_current = f"{b:08b}"
                 mask_parts.append(f"{CLR_YELLOW}")
-                for (prev_bit, curr_bit) in zip(bits_prev,bits_current):
+                for prev_bit, curr_bit in zip(bits_prev, bits_current):
                     mask_parts.append("^" if prev_bit != curr_bit else " ")
                 mask_parts.append(f"{CLR_RESET}")
-                mask_parts.append(" ") # Spacer
+                mask_parts.append(" ")  # Spacer
             else:
                 mask_parts.append("         ")
         return "".join(mask_parts).rstrip()
 
     else:
         mask_parts = []
-        for (a, b) in zip(prev, curr):
+        for a, b in zip(prev, curr):
             if a != b:
                 mask_parts.append(f"{CLR_YELLOW}^^ {CLR_RESET}")
             else:
                 mask_parts.append("   ")
-        return "".join(mask_parts).rstrip() 
+        return "".join(mask_parts).rstrip()
+
 
 # ------------------------------------------
 # Display modes
 # ------------------------------------------
+
 
 def clear_screen():
     sys.stdout.write("\033[2J\033[H")
@@ -152,7 +165,9 @@ def show_histogram_view():
 
         name = canid_name_map.get(cid, "")
         if name_col_width > 0:
-            print(f"| {delta:7.1f} | {cid:08X} | {name:<{name_col_width}} | {length:3d} | {data_str}")
+            print(
+                f"| {delta:7.1f} | {cid:08X} | {name:<{name_col_width}} | {length:3d} | {data_str}"
+            )
         else:
             print(f"| {delta:7.1f} | {cid:08X} | {length:3d} | {data_str}")
 
@@ -165,13 +180,13 @@ def show_histogram_view():
             prefix = f"|{' ' * 9}|{' ' * 10}| {' ' * name_col_width} |{' ' * 5}| "
         else:
             prefix = f"|{' ' * 9}|{' ' * 10}|{' ' * 5}| "
-        
+
         print(prefix + mask)
 
         show_history_block(cid, entry)
-        
 
     print("\nPress 'b' for HEX/BIN, 's' for stats, Ctrl+C to quit.")
+
 
 def show_history_block(cid, entry):
     """Print the last 10 messages under the ID entry."""
@@ -206,7 +221,9 @@ def show_stats_view():
         first = entry["first_seen"]
         freq = count / (now - first) if now > first else 0
 
-        print(f"ID {cid:08X}: Messages: {count:5d} Frequency:  {freq:.2f}msg/sec First seen: {time.strftime('%H:%M:%S', time.localtime(first))} Last seen:  {time.strftime('%H:%M:%S', time.localtime(entry['last_time']))}")
+        print(
+            f"ID {cid:08X}: Messages: {count:5d} Frequency:  {freq:.2f}msg/sec First seen: {time.strftime('%H:%M:%S', time.localtime(first))} Last seen:  {time.strftime('%H:%M:%S', time.localtime(entry['last_time']))}"
+        )
 
     hex_pp = HexPrettyPrinter()
 
@@ -218,12 +235,13 @@ def show_stats_view():
 
     print("Press 's' to return to histogram view.")
 
+
 def dump_message(msg):
     """Print a single CAN frame in dump mode."""
     entry = can_table.get(msg.arbitration_id)
     if not entry:
         return
-    
+
     # Determine if this message changed
     prev = entry.get("prev_data")
     curr = entry.get("last_data")
@@ -236,7 +254,8 @@ def dump_message(msg):
             dump_message_print(msg, entry)
             dump_message_print(msg, entry, binary_mode=True)
 
-    dump_message_print(msg, entry, binary_mode) 
+    dump_message_print(msg, entry, binary_mode)
+
 
 def dump_message_print(msg, entry, binary_mode=False):
     """Print a single CAN frame in dump mode."""
@@ -257,12 +276,16 @@ def dump_message_print(msg, entry, binary_mode=False):
     diff = diff_mask(prev, data, binary_mode)
 
     if name_col_width > 0:
-        print(f"{timestamp} {msg.arbitration_id:08X} {name:<{name_col_width}} {data_str}")
+        print(
+            f"{timestamp} {msg.arbitration_id:08X} {name:<{name_col_width}} {data_str}"
+        )
     else:
         print(f"{timestamp} {msg.arbitration_id:08X} {data_str}")
 
     if diff:
-        print(f"{' ' * len(timestamp)} {' ' * 8}{' ' * (name_col_width + 1) if name_col_width > 0 else ''} {diff}")
+        print(
+            f"{' ' * len(timestamp)} {' ' * 8}{' ' * (name_col_width + 1) if name_col_width > 0 else ''} {diff}"
+        )
 
 
 # ------------------------------------------
@@ -274,6 +297,7 @@ def match_inverted_filters(msg, filter_list):
             if (msg.arbitration_id & f["can_mask"]) == (f["can_id"] & f["can_mask"]):
                 return False  # reject this one
     return True
+
 
 def update_can_entry(msg):
     """Update stored stats + diff tracking for a CAN message."""
@@ -300,15 +324,12 @@ def update_can_entry(msg):
         entry["last_time"] = now
         entry["count"] += 1
 
-        entry["history"].append({
-            "timestamp": now,
-            "data": msg.data,
-            "dlc": msg.dlc
-        })
+        entry["history"].append({"timestamp": now, "data": msg.data, "dlc": msg.dlc})
 
         # Keep only last MAX_HISTORY
         if len(entry["history"]) > MAX_HISTORY:
             entry["history"].pop(0)
+
 
 # ------------------------------------------
 # Argument Handling
@@ -338,8 +359,9 @@ def parse_canutils_filter(fstr):
         "can_id": can_id,
         "can_mask": can_mask,
         "extended": extended,
-        "inverted": inverted
+        "inverted": inverted,
     }
+
 
 def load_canid_map(path):
     """
@@ -377,6 +399,7 @@ def load_canid_map(path):
 
     return mapping
 
+
 class HexPrettyPrinter(pprint.PrettyPrinter):
     def format(self, object, context, maxlevels, level):
         if isinstance(object, int):
@@ -387,9 +410,11 @@ class HexPrettyPrinter(pprint.PrettyPrinter):
             # For other types, defer to the base class's format method.
             return pprint.PrettyPrinter.format(self, object, context, maxlevels, level)
 
+
 # ------------------------------------------
 # Main loop
 # ------------------------------------------
+
 
 def main():
     global key_pressed
@@ -407,18 +432,17 @@ def main():
 
     parser = argparse.ArgumentParser(description="CAN sniffer tool")
     parser.add_argument(
-        "-i", "--interface",
-        default="can0",
-        help="CAN interface to use (default: can0)"
+        "-i", "--interface", default="can0", help="CAN interface to use (default: can0)"
     )
     parser.add_argument(
-        "-f", "--filter",
+        "-f",
+        "--filter",
         action="append",
-        help="CAN filter in can-utils format: <id>:<mask> (multiple allowed)"
+        help="CAN filter in can-utils format: <id>:<mask> (multiple allowed)",
     )
     parser.add_argument(
         "--canid-map",
-        help="Path to CSV file mapping CAN IDs to device names (format: CANID;Name;)"
+        help="Path to CSV file mapping CAN IDs to device names (format: CANID;Name;)",
     )
     args = parser.parse_args()
 
@@ -431,18 +455,22 @@ def main():
         for f in args.filter:
             info = parse_canutils_filter(f)
             if info["inverted"]:
-                print(f"WARNING: Inverted filter '{f}' not supported at driver-level; applying software filter.")
+                print(
+                    f"WARNING: Inverted filter '{f}' not supported at driver-level; applying software filter."
+                )
                 inverted_filters.append(info)
             else:
-                filters.append({
-                    "can_id": info["can_id"],
-                    "can_mask": info["can_mask"],
-                    "extended": info["extended"]
-                })
+                filters.append(
+                    {
+                        "can_id": info["can_id"],
+                        "can_mask": info["can_mask"],
+                        "extended": info["extended"],
+                    }
+                )
     bus = can.interface.Bus(
         channel=interface,
         interface="socketcan",
-        can_filters=filters if len(filters) > 0 else None
+        can_filters=filters if len(filters) > 0 else None,
     )
 
     if args.canid_map:
@@ -453,7 +481,9 @@ def main():
         name_col_width = max(len(n) for n in canid_name_map.values())
         # add at least 1 space padding
         name_col_width += 1
-        print(f"Loaded {len(canid_name_map)} CAN ID mappings (name column width: {name_col_width}).")
+        print(
+            f"Loaded {len(canid_name_map)} CAN ID mappings (name column width: {name_col_width})."
+        )
 
     last_refresh = 0
     try:
@@ -470,18 +500,22 @@ def main():
                 return
             elif key == "r":
                 record_mode = not record_mode
-                print(f"\n[RECORD] History recording is now {'ON' if record_mode else 'OFF'}.\n")
+                print(
+                    f"\n[RECORD] History recording is now {'ON' if record_mode else 'OFF'}.\n"
+                )
             elif key == "c":
                 change_only_mode = not change_only_mode
                 print(f"\n[CHANGED ONLY MODE {'ON' if change_only_mode else 'OFF'}]\n")
             elif key == "d":
                 dump_mode = not dump_mode
                 if dump_mode:
-                    print(f"\n[DUMP MODE ON {'(changes-only!)' if change_only_mode else ''}]\n")
+                    print(
+                        f"\n[DUMP MODE ON {'(changes-only!)' if change_only_mode else ''}]\n"
+                    )
                 else:
                     print("\n[DUMP MODE OFF – returning to histogram]\n")
             elif key == " ":
-                clear_screen()                
+                clear_screen()
 
             # Read CAN
             msg = bus.recv(timeout=0.05)
@@ -507,10 +541,10 @@ def main():
         print("\nExiting…")
         bus.shutdown()
 
-    finally:    
+    finally:
         restore_terminal()
         bus.shutdown()
 
 
 if __name__ == "__main__":
-    main() 
+    main()
