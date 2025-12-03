@@ -4,11 +4,15 @@
 - 021A06C0 
 
 ```
+# ON
 00:45:16.080  04001A80  Wireless Buttons   01 53 E8 86 83
-00:45:16.081  040806C0  Light command ??   01 53 E8 86 83 03
+                                                       ^^ 
+00:45:16.081  040806C0  Light command ??   01 53 E8 86 83 03 ??
 00:45:16.306  04001A80  Wireless Buttons   01 53 E8 86 03
                                                        ^^ 
 00:45:16.356  021A06C0  X27 ID:8 S5 & S6   00 00 00 00 4C 00 11 01
+
+# OFF
 00:45:17.538  04001A80  Wireless Buttons   01 53 E8 86 83
                                                        ^^ 
 00:45:17.779  04001A80  Wireless Buttons   01 53 E8 86 03
