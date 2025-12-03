@@ -6,7 +6,15 @@
 python test.py -i can1 --canid-map can_names.csv --filter 021A06C0:1FF00000
 ```
 
+## canid to name mapping
 
+### RegEx expander template
+```
+$1;X?? ID:$2 LowPrio
+$1;X?? ID:$2 S1 & S2
+$1;X?? ID:$2 S3 & S4
+$1;X?? ID:$2 S5 & S6
+```
 
 ## Candump from hallway light on/off
   can1  0E622380   [8]  00 04 00 FF FF FF FF FF
