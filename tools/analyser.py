@@ -17,8 +17,8 @@ import pprint
 key_pressed = None
 binary_mode = False       # toggled by 'b'
 stats_mode = False        # toggled by 's'
-dump_mode = True          # toggled by 'd'
-change_only_mode = True   # toggled by 'c'
+dump_mode = False         # toggled by 'd'
+change_only_mode = True  # toggled by 'c'
 canid_name_map = {}
 name_col_width = 0
 filters = []
