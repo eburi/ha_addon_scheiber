@@ -22,6 +22,9 @@ name_col_width = 0
 filters = []
 inverted_filters = []
 
+record_mode = False      # toggled by 'r'
+MAX_HISTORY = 10         # last 10 messages per sender
+
 # per CAN ID:
 # entry = {
 #   "last_data": bytes,
@@ -155,7 +158,29 @@ def show_histogram_view():
         
         print(prefix + mask)
 
+        show_history_block(cid, entry)
+        
+
     print("\nPress 'b' for HEX/BIN, 's' for stats, Ctrl+C to quit.")
+
+def show_history_block(cid, entry):
+    """Print the last 10 messages under the ID entry."""
+    if not record_mode:
+        return
+
+    history = entry.get("history", [])
+    if not history:
+        return
+
+    for h in history:
+        if binary_mode:
+            data_str = fmt_bin(h["data"])
+        else:
+            data_str = fmt_hex(h["data"])
+
+        ts = time.strftime("%H:%M:%S", time.localtime(h["timestamp"]))
+
+        print(f"|         |          |                {ts} | {data_str}")
 
 
 def show_stats_view():
@@ -209,6 +234,7 @@ def update_can_entry(msg):
             "delta_ms": 0.0,
             "count": 1,
             "first_seen": now,
+            "history": [],
         }
     else:
         entry = can_table[cid]
@@ -217,6 +243,16 @@ def update_can_entry(msg):
         entry["delta_ms"] = (now - entry["last_time"]) * 1000.0
         entry["last_time"] = now
         entry["count"] += 1
+
+        entry["history"].append({
+            "timestamp": now,
+            "data": msg.data,
+            "dlc": msg.dlc
+        })
+
+        # Keep only last MAX_HISTORY
+        if len(entry["history"]) > MAX_HISTORY:
+            entry["history"].pop(0)
 
 # ------------------------------------------
 # Argument Handling
@@ -300,7 +336,14 @@ class HexPrettyPrinter(pprint.PrettyPrinter):
 # ------------------------------------------
 
 def main():
-    global key_pressed, binary_mode, stats_mode, canid_name_map, name_col_width,filters,inverted_filters
+    global key_pressed
+    global binary_mode
+    global stats_mode
+    global canid_name_map
+    global name_col_width
+    global filters
+    global inverted_filters
+    global record_mode
 
     set_raw_terminal()
 
@@ -367,6 +410,9 @@ def main():
             elif key == "q":
                 print("\n[QUIT] User requested exit. Shutting down...\n")
                 return
+            elif key == "r":
+                record_mode = not record_mode
+                print(f"\n[RECORD] History recording is now {'ON' if record_mode else 'OFF'}.\n")
 
             # Read CAN
             msg = bus.recv(timeout=0.05)
@@ -393,4 +439,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main() 
