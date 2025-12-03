@@ -9,7 +9,7 @@ def parse_hex_data(hex_string):
     return bytes.fromhex(hex_string.replace(" ", ""))
 
 
-def bloc9_switch(bus, bloc9_id, switch_nr, state):
+def bloc9_switch(can_interface, bloc9_id, switch_nr, state):
     """
     Send a Bloc9 switch command via CAN bus.
     
@@ -32,18 +32,24 @@ def bloc9_switch(bus, bloc9_id, switch_nr, state):
     
     Example: bloc9_id=10, switch_nr=3, state=True -> CAN ID: 0x023606D0, Data: 03 01 00 00
     """
-    # Construct CAN ID
-    shifted = (bloc9_id << 3) | 0x80
-    can_id = 0x02360600 | shifted
-    
-    # Construct 4-byte body
-    state_byte = 0x01 if state else 0x00
-    data = bytes([switch_nr, state_byte, 0x00, 0x00])
-    
-    # Send the message
-    msg = can.Message(arbitration_id=can_id, data=data)
-    bus.send(msg)
-    print(f"[bloc9_switch] Sent to ID 0x{can_id:08X}: {' '.join(f'{b:02X}' for b in data)}")
+    # Open CAN bus, construct CAN ID and data, send, then close bus
+    bus = can.interface.Bus(channel=can_interface, interface="socketcan")
+    try:
+        # Construct CAN ID
+        shifted = (bloc9_id << 3) | 0x80
+        can_id = 0x02360600 | shifted
+
+        # Construct 4-byte body
+        state_byte = 0x01 if state else 0x00
+        data = bytes([switch_nr, state_byte, 0x00, 0x00])
+
+        # Send the message
+        msg = can.Message(arbitration_id=can_id, data=data)
+        bus.send(msg)
+        print(f"[bloc9_switch] Sent to ID 0x{can_id:08X}: {' '.join(f'{b:02X}' for b in data)}")
+    finally:
+        # Ensure the bus is properly closed
+        bus.shutdown()
 
 
 def send_burst(bus, sender_id, data, repetitions=3, interval=0.033):
@@ -115,29 +121,18 @@ def push_light_button(can_interface="can1"):
 
 def test_switch(bus_nr, switch_nr, can_interface="can1"):
     """
-    Simulate pushing the light button by sending the button press sequence.
-    Sends two data packets with a 200ms delay between them.
-    
-    Args:
-        can_interface: CAN interface name (default "can1")
+    Test toggling a switch on a Bloc9 device by calling `bloc9_switch`.
     """
-    # Initialize CAN bus
-    bus = can.interface.Bus(
-        channel=can_interface,
-        interface="socketcan"
-    )
-    
-    try:    
-        bloc9_switch(bus, int(bus_nr), int(switch_nr), True)
+    try:
+        bloc9_switch(can_interface, int(bus_nr), int(switch_nr), True)
 
         # Wait 1s
-        print(f"turn on wait 1s...")
+        print("turn on wait 1s...")
         time.sleep(1)
-        
-        bloc9_switch(bus, int(bus_nr), int(switch_nr), False)
-    finally:
-        # Ensure the bus is properly closed
-        bus.shutdown()
+
+        bloc9_switch(can_interface, int(bus_nr), int(switch_nr), False)
+    except Exception as e:
+        print(f"[test_switch] Error: {e}")
 
 
 
