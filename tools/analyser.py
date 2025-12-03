@@ -229,8 +229,17 @@ def dump_message(msg):
     curr = entry.get("last_data")
     changed = (prev is None) or (prev != curr)
     # In change-only mode: skip unchanged messages
-    if change_only_mode and not changed:
-        return
+    if change_only_mode:
+        if not changed:
+            return
+        else:
+            dump_message_print(msg, entry)
+            dump_message_print(msg, entry, binary_mode=True)
+
+    dump_message_print(msg, entry, binary_mode) 
+
+def dump_message_print(msg, entry, binary_mode=False):
+    """Print a single CAN frame in dump mode."""
 
     ts = time.localtime(entry["last_time"])
     ms = int((entry["last_time"] % 1) * 1000)
@@ -468,9 +477,11 @@ def main():
             elif key == "d":
                 dump_mode = not dump_mode
                 if dump_mode:
-                    print("\n[DUMP MODE ON]\n")
+                    print(f"\n[DUMP MODE ON {'(changes-only!)' if change_only_mode else ''}]\n")
                 else:
-                    print("\n[DUMP MODE OFF – returning to histogram]\n")                
+                    print("\n[DUMP MODE OFF – returning to histogram]\n")
+            elif key == " ":
+                clear_screen()                
 
             # Read CAN
             msg = bus.recv(timeout=0.05)
