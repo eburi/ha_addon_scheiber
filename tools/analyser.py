@@ -83,11 +83,13 @@ def fmt_bin(data, prev=None):
     """Binary output, colorized if prev provided."""
     out = []
     for i, b in enumerate(data):
-        bits = f"{b:08b}"
+        curr_bits = f"{b:08b}"
         if prev is not None and i < len(prev) and b != prev[i]:
-            out.append(f"{CLR_GREEN}{bits}{CLR_RESET}")
+            prev_bits = f"{prev[i]:08b}"
+            bitwise_colored = [f"{CLR_GREEN if prev_bit != curr_bit else ''}{curr_bit}{CLR_RESET if prev_bit != curr_bit else ''}" for (prev_bit, curr_bit) in zip(prev_bits, curr_bits)]
+            out.append("".join(bitwise_colored))
         else:
-            out.append(bits)
+            out.append(curr_bits)
     return " ".join(out)
 
 def diff_mask(prev, curr, binary):
@@ -216,7 +218,7 @@ def show_stats_view():
 
     print("Press 's' to return to histogram view.")
 
-def show_dump_message(msg):
+def dump_message(msg):
     """Print a single CAN frame in dump mode."""
     entry = can_table.get(msg.arbitration_id)
     if not entry:
@@ -246,12 +248,12 @@ def show_dump_message(msg):
     diff = diff_mask(prev, data, binary_mode)
 
     if name_col_width > 0:
-        print(f"{timestamp}  {msg.arbitration_id:08X}  {name:<{name_col_width}}  {data_str}")
+        print(f"{timestamp} {msg.arbitration_id:08X} {name:<{name_col_width}} {data_str}")
     else:
-        print(f"{timestamp}  {msg.arbitration_id:08X}  {data_str}")
+        print(f"{timestamp} {msg.arbitration_id:08X} {data_str}")
 
     if diff:
-        print(" " * (len(timestamp) + 1 + 8 + 3 + name_col_width + 2) + diff)
+        print(f"{' ' * len(timestamp)} {' ' * 8}{' ' * (name_col_width + 1) if name_col_width > 0 else ''} {diff}")
 
 
 # ------------------------------------------
@@ -475,7 +477,7 @@ def main():
             if msg and match_inverted_filters(msg, inverted_filters):
                 update_can_entry(msg)
                 if dump_mode:
-                    show_dump_message(msg)
+                    dump_message(msg)
 
             # Refresh display ~10 times per second
             now = time.time()
