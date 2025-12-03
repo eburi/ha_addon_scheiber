@@ -2,6 +2,9 @@ import time
 import threading
 import sys
 import can
+import os
+import re
+from collections import defaultdict
 
 
 def parse_hex_data(hex_string):
@@ -74,49 +77,8 @@ def send_burst(bus, sender_id, data, repetitions=3, interval=0.033):
             time.sleep(interval)
 
 
-def push_light_button(can_interface="can1"):
-    """
-    Simulate pushing the light button by sending the button press sequence.
-    Sends two data packets with a 200ms delay between them.
-    
-    Args:
-        can_interface: CAN interface name (default "can1")
-    """
-    # Initialize CAN bus
-    bus = can.interface.Bus(
-        channel=can_interface,
-        interface="socketcan"
-    )
-    
-    try:
-        sender_id = "04001A80"
-
-        btn_cockpit_main_pressed_state =     "01 54 45 1F 82"
-        btn_cockpit_main_released_state =    "01 54 45 1F 02"
-        btn_understair_port_pressed_state =  "01 53 E8 86 83"
-        btn_understair_port_released_state = "01 53 E8 86 03"
-
-        data_1 = btn_cockpit_main_pressed_state  # Button pressed state
-        data_2 = btn_cockpit_main_released_state  # Button released state
-        
-        print("\n[push_light_button] Starting light button push sequence...")
-        
-        # Send first packet (button pressed)
-        print(f"[push_light_button] Sending packet 1...")
-        send_burst(bus, sender_id, data_1, repetitions=3, interval=0.033)
-        
-        # Wait 200ms
-        print(f"[push_light_button] Waiting 200ms...")
-        time.sleep(0.2)
-        
-        # Send second packet (button released)
-        print(f"[push_light_button] Sending packet 2...")
-        send_burst(bus, sender_id, data_2, repetitions=3, interval=0.033)
-        
-        print("[push_light_button] Light button push sequence completed.\n")
-    finally:
-        # Ensure the bus is properly closed
-        bus.shutdown()
+# `push_light_button` moved to `scheiber.tools.light`.
+# Import it with `from scheiber.tools.light import push_light_button`.
 
 
 def test_switch(bus_nr, switch_nr, can_interface="can1"):
@@ -133,9 +95,8 @@ def test_switch(bus_nr, switch_nr, can_interface="can1"):
         bloc9_switch(can_interface, int(bus_nr), int(switch_nr), False)
     except Exception as e:
         print(f"[test_switch] Error: {e}")
-
-
-
+# Listener functions moved to `canlistener.py` in the same folder.
+# Use `from scheiber.tools.canlistener import listen` to access the listener.
 if __name__ == "__main__":
     # Get CAN interface from command line argument, default to "can1"
     switch_nr = sys.argv[1] if len(sys.argv) > 1 else "3"
