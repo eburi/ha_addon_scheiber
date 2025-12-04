@@ -3,15 +3,18 @@ import can
 from collections import defaultdict
 
 # Hardcoded patterns for known devices. Keys are descriptive names; each
-# pattern contains a 24-bit prefix (upper 24 bits of arbitration id) and a
-# heuristic mapping of switches to (byte_index, bit_index).
+# pattern contains an address, mask, and a heuristic mapping of switches 
+# to (byte_index, bit_index).
+#
+# Matching: (arbitration_id & mask) == (address & mask)
 #
 # The arbitration id structure used here is: full 32-bit id, where the
 # lowest byte encodes the bloc9 id (with MSB set and ID shifted left by 3).
-# We compare the upper 24 bits (mask 0xFFFFFF00) against known prefixes.
+# The mask allows matching groups of IDs by masking out the variable bits.
 PATTERNS = {
     'bloc9_lowprio': {
-        'prefix': 0x00000600,
+        'address': 0x00000600,
+        'mask': 0xFFFFFF00,  # Match upper 24 bits, ignore lowest byte
         'name': 'Bloc9 LowPrio',
         # heuristic: use byte 1 bits 0-5 for S1..S6
         'switches': {
@@ -19,19 +22,22 @@ PATTERNS = {
         }
     },
     'bloc9_s12': {
-        'prefix': 0x02160600,
+        'address': 0x02160600,
+        'mask': 0xFFFFFF00,  # Match upper 24 bits, ignore lowest byte
         'name': 'Bloc9 S1&S2',
         # heuristic: byte 4 bits 0-1
         'switches': {1: (4, 0), 2: (4, 1)}
     },
     'bloc9_s34': {
-        'prefix': 0x02180600,
+        'address': 0x02180600,
+        'mask': 0xFFFFFF00,  # Match upper 24 bits, ignore lowest byte
         'name': 'Bloc9 S3&S4',
         # heuristic: byte 6 bits 0-1
         'switches': {3: (6, 0), 4: (6, 1)}
     },
     'bloc9_s56': {
-        'prefix': 0x021A0600,
+        'address': 0x021A0600,
+        'mask': 0xFFFFFF00,  # Match upper 24 bits, ignore lowest byte
         'name': 'Bloc9 S5&S6',
         # heuristic: byte 6 bits 4-5
         'switches': {5: (6, 4), 6: (6, 5)}
@@ -40,10 +46,13 @@ PATTERNS = {
 
 
 def _prefix_lookup(arb):
-    """Return matching pattern key and pattern dict for arbitration id, or (None, None)."""
-    up = arb & 0xFFFFFF00
+    """Return matching pattern key and pattern dict for arbitration id, or (None, None).
+    
+    Matching: (arbitration_id & mask) == (address & mask)
+    This allows flexible matching by masking out variable bits.
+    """
     for k, p in PATTERNS.items():
-        if up == p['prefix']:
+        if (arb & p['mask']) == (p['address'] & p['mask']):
             return k, p
     return None, None
 
