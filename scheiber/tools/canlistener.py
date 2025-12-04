@@ -11,9 +11,11 @@ from collections import defaultdict
 # lowest byte encodes the bloc9 id (with MSB set and ID shifted left by 3).
 # The mask allows matching groups of IDs by masking out the variable bits.
 #
-# Properties: Each property has a template string like "(byte_index,bit_index)"
-# that specifies how to extract the value from the CAN message data.
+# Properties: Each property has a template string that specifies extraction:
+#   - Bit extraction: "(byte_index,bit_index)" - extracts single bit (0 or 1)
+#   - Byte extraction: "[byte_index]" - extracts full byte value (0-255)
 # Optional 'formatter' can customize how the property appears in logs.
+# Optional 'type' field: 'bit' (default) or 'byte' for dimming levels.
 PATTERNS = {
     'bloc9_lowprio': {
         'address': 0x00000600,
@@ -37,6 +39,9 @@ PATTERNS = {
         'properties': {
             's1': {'template': '(3,0)', 'formatter': 'S1={}'},
             's2': {'template': '(3,1)', 'formatter': 'S2={}'}
+            # Example for dimming (once protocol is known):
+            # 's1_dim': {'template': '[4]', 'type': 'byte', 'formatter': 'S1_DIM={}'},
+            # 's2_dim': {'template': '[5]', 'type': 'byte', 'formatter': 'S2_DIM={}'}
         }
     },
     'bloc9_s34': {
@@ -84,19 +89,30 @@ def _format_data(data):
 
 
 def _parse_template(template):
-    """Parse a template string like '(3,0)' into (byte_index, bit_index).
+    """Parse a template string into extraction parameters.
     
-    Returns (byte_index, bit_index) tuple or None if parsing fails.
+    Supports:
+      - Bit extraction: '(byte_index,bit_index)' -> ('bit', byte_idx, bit_idx)
+      - Byte extraction: '[byte_index]' -> ('byte', byte_idx, None)
+    
+    Returns ('bit'|'byte', byte_index, bit_index|None) or None if parsing fails.
     """
     try:
-        # Remove parentheses and split by comma
         template = template.strip()
+        
+        # Bit extraction: (byte_idx, bit_idx)
         if template.startswith('(') and template.endswith(')'):
             parts = template[1:-1].split(',')
             if len(parts) == 2:
                 byte_idx = int(parts[0].strip())
                 bit_idx = int(parts[1].strip())
-                return (byte_idx, bit_idx)
+                return ('bit', byte_idx, bit_idx)
+        
+        # Byte extraction: [byte_idx]
+        elif template.startswith('[') and template.endswith(']'):
+            byte_idx = int(template[1:-1].strip())
+            return ('byte', byte_idx, None)
+            
     except (ValueError, AttributeError):
         pass
     return None
@@ -107,20 +123,29 @@ def _extract_property_value(raw, template):
     
     Args:
         raw: bytes object containing CAN message data
-        template: string like '(3,0)' specifying (byte_index, bit_index)
+        template: string like '(3,0)' for bit or '[4]' for byte extraction
     
     Returns:
-        1 if bit is set, 0 if bit is clear, None if extraction fails
+        For bit extraction: 1 if bit is set, 0 if bit is clear
+        For byte extraction: integer value 0-255
+        None if extraction fails
     """
     parsed = _parse_template(template)
     if parsed is None:
         return None
     
-    byte_idx, bit_idx = parsed
+    extract_type, byte_idx, bit_idx = parsed
     if byte_idx >= len(raw):
         return None
     
-    return 1 if (raw[byte_idx] & (1 << bit_idx)) else 0
+    if extract_type == 'bit':
+        if bit_idx is None:
+            return None
+        return 1 if (raw[byte_idx] & (1 << bit_idx)) else 0
+    elif extract_type == 'byte':
+        return raw[byte_idx]
+    
+    return None
 
 
 def listen(can_interface='can1'):
@@ -172,7 +197,9 @@ def listen(can_interface='can1'):
                     decoded_parts.append(formatter.format('?'))
             
             decoded_str = ' '.join(decoded_parts)
-            print(f"{pattern['name']} ID:{bloc9_id} RAW:{_format_data(raw)} PROPS:[{decoded_str}]")
+            # Include full hex dump for analysis (helps identify dimming bytes)
+            hex_dump = ' '.join(f"{i}:{b:02X}" for i, b in enumerate(raw))
+            print(f"{pattern['name']} ID:{bloc9_id} PROPS:[{decoded_str}] HEX:[{hex_dump}]")
     except KeyboardInterrupt:
         print("\n[listen] Stopping and shutting down bus")
     finally:
