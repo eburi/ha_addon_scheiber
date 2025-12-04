@@ -26,7 +26,7 @@ import can
 import paho.mqtt.client as mqtt
 
 # Import patterns from canlistener (relative import - run from tools/ folder)
-from canlistener import PATTERNS, _prefix_lookup, _bloc9_id_from_low
+from canlistener import PATTERNS, _prefix_lookup, _bloc9_id_from_low, _extract_property_value
 
 
 def setup_logging(debug=False):
@@ -95,26 +95,27 @@ class MQTTBridge:
         )
         self.logger.info(f"CAN bus opened on {self.can_interface}")
 
-    def publish_message(self, device, device_id, raw_data, decoded_switches):
+    def publish_message(self, device, device_id, raw_data, decoded_properties):
         """Publish a message to MQTT."""
         topic = f"scheiber/{device}/{device_id}"
         payload = {
             "raw": " ".join(f"{b:02X}" for b in raw_data),
-            "switches": decoded_switches
+            "properties": decoded_properties
         }
         payload_json = json.dumps(payload)
         self.logger.debug(f"Publishing to {topic}: {payload_json}")
         self.mqtt_client.publish(topic, payload_json, qos=1, retain=False)
 
     def decode_message(self, pattern, raw_data):
-        """Decode switch states from raw message data."""
+        """Decode properties from raw message data using templates."""
         decoded = {}
-        switches = pattern.get('switches', {})
-        for s, (bi, bit) in switches.items():
-            if bi < len(raw_data):
-                decoded[s] = 1 if (raw_data[bi] & (1 << bit)) else 0
-            else:
-                decoded[s] = None
+        properties = pattern.get('properties', {})
+        
+        for prop_name, prop_config in properties.items():
+            template = prop_config.get('template')
+            value = _extract_property_value(raw_data, template)
+            decoded[prop_name] = value if value is not None else None
+        
         return decoded
 
     def run(self):

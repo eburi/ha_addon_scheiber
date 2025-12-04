@@ -3,44 +3,61 @@ import can
 from collections import defaultdict
 
 # Hardcoded patterns for known devices. Keys are descriptive names; each
-# pattern contains an address, mask, and a heuristic mapping of switches 
-# to (byte_index, bit_index).
+# pattern contains an address, mask, and property mappings.
 #
 # Matching: (arbitration_id & mask) == (address & mask)
 #
 # The arbitration id structure used here is: full 32-bit id, where the
 # lowest byte encodes the bloc9 id (with MSB set and ID shifted left by 3).
 # The mask allows matching groups of IDs by masking out the variable bits.
+#
+# Properties: Each property has a template string like "(byte_index,bit_index)"
+# that specifies how to extract the value from the CAN message data.
+# Optional 'formatter' can customize how the property appears in logs.
 PATTERNS = {
     'bloc9_lowprio': {
         'address': 0x00000600,
         'mask': 0xFFFFFF00,  # Match upper 24 bits, ignore lowest byte
         'name': 'Bloc9 LowPrio',
-        # heuristic: use byte 1 bits 0-5 for S1..S6
-        'switches': {
-            1: (1, 0), 2: (1, 1), 3: (1, 2), 4: (1, 3), 5: (1, 4), 6: (1, 5)
+        # Properties extracted from byte 1 bits 0-5
+        'properties': {
+            's1': {'template': '(1,0)', 'formatter': 'S1={}'},
+            's2': {'template': '(1,1)', 'formatter': 'S2={}'},
+            's3': {'template': '(1,2)', 'formatter': 'S3={}'},
+            's4': {'template': '(1,3)', 'formatter': 'S4={}'},
+            's5': {'template': '(1,4)', 'formatter': 'S5={}'},
+            's6': {'template': '(1,5)', 'formatter': 'S6={}'}
         }
     },
     'bloc9_s12': {
         'address': 0x02160600,
         'mask': 0xFFFFFF00,  # Match upper 24 bits, ignore lowest byte
         'name': 'Bloc9 S1&S2',
-        # heuristic: byte 4 bits 0-1
-        'switches': {1: (4, 0), 2: (4, 1)}
+        # Properties extracted from byte 3 bits 0-1
+        'properties': {
+            's1': {'template': '(3,0)', 'formatter': 'S1={}'},
+            's2': {'template': '(3,1)', 'formatter': 'S2={}'}
+        }
     },
     'bloc9_s34': {
         'address': 0x02180600,
         'mask': 0xFFFFFF00,  # Match upper 24 bits, ignore lowest byte
         'name': 'Bloc9 S3&S4',
-        # heuristic: byte 6 bits 0-1
-        'switches': {3: (6, 0), 4: (6, 1)}
+        # Properties extracted from byte 6 bits 0-1
+        'properties': {
+            's3': {'template': '(6,0)', 'formatter': 'S3={}'},
+            's4': {'template': '(6,1)', 'formatter': 'S4={}'}
+        }
     },
     'bloc9_s56': {
         'address': 0x021A0600,
         'mask': 0xFFFFFF00,  # Match upper 24 bits, ignore lowest byte
         'name': 'Bloc9 S5&S6',
-        # heuristic: byte 6 bits 4-5
-        'switches': {5: (6, 4), 6: (6, 5)}
+        # Properties extracted from byte 6 bits 4-5
+        'properties': {
+            's5': {'template': '(6,4)', 'formatter': 'S5={}'},
+            's6': {'template': '(6,5)', 'formatter': 'S6={}'}
+        }
     }
 }
 
@@ -64,6 +81,46 @@ def _bloc9_id_from_low(low):
 
 def _format_data(data):
     return " ".join(f"{b:02X}" for b in data)
+
+
+def _parse_template(template):
+    """Parse a template string like '(3,0)' into (byte_index, bit_index).
+    
+    Returns (byte_index, bit_index) tuple or None if parsing fails.
+    """
+    try:
+        # Remove parentheses and split by comma
+        template = template.strip()
+        if template.startswith('(') and template.endswith(')'):
+            parts = template[1:-1].split(',')
+            if len(parts) == 2:
+                byte_idx = int(parts[0].strip())
+                bit_idx = int(parts[1].strip())
+                return (byte_idx, bit_idx)
+    except (ValueError, AttributeError):
+        pass
+    return None
+
+
+def _extract_property_value(raw, template):
+    """Extract a property value from raw CAN data using a template.
+    
+    Args:
+        raw: bytes object containing CAN message data
+        template: string like '(3,0)' specifying (byte_index, bit_index)
+    
+    Returns:
+        1 if bit is set, 0 if bit is clear, None if extraction fails
+    """
+    parsed = _parse_template(template)
+    if parsed is None:
+        return None
+    
+    byte_idx, bit_idx = parsed
+    if byte_idx >= len(raw):
+        return None
+    
+    return 1 if (raw[byte_idx] & (1 << bit_idx)) else 0
 
 
 def listen(can_interface='can1'):
@@ -96,28 +153,30 @@ def listen(can_interface='can1'):
                 continue
             last_seen[id_pair] = raw
 
-            # decode switches if mapping available
-            switches = pattern.get('switches', {})
-            decoded = {}
-            for s, (bi, bit) in switches.items():
-                if bi < len(raw):
-                    decoded[s] = 1 if (raw[bi] & (1 << bit)) else 0
+            # Extract properties using templates
+            properties = pattern.get('properties', {})
+            decoded_parts = []
+            
+            for prop_name, prop_config in properties.items():
+                template = prop_config.get('template')
+                formatter = prop_config.get('formatter', '{}')
+                
+                value = _extract_property_value(raw, template)
+                
+                if value is not None:
+                    # Apply custom formatter if provided
+                    formatted = formatter.format(value)
+                    decoded_parts.append(formatted)
                 else:
-                    decoded[s] = None
-
-            # Build output
-            decoded_str = ' '.join(str(decoded.get(i, '?')) if decoded.get(i, '?') is not None else '?' for i in range(1, 7))
-            print(f"{pattern['name']} ID:{bloc9_id} RAW:{_format_data(raw)} DECODED:{decoded_str}")
+                    # Property extraction failed
+                    decoded_parts.append(formatter.format('?'))
+            
+            decoded_str = ' '.join(decoded_parts)
+            print(f"{pattern['name']} ID:{bloc9_id} RAW:{_format_data(raw)} PROPS:[{decoded_str}]")
     except KeyboardInterrupt:
         print("\n[listen] Stopping and shutting down bus")
     finally:
         bus.shutdown()
-
-
-if __name__ == '__main__':
-    import sys
-    iface = sys.argv[1] if len(sys.argv) > 1 else 'can1'
-    listen(iface)
 
 
 if __name__ == '__main__':
