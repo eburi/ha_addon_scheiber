@@ -12,6 +12,13 @@ COPY gateway.py .
 COPY tools/ /tools
 RUN chmod u+x /tools/*.sh
 
+# Set up virtualenv in /tools
+WORKDIR /tools
+RUN python3 -m venv .venv && \
+    .venv/bin/pip install --upgrade pip && \
+    .venv/bin/pip install -r requirements.txt
+
+WORKDIR /
 RUN chmod a+x /run.sh
 
 CMD [ "/run.sh" ]
