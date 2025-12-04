@@ -10,8 +10,11 @@
   "python.analysis.autoSearchPaths": true,
   "python.envFile": "${workspaceFolder}/.env",
   "[python]": {
-    "editor.defaultFormatter": "ms-python.python",
-    "editor.formatOnSave": true
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
   },
   "python.formatting.provider": "black",
   "python-envs.pythonProjects": []
