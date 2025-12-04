@@ -1,6 +1,6 @@
 name: scheiber
 slug: scheiber
-version: "0.5.7"
+version: "0.5.8"
 description: >
   Interface to scheiber
 
@@ -19,12 +19,18 @@ privileged:
 
 options:
   can_interface: can1
-  mqtt_url: mqtt://mqtt_user:mqtt@localhost:1883
-  mqtt_topic_prefix: scheiber
+  mqtt_host: localhost
+  mqtt_port: 1883
+  mqtt_user: mqtt_user
+  mqtt_password: mqtt
+  mqtt_topic_prefix: homeassistant
   log_level: info
 
 schema:
   can_interface: str
-  mqtt_url: str
+  mqtt_host: str
+  mqtt_port: port
+  mqtt_user: str
+  mqtt_password: password
   mqtt_topic_prefix: str
   log_level: list(info|debug|warning|error)

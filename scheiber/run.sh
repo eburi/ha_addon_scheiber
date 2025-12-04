@@ -14,8 +14,15 @@ LOG_LEVEL=$(bashio::config 'log_level')
 
 bashio::log.info "Using CAN interface: ${CAN_IFACE}"
 bashio::log.info "MQTT user: ${MQTT_USER}"
+bashio::log.info "MQTT host: ${MQTT_HOST}:${MQTT_PORT}"
+bashio::log.info "MQTT topic prefix: ${MQTT_TOPIC_PREFIX}"
+bashio::log.info "Log level: ${LOG_LEVEL}"   
 
+# Export variables for use in the python script
 export CAN_INTERFACE="${CAN_IFACE}"
+export MQTT_HOST="${MQTT_HOST}"
+export MQTT_PORT="${MQTT_PORT}"
+export MQTT_TOPIC_PREFIX="${MQTT_TOPIC_PREFIX}"
 export MQTT_USER="${MQTT_USER}"
 export MQTT_PASSWORD="${MQTT_PASSWORD}"
 export LOG_LEVEL="${LOG_LEVEL}"
@@ -43,4 +50,5 @@ exec python3 mqtt_bridge.py --debug \
      --mqtt-port "${MQTT_PORT}" \ 
      --mqtt-user "${MQTT_USER}"  \
      --mqtt-password "${MQTT_PASSWORD}" \
+     --mqtt-topic-prefix "${MQTT_TOPIC_PREFIX}" \
      --can-interface "${CAN_INTERFACE}"

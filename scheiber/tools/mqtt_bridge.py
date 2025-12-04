@@ -41,19 +41,21 @@ def setup_logging(debug=False):
 
 
 class MQTTBridge:
-    def __init__(self, mqtt_host, mqtt_user, mqtt_password, can_interface, debug=False):
+    def __init__(self, mqtt_host, mqtt_user, mqtt_password, can_interface, mqtt_topic_prefix='scheiber', debug=False):
         self.logger = logging.getLogger(__name__)
         self.mqtt_host = mqtt_host
         self.mqtt_user = mqtt_user
         self.mqtt_password = mqtt_password
         self.can_interface = can_interface
+        # Normalize topic prefix: strip trailing slash for consistent formatting
+        self.mqtt_topic_prefix = mqtt_topic_prefix.rstrip('/')
         self.debug = debug
 
         self.can_bus = None
         self.mqtt_client = None
         self.last_seen = {}
 
-        self.logger.info(f"Initialized MQTTBridge with mqtt_host={mqtt_host}, can_interface={can_interface}")
+        self.logger.info(f"Initialized MQTTBridge with mqtt_host={mqtt_host}, can_interface={can_interface}, topic_prefix={self.mqtt_topic_prefix}")
 
     def on_mqtt_connect(self, client, userdata, flags, rc):
         """Callback for MQTT connection."""
@@ -97,7 +99,7 @@ class MQTTBridge:
 
     def publish_message(self, device, device_id, raw_data, decoded_properties):
         """Publish a message to MQTT."""
-        topic = f"scheiber/{device}/{device_id}"
+        topic = f"{self.mqtt_topic_prefix}/{device}/{device_id}"
         payload = {
             "raw": " ".join(f"{b:02X}" for b in raw_data),
             "properties": decoded_properties
@@ -198,6 +200,11 @@ def main():
         help='CAN interface name (default: can1)'
     )
     parser.add_argument(
+        '--mqtt-topic-prefix',
+        default='scheiber',
+        help='MQTT topic prefix (default: scheiber). Trailing slash will be stripped.'
+    )
+    parser.add_argument(
         '--debug',
         action='store_true',
         help='Enable debug logging'
@@ -214,6 +221,7 @@ def main():
         mqtt_user=args.mqtt_user,
         mqtt_password=args.mqtt_password,
         can_interface=args.can_interface,
+        mqtt_topic_prefix=args.mqtt_topic_prefix,
         debug=args.debug
     )
     bridge.run()
