@@ -7,6 +7,12 @@ Core purpose
 - This repository provides Python utilities that interact with scheiber devices over a SocketCAN bus.
 - Key runtime integration points: `python-can` (socketcan backend), the `scheiber/tools` helpers, and sample CAN dumps in `scheiber/tools/data/`.
 
+**Working directory assumption**
+- All Python code in `scheiber/tools/` is deployed to run with `scheiber/tools/` as the working directory.
+- Scripts should use relative imports (e.g., `from canlistener import PATTERNS`) when importing sibling modules in tools/.
+- Data files are expected at `./data/` (relative to tools/).
+- When testing locally, run scripts from the tools folder or adjust sys.path accordingly.
+
 Important files and their roles
 - `scheiber/scheiber.py`: original interactive CAN listener and utilities (high-level). Use for reference only.
 - `scheiber/tools/scheiber.py`: low-level utility functions used by tools (e.g. `send_burst`, `bloc9_switch`, `test_switch`).
@@ -37,14 +43,12 @@ Agent coding rules for this repo
 - Avoid touching hardware-specific code unless the change is clearly safer (e.g., better error handling or clear abstractions). When in doubt, add a small wrapper or feature-flag.
 
 Common developer workflows (how to run things locally)
-- Install runtime deps (if not present): `pip install python-can`
-- Run the test switch sequence (calls `bloc9_switch` twice):
-  - `python scheiber/tools/scheiber.py 3 7`
-  - Arguments: `switch_nr` `bloc9_bus_id` (both strings accepted, functions cast to `int`).
-- Run the CAN listener (prints decoded Bloc9 messages):
-  - `python scheiber/tools/canlistener.py can1`
-- Run the light button simulator:
-  - `python scheiber/tools/light.py can1`
+- Install runtime deps (if not present): `pip install python-can paho-mqtt`
+- **All scripts run from the `scheiber/tools/` folder:**
+  - Test switch sequence: `cd scheiber/tools && python scheiber.py 3 7`
+  - CAN listener: `cd scheiber/tools && python canlistener.py can1`
+  - Light button: `cd scheiber/tools && python light.py can1`
+  - MQTT bridge: `cd scheiber/tools && python mqtt_bridge.py --debug`
 
 What agents should do first (on a new task)
 1. Read `scheiber/tools/can_names.csv` and `scheiber/tools/data/` to understand message examples.

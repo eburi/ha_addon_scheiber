@@ -1,23 +1,28 @@
 #!/usr/bin/with-contenv bashio
 set -e
 
-bashio::log.info "Starting CAN to TCP Gateway Add-on..."
+bashio::log.info "Starting scheiber CAN 2 MQTT Gateway..."
 
 # Read config values using bashio
 CAN_IFACE=$(bashio::config 'can_interface')
-LISTEN_HOST=$(bashio::config 'listen_host')
-LISTEN_PORT=$(bashio::config 'listen_port')
+MQTT_HOST=$(bashio::config 'mqtt_host')
+MQTT_PORT=$(bashio::config 'mqtt_port')
+MQTT_USER=$(bashio::config 'mqtt_user')
+MQTT_PASSWORD=$(bashio::config 'mqtt_password')
+MQTT_TOPIC_PREFIX=$(bashio::config 'mqtt_topic_prefix')
 LOG_LEVEL=$(bashio::config 'log_level')
 
 bashio::log.info "Using CAN interface: ${CAN_IFACE}"
-bashio::log.info "TCP listen: ${LISTEN_HOST}:${LISTEN_PORT}"
+bashio::log.info "MQTT user: ${MQTT_USER}"
 
 export CAN_INTERFACE="${CAN_IFACE}"
-export LISTEN_HOST="${LISTEN_HOST}"
-export LISTEN_PORT="${LISTEN_PORT}"
+export MQTT_USER="${MQTT_USER}"
+export MQTT_PASSWORD="${MQTT_PASSWORD}"
 export LOG_LEVEL="${LOG_LEVEL}"
 
 
+## Setup
+# Use the CAN_IFACE value and configure just that device
 # Init can0
 ip link set can0 down 2>/dev/null
 ip link set can0 type can bitrate 250000 fd off restart-ms 100
@@ -30,6 +35,11 @@ ip link set can1 type can bitrate 250000 fd off restart-ms 100
 ip link set can1 up
 ifconfig can1 txqueuelen 10000
 
-sleep 365d
-# Start scheiber-handler
-#exec python3 /scheiber.py
+# Start scheiber mqtt bridge
+cd /tools
+exec python3 mqtt_bridge.py --debug \
+     --mqtt-host "${MQTT_HOST}" \
+     --mqtt-port "${MQTT_PORT}" \ 
+     --mqtt-user "${MQTT_USER}"  \
+     --mqtt-password "${MQTT_PASSWORD}" \
+     --can-interface "${CAN_INTERFACE}"
