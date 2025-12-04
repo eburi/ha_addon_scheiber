@@ -117,3 +117,18 @@ candump can1 without all the noise and without the low-prio Bloc9-messages ():
 candump can1 | grep -v -E "0E602380|02040580|02040588|02060580|02060588|0E642380|0E662380|02040B88|02060B88|000006[0-9A-Fa-f]{2}"
 
 ```
+
+
+# Prompts
+
+```
+let's start simple. The listener should listen to can messages.
+can messages should be match a against a set of patterns kept in a dictionary where the key is the type of device.
+
+Known patterns so far in an improvised format of "arbitration_id,mask";"id-extraction-operation";"Device Type";"Description Template that can use id-value with {id}":
+
+00000600,1FFFFF00;"x & 7F >> 3";Bloc 9;X?? ID:{id} - low prio status message
+02160600,1FFFFF00;Bloc 9;X?? ID:{id} S1 & S2 - status message on change for S1 and S2
+02180600,1FFFFF00;Bloc 9;X?? ID:{id} S3 & S4 - status message on change for S3 and S4
+021A0600,1FFFFF00;Bloc 9;X?? ID:{id} S5 & S6 - status message on change for S5 and S5
+```

@@ -77,32 +77,13 @@ def send_burst(bus, sender_id, data, repetitions=3, interval=0.033):
             time.sleep(interval)
 
 
-# `push_light_button` moved to `scheiber.tools.light`.
-# Import it with `from scheiber.tools.light import push_light_button`.
-
-
-def test_switch(bus_nr, switch_nr, can_interface="can1"):
-    """
-    Test toggling a switch on a Bloc9 device by calling `bloc9_switch`.
-    """
-    try:
-        bloc9_switch(can_interface, int(bus_nr), int(switch_nr), True)
-
-        # Wait 1s
-        print("turn on wait 1s...")
-        time.sleep(1)
-
-        bloc9_switch(can_interface, int(bus_nr), int(switch_nr), False)
-    except Exception as e:
-        print(f"[test_switch] Error: {e}")
-# Listener functions moved to `canlistener.py` in the same folder.
-# Use `from scheiber.tools.canlistener import listen` to access the listener.
 if __name__ == "__main__":
     # Get CAN interface from command line argument, default to "can1"
     switch_nr = sys.argv[1] if len(sys.argv) > 1 else "3"
     bus_nr = sys.argv[2] if len(sys.argv) > 2 else "7"
+    state = sys.argv[3] if len(sys.argv) > 3 else "ON"
     
     # Example usage
     # push_light_button(can_interface)
-
-    test_switch(bus_nr, switch_nr, can_interface="can1")
+    print(f"[main] Toggling switch {switch_nr} on bus {bus_nr} to {'ON' if state != 'OFF' else 'OFF'}")
+    bloc9_switch("can1", int(bus_nr), int(switch_nr), state)

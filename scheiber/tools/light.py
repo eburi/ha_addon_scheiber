@@ -1,7 +1,6 @@
 import time
 import can
-from scheiber.tools.scheiber import send_burst
-
+from scheiber import send_burst
 
 def push_light_button(can_interface="can1"):
     """
