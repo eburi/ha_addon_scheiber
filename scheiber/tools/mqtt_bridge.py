@@ -41,9 +41,10 @@ def setup_logging(debug=False):
 
 
 class MQTTBridge:
-    def __init__(self, mqtt_host, mqtt_user, mqtt_password, can_interface, mqtt_topic_prefix='scheiber', debug=False):
+    def __init__(self, mqtt_host, mqtt_user, mqtt_password, can_interface, mqtt_port=1883, mqtt_topic_prefix='scheiber', debug=False):
         self.logger = logging.getLogger(__name__)
         self.mqtt_host = mqtt_host
+        self.mqtt_port = mqtt_port
         self.mqtt_user = mqtt_user
         self.mqtt_password = mqtt_password
         self.can_interface = can_interface
@@ -56,7 +57,7 @@ class MQTTBridge:
         self.last_seen = {}
         self.device_states = defaultdict(dict)  # (device_type, bus_id) -> {prop: value}
 
-        self.logger.info(f"Initialized MQTTBridge with mqtt_host={mqtt_host}, can_interface={can_interface}, topic_prefix={self.mqtt_topic_prefix}")
+        self.logger.info(f"Initialized MQTTBridge with mqtt_host={mqtt_host}:{mqtt_port}, can_interface={can_interface}, topic_prefix={self.mqtt_topic_prefix}")
 
     def on_mqtt_connect(self, client, userdata, flags, rc):
         """Callback for MQTT connection."""
@@ -78,14 +79,14 @@ class MQTTBridge:
 
     def connect_mqtt(self):
         """Connect to MQTT broker."""
-        self.logger.debug(f"Connecting to MQTT broker at {self.mqtt_host}:1883")
+        self.logger.debug(f"Connecting to MQTT broker at {self.mqtt_host}:{self.mqtt_port}")
         self.mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
         self.mqtt_client.on_connect = self.on_mqtt_connect
         self.mqtt_client.on_disconnect = self.on_mqtt_disconnect
         self.mqtt_client.on_message = self.on_mqtt_message
 
         self.mqtt_client.username_pw_set(self.mqtt_user, self.mqtt_password)
-        self.mqtt_client.connect(self.mqtt_host, 1883, keepalive=60)
+        self.mqtt_client.connect(self.mqtt_host, self.mqtt_port, keepalive=60)
         self.mqtt_client.loop_start()
         self.logger.info(f"MQTT client started (user={self.mqtt_user})")
 
@@ -201,6 +202,12 @@ def main():
         help='MQTT broker hostname (default: localhost)'
     )
     parser.add_argument(
+        '--mqtt-port',
+        type=int,
+        default=1883,
+        help='MQTT broker port (default: 1883)'
+    )
+    parser.add_argument(
         '--can-interface',
         default='can1',
         help='CAN interface name (default: can1)'
@@ -220,10 +227,11 @@ def main():
 
     logger = setup_logging(debug=args.debug)
     logger.info("Starting Scheiber MQTT Bridge")
-    logger.info(f"Configuration: mqtt_host={args.mqtt_host}, mqtt_user={args.mqtt_user}, can_interface={args.can_interface}")
+    logger.info(f"Configuration: mqtt_host={args.mqtt_host}:{args.mqtt_port}, mqtt_user={args.mqtt_user}, can_interface={args.can_interface}")
 
     bridge = MQTTBridge(
         mqtt_host=args.mqtt_host,
+        mqtt_port=args.mqtt_port,
         mqtt_user=args.mqtt_user,
         mqtt_password=args.mqtt_password,
         can_interface=args.can_interface,
