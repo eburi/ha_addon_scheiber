@@ -25,8 +25,8 @@ from collections import defaultdict
 import can
 import paho.mqtt.client as mqtt
 
-# Import patterns from canlistener (relative import - run from tools/ folder)
-from canlistener import PATTERNS, _prefix_lookup, _bloc9_id_from_low, _extract_property_value
+# Import device types and utilities from canlistener (relative import - run from tools/ folder)
+from canlistener import DEVICE_TYPES, _find_device_and_matcher, _bloc9_id_from_low, _extract_property_value
 
 
 def setup_logging(debug=False):
@@ -54,6 +54,7 @@ class MQTTBridge:
         self.can_bus = None
         self.mqtt_client = None
         self.last_seen = {}
+        self.device_states = defaultdict(dict)  # (device_type, bus_id) -> {prop: value}
 
         self.logger.info(f"Initialized MQTTBridge with mqtt_host={mqtt_host}, can_interface={can_interface}, topic_prefix={self.mqtt_topic_prefix}")
 
@@ -108,10 +109,10 @@ class MQTTBridge:
         self.logger.debug(f"Publishing to {topic}: {payload_json}")
         self.mqtt_client.publish(topic, payload_json, qos=1, retain=False)
 
-    def decode_message(self, pattern, raw_data):
-        """Decode properties from raw message data using templates."""
+    def decode_message(self, matcher, raw_data):
+        """Decode properties from raw message data using matcher templates."""
         decoded = {}
-        properties = pattern.get('properties', {})
+        properties = matcher.get('properties', {})
         
         for prop_name, prop_config in properties.items():
             template = prop_config.get('template')
@@ -133,28 +134,33 @@ class MQTTBridge:
                     continue
 
                 arb = msg.arbitration_id
-                key, pattern = _prefix_lookup(arb)
-                if pattern is None:
+                device_key, device_config, matcher, bus_id = _find_device_and_matcher(arb)
+                
+                if device_config is None or matcher is None:
                     self.logger.debug(f"Ignoring unknown arbitration ID 0x{arb:08X}")
                     continue
 
-                low = arb & 0xFF
-                bloc9_id = _bloc9_id_from_low(low)
-
                 raw = bytes(msg.data)
-                id_pair = (key, bloc9_id)
-
-                # Only publish if data changed
-                prev = self.last_seen.get(id_pair)
+                
+                # Track per-matcher to detect raw message changes
+                id_triple = (device_key, bus_id, matcher['name'])
+                prev = self.last_seen.get(id_triple)
                 if prev == raw:
-                    self.logger.debug(f"Skipping unchanged message for {key} ID:{bloc9_id}")
+                    self.logger.debug(f"Skipping unchanged message for {device_key} ID:{bus_id} [{matcher['name']}]")
                     continue
 
-                self.last_seen[id_pair] = raw
-                self.logger.debug(f"New message from {pattern['name']} ID:{bloc9_id}")
+                self.last_seen[id_triple] = raw
+                self.logger.debug(f"New message from {device_config['name']} ID:{bus_id} [{matcher['name']}]")
 
-                decoded = self.decode_message(pattern, raw)
-                self.publish_message('bloc9', bloc9_id, raw, decoded)
+                # Decode properties from this matcher
+                decoded = self.decode_message(matcher, raw)
+                
+                # Update device state
+                device_instance = (device_key, bus_id)
+                self.device_states[device_instance].update(decoded)
+                
+                # Publish current state for this device
+                self.publish_message(device_key, bus_id, raw, self.device_states[device_instance])
 
         except KeyboardInterrupt:
             self.logger.info("Stopping (Ctrl+C received)")

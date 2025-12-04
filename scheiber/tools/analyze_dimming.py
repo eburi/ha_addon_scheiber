@@ -21,7 +21,7 @@ import sys
 import can
 from collections import defaultdict
 
-from canlistener import _prefix_lookup, _bloc9_id_from_low
+from canlistener import _find_device_and_matcher
 
 
 def analyze_dimming(can_interface='can1'):
@@ -41,28 +41,27 @@ def analyze_dimming(can_interface='can1'):
                 continue
             
             arb = msg.arbitration_id
-            key, pattern = _prefix_lookup(arb)
-            if pattern is None:
+            device_key, device_config, matcher, bus_id = _find_device_and_matcher(arb)
+            
+            if device_config is None or matcher is None:
                 continue
             
-            low = arb & 0xFF
-            bloc9_id = _bloc9_id_from_low(low)
             raw = bytes(msg.data)
             
-            id_pair = (key, bloc9_id)
-            prev = last_seen.get(id_pair)
+            id_triple = (device_key, bus_id, matcher['name'])
+            prev = last_seen.get(id_triple)
             
             # Show hex dump with indices
             hex_dump = ' '.join(f"{i}:{b:02X}" for i, b in enumerate(raw))
             
             if prev is None:
-                print(f"\n{pattern['name']} ID:{bloc9_id} [FIRST SEEN]")
+                print(f"\n{device_config['name']} ID:{bus_id} [{matcher['name']}] [FIRST SEEN]")
                 print(f"  HEX: {hex_dump}")
-                last_seen[id_pair] = raw
+                last_seen[id_triple] = raw
                 continue
             
             if prev != raw:
-                print(f"\n{pattern['name']} ID:{bloc9_id} [CHANGED]")
+                print(f"\n{device_config['name']} ID:{bus_id} [{matcher['name']}] [CHANGED]")
                 print(f"  HEX: {hex_dump}")
                 
                 # Show byte-by-byte diff
@@ -70,28 +69,28 @@ def analyze_dimming(can_interface='can1'):
                 for i, (old_byte, new_byte) in enumerate(zip(prev, raw)):
                     if old_byte != new_byte:
                         diffs.append(f"byte[{i}]: 0x{old_byte:02X}→0x{new_byte:02X} ({old_byte}→{new_byte})")
-                        byte_changes[id_pair][i].append((old_byte, new_byte))
+                        byte_changes[id_triple][i].append((old_byte, new_byte))
                 
                 if diffs:
                     print("  DIFF: " + ", ".join(diffs))
                     
                     # Suggest potential dimming bytes (those that change frequently)
                     for byte_idx in sorted(set(i for i in range(len(raw)) if prev[i] != raw[i])):
-                        changes = byte_changes[id_pair][byte_idx]
+                        changes = byte_changes[id_triple][byte_idx]
                         if len(changes) >= 2:
                             values = sorted(set(new for old, new in changes))
                             if len(values) > 2:  # More than just on/off
                                 print(f"  → byte[{byte_idx}] might be dimming (values seen: {values})")
                 
-                last_seen[id_pair] = raw
+                last_seen[id_triple] = raw
                 
     except KeyboardInterrupt:
         print("\n\nAnalysis Summary:")
         print("=" * 60)
         
-        for id_pair, byte_dict in byte_changes.items():
-            key, bloc9_id = id_pair
-            print(f"\n{key} ID:{bloc9_id}:")
+        for id_triple, byte_dict in byte_changes.items():
+            device_key, bus_id, matcher_name = id_triple
+            print(f"\n{device_key} ID:{bus_id} [{matcher_name}]:")
             
             for byte_idx in sorted(byte_dict.keys()):
                 changes = byte_dict[byte_idx]
@@ -101,7 +100,7 @@ def analyze_dimming(can_interface='can1'):
                 # If many unique values, likely dimming
                 if len(unique_values) > 2:
                     print(f"    ⚠ LIKELY DIMMING BYTE (range: {min(unique_values)}-{max(unique_values)})")
-                    print(f"    Add to PATTERNS: 'sN_dim': {{'template': '[{byte_idx}]', 'type': 'byte', 'formatter': 'SN_DIM={{}}'}}") 
+                    print(f"    Add to properties: 'sN_dim': {{'template': '[{byte_idx}]', 'formatter': 'SN_DIM={{}}'}}") 
         
         print("\n")
     finally:
