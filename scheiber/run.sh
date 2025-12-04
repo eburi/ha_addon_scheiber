@@ -37,6 +37,7 @@ ifconfig can1 txqueuelen 10000
 
 # Start scheiber mqtt bridge
 cd /tools
+source .venv/bin/activate
 exec python3 mqtt_bridge.py --debug \
      --mqtt-host "${MQTT_HOST}" \
      --mqtt-port "${MQTT_PORT}" \ 
