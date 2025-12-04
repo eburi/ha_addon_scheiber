@@ -26,7 +26,12 @@ import can
 import paho.mqtt.client as mqtt
 
 # Import device types and utilities from canlistener (relative import - run from tools/ folder)
-from canlistener import DEVICE_TYPES, _find_device_and_matcher, _bloc9_id_from_low, _extract_property_value
+from canlistener import (
+    DEVICE_TYPES,
+    _find_device_and_matcher,
+    _bloc9_id_from_low,
+    _extract_property_value,
+)
 
 
 def setup_logging(debug=False):
@@ -34,14 +39,23 @@ def setup_logging(debug=False):
     level = logging.DEBUG if debug else logging.INFO
     logging.basicConfig(
         level=level,
-        format='[%(levelname)s] %(asctime)s - %(name)s: %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        format="[%(levelname)s] %(asctime)s - %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
     return logging.getLogger(__name__)
 
 
 class MQTTBridge:
-    def __init__(self, mqtt_host, mqtt_user, mqtt_password, can_interface, mqtt_port=1883, mqtt_topic_prefix='scheiber', debug=False):
+    def __init__(
+        self,
+        mqtt_host,
+        mqtt_user,
+        mqtt_password,
+        can_interface,
+        mqtt_port=1883,
+        mqtt_topic_prefix="scheiber",
+        debug=False,
+    ):
         self.logger = logging.getLogger(__name__)
         self.mqtt_host = mqtt_host
         self.mqtt_port = mqtt_port
@@ -49,7 +63,7 @@ class MQTTBridge:
         self.mqtt_password = mqtt_password
         self.can_interface = can_interface
         # Normalize topic prefix: strip trailing slash for consistent formatting
-        self.mqtt_topic_prefix = mqtt_topic_prefix.rstrip('/')
+        self.mqtt_topic_prefix = mqtt_topic_prefix.rstrip("/")
         self.debug = debug
 
         self.can_bus = None
@@ -57,30 +71,42 @@ class MQTTBridge:
         self.last_seen = {}
         self.device_states = defaultdict(dict)  # (device_type, bus_id) -> {prop: value}
 
-        self.logger.info(f"Initialized MQTTBridge with mqtt_host={mqtt_host}:{mqtt_port}, can_interface={can_interface}, topic_prefix={self.mqtt_topic_prefix}")
+        self.logger.info(
+            f"Initialized MQTTBridge with mqtt_host={mqtt_host}:{mqtt_port}, can_interface={can_interface}, topic_prefix={self.mqtt_topic_prefix}"
+        )
 
-    def on_mqtt_connect(self, client, userdata, flags, rc):
-        """Callback for MQTT connection."""
-        if rc == 0:
+    def on_mqtt_connect(self, client, userdata, flags, reason_code, properties):
+        """Callback for MQTT connection (VERSION2)."""
+        if reason_code == 0:
             self.logger.info("Connected to MQTT broker")
         else:
-            self.logger.error(f"Failed to connect to MQTT broker, return code {rc}")
+            self.logger.error(
+                f"Failed to connect to MQTT broker, reason code {reason_code}"
+            )
 
-    def on_mqtt_disconnect(self, client, userdata, rc):
-        """Callback for MQTT disconnection."""
-        if rc != 0:
-            self.logger.warning(f"Unexpected disconnection from MQTT broker, return code {rc}")
+    def on_mqtt_disconnect(
+        self, client, userdata, disconnect_flags, reason_code, properties
+    ):
+        """Callback for MQTT disconnection (VERSION2)."""
+        if reason_code != 0:
+            self.logger.warning(
+                f"Unexpected disconnection from MQTT broker, reason code {reason_code}"
+            )
         else:
             self.logger.info("Disconnected from MQTT broker")
 
     def on_mqtt_message(self, client, userdata, msg):
         """Callback for received MQTT messages (if subscribed)."""
-        self.logger.debug(f"Received MQTT message on {msg.topic}: {msg.payload.decode()}")
+        self.logger.debug(
+            f"Received MQTT message on {msg.topic}: {msg.payload.decode()}"
+        )
 
     def connect_mqtt(self):
         """Connect to MQTT broker."""
-        self.logger.debug(f"Connecting to MQTT broker at {self.mqtt_host}:{self.mqtt_port}")
-        self.mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
+        self.logger.debug(
+            f"Connecting to MQTT broker at {self.mqtt_host}:{self.mqtt_port}"
+        )
+        self.mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
         self.mqtt_client.on_connect = self.on_mqtt_connect
         self.mqtt_client.on_disconnect = self.on_mqtt_disconnect
         self.mqtt_client.on_message = self.on_mqtt_message
@@ -94,8 +120,7 @@ class MQTTBridge:
         """Connect to CAN bus."""
         self.logger.debug(f"Opening CAN interface {self.can_interface}")
         self.can_bus = can.interface.Bus(
-            channel=self.can_interface,
-            interface='socketcan'
+            channel=self.can_interface, interface="socketcan"
         )
         self.logger.info(f"CAN bus opened on {self.can_interface}")
 
@@ -104,7 +129,7 @@ class MQTTBridge:
         topic = f"{self.mqtt_topic_prefix}/{device}/{device_id}"
         payload = {
             "raw": " ".join(f"{b:02X}" for b in raw_data),
-            "properties": decoded_properties
+            "properties": decoded_properties,
         }
         payload_json = json.dumps(payload)
         self.logger.debug(f"Publishing to {topic}: {payload_json}")
@@ -113,13 +138,13 @@ class MQTTBridge:
     def decode_message(self, matcher, raw_data):
         """Decode properties from raw message data using matcher templates."""
         decoded = {}
-        properties = matcher.get('properties', {})
-        
+        properties = matcher.get("properties", {})
+
         for prop_name, prop_config in properties.items():
-            template = prop_config.get('template')
+            template = prop_config.get("template")
             value = _extract_property_value(raw_data, template)
             decoded[prop_name] = value if value is not None else None
-        
+
         return decoded
 
     def run(self):
@@ -135,33 +160,41 @@ class MQTTBridge:
                     continue
 
                 arb = msg.arbitration_id
-                device_key, device_config, matcher, bus_id = _find_device_and_matcher(arb)
-                
+                device_key, device_config, matcher, bus_id = _find_device_and_matcher(
+                    arb
+                )
+
                 if device_config is None or matcher is None:
                     self.logger.debug(f"Ignoring unknown arbitration ID 0x{arb:08X}")
                     continue
 
                 raw = bytes(msg.data)
-                
+
                 # Track per-matcher to detect raw message changes
-                id_triple = (device_key, bus_id, matcher['name'])
+                id_triple = (device_key, bus_id, matcher["name"])
                 prev = self.last_seen.get(id_triple)
                 if prev == raw:
-                    self.logger.debug(f"Skipping unchanged message for {device_key} ID:{bus_id} [{matcher['name']}]")
+                    self.logger.debug(
+                        f"Skipping unchanged message for {device_key} ID:{bus_id} [{matcher['name']}]"
+                    )
                     continue
 
                 self.last_seen[id_triple] = raw
-                self.logger.debug(f"New message from {device_config['name']} ID:{bus_id} [{matcher['name']}]")
+                self.logger.debug(
+                    f"New message from {device_config['name']} ID:{bus_id} [{matcher['name']}]"
+                )
 
                 # Decode properties from this matcher
                 decoded = self.decode_message(matcher, raw)
-                
+
                 # Update device state
                 device_instance = (device_key, bus_id)
                 self.device_states[device_instance].update(decoded)
-                
+
                 # Publish current state for this device
-                self.publish_message(device_key, bus_id, raw, self.device_states[device_instance])
+                self.publish_message(
+                    device_key, bus_id, raw, self.device_states[device_instance]
+                )
 
         except KeyboardInterrupt:
             self.logger.info("Stopping (Ctrl+C received)")
@@ -184,50 +217,39 @@ def main():
     parser = argparse.ArgumentParser(
         description="MQTT bridge for Scheiber CAN devices",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__
+        epilog=__doc__,
     )
     parser.add_argument(
-        '--mqtt-user',
-        default='mqtt_user',
-        help='MQTT username (default: mqtt_user)'
+        "--mqtt-user", default="mqtt_user", help="MQTT username (default: mqtt_user)"
     )
     parser.add_argument(
-        '--mqtt-password',
-        default='mqtt',
-        help='MQTT password (default: mqtt)'
+        "--mqtt-password", default="mqtt", help="MQTT password (default: mqtt)"
     )
     parser.add_argument(
-        '--mqtt-host',
-        default='localhost',
-        help='MQTT broker hostname (default: localhost)'
+        "--mqtt-host",
+        default="localhost",
+        help="MQTT broker hostname (default: localhost)",
     )
     parser.add_argument(
-        '--mqtt-port',
-        type=int,
-        default=1883,
-        help='MQTT broker port (default: 1883)'
+        "--mqtt-port", type=int, default=1883, help="MQTT broker port (default: 1883)"
     )
     parser.add_argument(
-        '--can-interface',
-        default='can1',
-        help='CAN interface name (default: can1)'
+        "--can-interface", default="can1", help="CAN interface name (default: can1)"
     )
     parser.add_argument(
-        '--mqtt-topic-prefix',
-        default='scheiber',
-        help='MQTT topic prefix (default: scheiber). Trailing slash will be stripped.'
+        "--mqtt-topic-prefix",
+        default="scheiber",
+        help="MQTT topic prefix (default: scheiber). Trailing slash will be stripped.",
     )
-    parser.add_argument(
-        '--debug',
-        action='store_true',
-        help='Enable debug logging'
-    )
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
     args = parser.parse_args()
 
     logger = setup_logging(debug=args.debug)
     logger.info("Starting Scheiber MQTT Bridge")
-    logger.info(f"Configuration: mqtt_host={args.mqtt_host}:{args.mqtt_port}, mqtt_user={args.mqtt_user}, can_interface={args.can_interface}")
+    logger.info(
+        f"Configuration: mqtt_host={args.mqtt_host}:{args.mqtt_port}, mqtt_user={args.mqtt_user}, can_interface={args.can_interface}"
+    )
 
     bridge = MQTTBridge(
         mqtt_host=args.mqtt_host,
@@ -236,10 +258,10 @@ def main():
         mqtt_password=args.mqtt_password,
         can_interface=args.can_interface,
         mqtt_topic_prefix=args.mqtt_topic_prefix,
-        debug=args.debug
+        debug=args.debug,
     )
     bridge.run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
