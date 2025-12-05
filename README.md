@@ -46,10 +46,12 @@ JSON payload with:
 ```
 Example: `homeassistant/scheiber/bloc9/10/s1/state` → `1` (ON) or `0` (OFF)
 
-### Home Assistant MQTT Discovery
+### Home Assistant MQTT Discovery - Device Configuration
 ```
-<prefix>/light/<device-type>_<bus-id>_<property>/config
+<prefix>/scheiber/<device-type>/<bus-id>/<property>/config
 ```
+Example: `homeassistant/scheiber/bloc9/10/s2/config`
+
 Automatically configures light entities in Home Assistant with:
 - Unique ID
 - Device information

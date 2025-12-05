@@ -212,18 +212,18 @@ class MQTTBridge:
         self, device_type, device_id, device_config, property_name
     ):
         """Publish Home Assistant MQTT Discovery config for a light component."""
-        # Discovery topic format: <discovery_prefix>/light/<device_type>_<bus_id>_<property>/config
-        discovery_prefix = self.mqtt_topic_prefix
+        # Config topic format: <prefix>/scheiber/<device_type>/<bus_id>/<property>/config
         unique_id = f"{device_type}_{device_id}_{property_name}"
-        object_id = f"scheiber_{device_type}_{device_id}_{property_name}"
+        default_entity_id = f"light.scheiber_{device_type}_{device_id}_{property_name}"
 
-        config_topic = f"{discovery_prefix}/light/{unique_id}/config"
+        config_topic = f"{self.mqtt_topic_prefix}/scheiber/{device_type}/{device_id}/{property_name}/config"
         state_topic = f"{self.mqtt_topic_prefix}/scheiber/{device_type}/{device_id}/{property_name}/state"
 
         config_payload = {
             "name": f"{device_config.get('name', device_type)} {device_id} {property_name.upper()}",
             "unique_id": unique_id,
-            "object_id": object_id,
+            "default_entity_id": default_entity_id,
+            "device_class": "light",
             "state_topic": state_topic,
             "command_topic": f"{self.mqtt_topic_prefix}/scheiber/{device_type}/{device_id}/{property_name}/set",
             "payload_on": "1",
