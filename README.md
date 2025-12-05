@@ -46,7 +46,19 @@ JSON payload with:
 ```
 Example: `homeassistant/scheiber/bloc9/10/s1/state` → `1` (ON) or `0` (OFF)
 
-### Home Assistant MQTT Discovery - Device Configuration
+### Device Commands
+```
+<prefix>/scheiber/<device-type>/<bus-id>/<property>/set
+```
+Example: `homeassistant/scheiber/bloc9/10/s1/set` → `1` (ON) or `0` (OFF)
+
+Publish to these topics to control devices. The bridge subscribes to all `/set` topics and sends corresponding CAN commands.
+
+**Supported payloads:**
+- ON: `1`, `ON`, `on`, `true`, `True`
+- OFF: `0`, `OFF`, `off`, `false`, `False`
+
+### Device Configuration
 ```
 <prefix>/scheiber/<device-type>/<bus-id>/<property>/config
 ```

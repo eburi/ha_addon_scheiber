@@ -23,6 +23,8 @@ Important files and their roles
 - `scheiber/tools/analyze_dimming.py`: Analysis tool to identify dimming byte patterns in CAN messages.
 - `scheiber/tools/analyser.py`: Interactive CAN sniffer (press spacebar to clear screen).
 - `scheiber/tools/data/`: sample dump files used for analysis and inference of message formats.
+  - `command.md`: Verified command protocol for S5/S6 switches showing 0-indexed switch numbers
+  - Other dumps: various CAN traffic captures for protocol analysis
 - `scheiber/tools/can_names.csv`: human-readable mapping of known arbitration id prefixes and device comments.
 - `scheiber/tools/requirements.txt`: Python dependencies (python-can, paho-mqtt, PyYAML).
 - `scheiber/config.yaml`: Home Assistant addon configuration with version, options, and schema.

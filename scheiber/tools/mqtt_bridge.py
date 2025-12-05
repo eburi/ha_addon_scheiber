@@ -33,6 +33,9 @@ from canlistener import (
     _extract_property_value,
 )
 
+# Import command functions from scheiber module
+from scheiber import bloc9_switch
+
 
 def setup_logging(log_level="info"):
     """Configure logging to console with appropriate level."""
@@ -94,6 +97,10 @@ class MQTTBridge:
         """Callback for MQTT connection (VERSION2)."""
         if reason_code == 0:
             self.logger.info("Connected to MQTT broker")
+            # Subscribe to all command topics for device control
+            command_topic = f"{self.mqtt_topic_prefix}/scheiber/+/+/+/set"
+            client.subscribe(command_topic)
+            self.logger.info(f"Subscribed to command topic: {command_topic}")
         else:
             self.logger.error(
                 f"Failed to connect to MQTT broker, reason code {reason_code}"
@@ -111,10 +118,69 @@ class MQTTBridge:
             self.logger.info("Disconnected from MQTT broker")
 
     def on_mqtt_message(self, client, userdata, msg):
-        """Callback for received MQTT messages (if subscribed)."""
-        self.logger.debug(
-            f"Received MQTT message on {msg.topic}: {msg.payload.decode()}"
-        )
+        """Callback for received MQTT messages - handle command topics."""
+        topic = msg.topic
+        payload = msg.payload.decode().strip()
+
+        self.logger.debug(f"Received MQTT message on {topic}: {payload}")
+
+        # Parse command topics: <prefix>/scheiber/<device_type>/<bus_id>/<property>/set
+        if topic.endswith("/set"):
+            self.handle_command(topic, payload)
+
+    def handle_command(self, topic, payload):
+        """Handle command messages for device control."""
+        import re
+
+        # Parse topic: <prefix>/scheiber/<device_type>/<bus_id>/<property>/set
+        pattern = rf"^{re.escape(self.mqtt_topic_prefix)}/scheiber/([^/]+)/([^/]+)/([^/]+)/set$"
+        match = re.match(pattern, topic)
+
+        if not match:
+            self.logger.warning(f"Could not parse command topic: {topic}")
+            return
+
+        device_type = match.group(1)
+        bus_id_str = match.group(2)
+        property_name = match.group(3)
+
+        try:
+            bus_id = int(bus_id_str)
+        except ValueError:
+            self.logger.error(f"Invalid bus_id '{bus_id_str}' in topic {topic}")
+            return
+
+        # Handle bloc9 switch commands
+        if device_type == "bloc9":
+            # Extract switch number from property name (e.g., "s1" -> 0, "s2" -> 1, etc.)
+            if property_name.startswith("s") and property_name[1:].isdigit():
+                switch_nr = int(property_name[1:]) - 1  # s1=0, s2=1, etc.
+
+                # Parse payload: "1" or "ON" = True, "0" or "OFF" = False
+                state = payload in ("1", "ON", "on", "true", "True")
+
+                self.logger.info(
+                    f"Executing bloc9_switch: device={bus_id}, switch={switch_nr}, state={state}"
+                )
+
+                try:
+                    bloc9_switch(self.can_interface, bus_id, switch_nr, state)
+                    self.logger.info(
+                        f"Command sent successfully to {device_type} {bus_id} {property_name}"
+                    )
+                except Exception as e:
+                    self.logger.error(f"Failed to send command: {e}")
+            elif property_name.endswith("_dim"):
+                # Handle dimming commands (future enhancement)
+                self.logger.debug(
+                    f"Dimming command received but not yet implemented: {topic} = {payload}"
+                )
+            else:
+                self.logger.warning(
+                    f"Unknown property '{property_name}' for {device_type}"
+                )
+        else:
+            self.logger.warning(f"Unsupported device type: {device_type}")
 
     def connect_mqtt(self):
         """Connect to MQTT broker."""
