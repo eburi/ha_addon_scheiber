@@ -50,7 +50,7 @@ def bloc9_switch(can_interface, bloc9_id, switch_nr, state, brightness=None):
     try:
         # Open CAN bus
         bus = can.interface.Bus(channel=can_interface, interface="socketcan")
-        
+
         # Construct CAN ID: lowest byte = (bloc9_id << 3) | 0x80, masked to ensure it's a single byte
         low_byte = ((bloc9_id << 3) | 0x80) & 0xFF
         can_id = 0x02360600 | low_byte
@@ -61,7 +61,9 @@ def bloc9_switch(can_interface, bloc9_id, switch_nr, state, brightness=None):
             if brightness == 0:
                 # Brightness 0% = turn off
                 data = bytes([switch_nr, 0x00, 0x00, 0x00])
-                logger.debug(f"Bloc9 ID:{bloc9_id} Switch:{switch_nr} -> OFF (brightness=0%)")
+                logger.debug(
+                    f"Bloc9 ID:{bloc9_id} Switch:{switch_nr} -> OFF (brightness=0%)"
+                )
             else:
                 # Map brightness percentage (1-100) to byte value (0-255)
                 # Formula: ((brightness / 100) ^ 0.5) * 255
@@ -81,7 +83,9 @@ def bloc9_switch(can_interface, bloc9_id, switch_nr, state, brightness=None):
             # Simple ON/OFF mode
             state_byte = 0x01 if state else 0x00
             data = bytes([switch_nr, state_byte, 0x00, 0x00])
-            logger.debug(f"Bloc9 ID:{bloc9_id} Switch:{switch_nr} -> {'ON' if state else 'OFF'}")
+            logger.debug(
+                f"Bloc9 ID:{bloc9_id} Switch:{switch_nr} -> {'ON' if state else 'OFF'}"
+            )
 
         # Send the message
         msg = can.Message(arbitration_id=can_id, data=data)
@@ -119,9 +123,7 @@ def send_burst(bus, sender_id, data, repetitions=3, interval=0.033):
     for i in range(repetitions):
         msg = can.Message(arbitration_id=arbitration_id, data=payload)
         bus.send(msg)
-        logger.info(
-            f"CAN TX burst {i+1}/{repetitions}: ID=0x{sender_id} Data={data}"
-        )
+        logger.info(f"CAN TX burst {i+1}/{repetitions}: ID=0x{sender_id} Data={data}")
         if i < repetitions - 1:
             time.sleep(interval)
 
@@ -136,18 +138,18 @@ def _setup_logging():
 
 if __name__ == "__main__":
     _setup_logging()
-    
+
     # Parse command line arguments
     switch_nr = sys.argv[1] if len(sys.argv) > 1 else "3"
     bus_nr = sys.argv[2] if len(sys.argv) > 2 else "7"
     state_arg = sys.argv[3] if len(sys.argv) > 3 else "ON"
-    
+
     state = state_arg.upper() != "OFF"
-    
+
     logger.info(
         f"Command: Bloc9 ID:{bus_nr} Switch:{switch_nr} -> {'ON' if state else 'OFF'}"
     )
-    
+
     try:
         bloc9_switch("can1", int(bus_nr), int(switch_nr), state)
         logger.info("Command sent successfully")
