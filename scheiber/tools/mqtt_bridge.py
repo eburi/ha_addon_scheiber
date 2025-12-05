@@ -384,6 +384,12 @@ class MQTTBridge:
         properties = matcher.get("properties", {})
 
         for prop_name, prop_config in properties.items():
+            # Skip properties with no configuration (incomplete YAML)
+            if prop_config is None:
+                self.logger.warning(
+                    f"Property '{prop_name}' has no configuration, skipping"
+                )
+                continue
             template = prop_config.get("template")
             value = _extract_property_value(raw_data, template)
             decoded[prop_name] = value if value is not None else None

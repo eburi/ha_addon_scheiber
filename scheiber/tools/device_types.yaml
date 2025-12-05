@@ -48,11 +48,52 @@ bloc9:
           template: "(1,7)"
         stat2_0:
           template: "(2,0)"
+        stat2_1:
+          template: "(2,1)"
+        stat2_2:
+          template: "(2,2)"
+        stat2_3:
+          template: "(2,3)"
+        stat2_4:
+          template: "(2,4)"
+        stat2_5:
+          template: "(2,5)"
+        stat2_6:
+          template: "(2,6)"
+        stat2_7:
+          template: "(2,7)"
         stat3_0:
           template: "(3,0)"
+        stat3_1:
+          template: "(3,1)"
+        stat3_2:
+          template: "(3,2)"
+        stat3_3:
+          template: "(3,3)"
+        stat3_4: 
+          template: "(3,4)"
+        stat3_5: 
+          template: "(3,5)"
+        stat3_6: 
+          template: "(3,6)"
+        stat3_7: 
+          template: "(3,7)"
         stat4_0: 
           template: "(4,0)"
-        stat5_0:
+        stat4_1: 
+          template: "(4,1)"
+        stat4_2: 
+          template: "(4,2)"
+        stat4_3:      
+          template: "(4,3)"
+        stat4_4:      
+          template: "(4,4)"
+        stat4_5:      
+          template: "(4,5)"
+        stat4_6:      
+          template: "(4,6)"
+        stat4_7:      
+          template: "(4,7)" 
     - address: 0x02160600
       mask: 0xFFFFFF00
       name: "S1 & S2 Status update"
