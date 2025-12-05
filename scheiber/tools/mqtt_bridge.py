@@ -36,6 +36,9 @@ from canlistener import (
 # Import command functions from scheiber module
 from scheiber import bloc9_switch
 
+# Import device class system
+from devices import create_device
+
 
 def setup_logging(log_level="info"):
     """Configure logging to console with appropriate level."""
@@ -78,7 +81,9 @@ class MQTTBridge:
         self.can_bus = None
         self.mqtt_client = None
         self.last_seen = {}
-        self.device_states = defaultdict(dict)  # (device_type, bus_id) -> {prop: value}
+
+        # Track device instances: (device_type, device_id) -> ScheiberCanDevice
+        self.devices = {}
 
         # Bus statistics tracking
         self.bus_stats = {
@@ -301,85 +306,6 @@ class MQTTBridge:
             self.mqtt_client.publish(topic, payload_json, qos=1, retain=True)
             self.last_bus_stats_json = payload_json
 
-    def publish_device_info(self, device_type, device_id, device_config):
-        """Publish device information to <prefix>/scheiber/<device-type>/<bus-id>."""
-        topic = f"{self.mqtt_topic_prefix}/scheiber/{device_type}/{device_id}"
-        payload = {
-            "name": device_config.get("name", device_type),
-            "device_type": device_type,
-            "bus_id": device_id,
-        }
-        payload_json = json.dumps(payload)
-        self.logger.debug(f"Publishing device info to {topic}: {payload_json}")
-        self.mqtt_client.publish(topic, payload_json, qos=1, retain=True)
-
-    def publish_ha_discovery_config(
-        self, device_type, device_id, device_config, property_name
-    ):
-        """Publish Home Assistant MQTT Discovery config for a light component."""
-        # Config topic format: <prefix>/scheiber/<device_type>/<bus_id>/<property>/config
-        unique_id = f"{device_type}_{device_id}_{property_name}"
-        default_entity_id = f"light.scheiber_{device_type}_{device_id}_{property_name}"
-
-        config_topic = f"{self.mqtt_topic_prefix}/scheiber/{device_type}/{device_id}/{property_name}/config"
-        state_topic = f"{self.mqtt_topic_prefix}/scheiber/{device_type}/{device_id}/{property_name}/state"
-
-        config_payload = {
-            "name": f"{device_config.get('name', device_type)} {device_id} {property_name.upper()}",
-            "unique_id": unique_id,
-            "default_entity_id": default_entity_id,
-            "device_class": "light",
-            "state_topic": state_topic,
-            "command_topic": f"{self.mqtt_topic_prefix}/scheiber/{device_type}/{device_id}/{property_name}/set",
-            "payload_on": "1",
-            "payload_off": "0",
-            "state_on": "1",
-            "state_off": "0",
-            "optimistic": False,
-            "qos": 1,
-            "retain": True,
-            "device": {
-                "identifiers": [f"scheiber_{device_type}_{device_id}"],
-                "name": f"{device_config.get('name', device_type)} {device_id}",
-                "model": device_config.get("name", device_type),
-                "manufacturer": "Scheiber",
-            },
-        }
-
-        # Add brightness support - always enable for bloc9 switches
-        if device_type == "bloc9":
-            config_payload["brightness_state_topic"] = (
-                f"{self.mqtt_topic_prefix}/scheiber/{device_type}/{device_id}/{property_name}/brightness"
-            )
-            config_payload["brightness_command_topic"] = (
-                f"{self.mqtt_topic_prefix}/scheiber/{device_type}/{device_id}/{property_name}/set_brightness"
-            )
-            config_payload["brightness_scale"] = 100
-
-        config_json = json.dumps(config_payload)
-        self.logger.debug(
-            f"Publishing HA discovery config to {config_topic}: {config_json}"
-        )
-        self.mqtt_client.publish(config_topic, config_json, qos=1, retain=True)
-
-    def publish_property_state(self, device_type, device_id, property_name, value):
-        """Publish individual property state to <prefix>/scheiber/<device-type>/<bus-id>/<property>/state."""
-        topic = f"{self.mqtt_topic_prefix}/scheiber/{device_type}/{device_id}/{property_name}/state"
-        payload = str(value) if value is not None else "?"
-        self.logger.debug(f"Publishing property state to {topic}: {payload}")
-        self.mqtt_client.publish(topic, payload, qos=1, retain=True)
-
-    def publish_message(self, device, device_id, raw_data, decoded_properties):
-        """Publish a message to MQTT (DEPRECATED - kept for compatibility)."""
-        topic = f"{self.mqtt_topic_prefix}/{device}/{device_id}"
-        payload = {
-            "raw": " ".join(f"{b:02X}" for b in raw_data),
-            "properties": decoded_properties,
-        }
-        payload_json = json.dumps(payload)
-        self.logger.debug(f"Publishing to {topic}: {payload_json}")
-        self.mqtt_client.publish(topic, payload_json, qos=1, retain=False)
-
     def decode_message(self, matcher, raw_data):
         """Decode properties from raw message data using matcher templates."""
         decoded = {}
@@ -451,69 +377,41 @@ class MQTTBridge:
                 # Decode properties from this matcher
                 decoded = self.decode_message(matcher, raw)
 
-                # Update device state
-                device_instance = (device_key, bus_id)
+                # Get or create device instance
+                device_instance_key = (device_key, bus_id)
 
-                # First time we see this device, publish discovery configs
-                if device_instance not in published_devices:
+                if device_instance_key not in self.devices:
+                    # First time seeing this device - create device instance
                     self.logger.info(
-                        f"First message from {device_key} ID:{bus_id}, publishing discovery configs"
+                        f"First message from {device_key} ID:{bus_id}, creating device instance"
                     )
-                    self.publish_device_info(device_key, bus_id, device_config)
+
+                    device = create_device(
+                        device_key,
+                        bus_id,
+                        device_config,
+                        self.mqtt_client,
+                        self.mqtt_topic_prefix,
+                    )
+                    self.devices[device_instance_key] = device
+
+                    # Publish device info and discovery configs
+                    device.publish_device_info()
+                    device.publish_discovery_config()
 
                     # Publish initial bus statistics when first device is seen
                     self.publish_bus_statistics()
 
-                    # Collect all unique properties across all matchers for this device
-                    all_properties = set()
-                    for m in device_config.get("matchers", []):
-                        all_properties.update(m.get("properties", {}).keys())
-
-                    # Publish discovery config for each switch property (not brightness properties)
-                    for prop_name in all_properties:
-                        if not prop_name.endswith(
-                            "_brightness"
-                        ):  # Only switches, not brightness values
-                            self.publish_ha_discovery_config(
-                                device_key, bus_id, device_config, prop_name
-                            )
-
-                            # For bloc9 devices, also publish initial brightness value if _brightness property exists
-                            if (
-                                device_key == "bloc9"
-                                and f"{prop_name}_brightness" in all_properties
-                            ):
-                                # Publish initial brightness as "?" (unknown) so the topic exists
-                                brightness_topic = f"{self.mqtt_topic_prefix}/scheiber/{device_key}/{bus_id}/{prop_name}/brightness"
-                                self.logger.debug(
-                                    f"Publishing initial brightness to {brightness_topic}: ?"
-                                )
-                                self.mqtt_client.publish(
-                                    brightness_topic, "?", qos=1, retain=True
-                                )
-
-                    published_devices.add(device_instance)
+                    published_devices.add(device_instance_key)
+                else:
+                    device = self.devices[device_instance_key]
 
                 # Update device state with new properties
-                self.device_states[device_instance].update(decoded)
+                device.update_state(decoded)
 
-                # Publish individual property states, using brightness sub-topic for brightness
+                # Publish individual property states
                 for prop_name, value in decoded.items():
-                    # Publish brightness properties to /brightness sub-topic
-                    if prop_name.endswith("_brightness"):
-                        base_prop = prop_name.replace("_brightness", "")
-                        brightness_topic = f"{self.mqtt_topic_prefix}/scheiber/{device_key}/{bus_id}/{base_prop}/brightness"
-                        payload = str(value) if value is not None else "?"
-                        self.logger.debug(
-                            f"Publishing brightness to {brightness_topic}: {payload}"
-                        )
-                        self.mqtt_client.publish(
-                            brightness_topic, payload, qos=1, retain=True
-                        )
-                    else:
-                        self.publish_property_state(
-                            device_key, bus_id, prop_name, value
-                        )
+                    device.publish_state(prop_name, value)
 
         except KeyboardInterrupt:
             self.logger.info("Stopping (Ctrl+C received)")
