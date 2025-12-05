@@ -357,7 +357,9 @@ class MQTTBridge:
             config_payload["brightness_scale"] = 100
 
         config_json = json.dumps(config_payload)
-        self.logger.debug(f"Publishing HA discovery config to {config_topic}")
+        self.logger.debug(
+            f"Publishing HA discovery config to {config_topic}: {config_json}"
+        )
         self.mqtt_client.publish(config_topic, config_json, qos=1, retain=True)
 
     def publish_property_state(self, device_type, device_id, property_name, value):
@@ -483,11 +485,11 @@ class MQTTBridge:
                             ):
                                 # Publish initial brightness as "?" (unknown) so the topic exists
                                 brightness_topic = f"{self.mqtt_topic_prefix}/scheiber/{device_key}/{bus_id}/{prop_name}/brightness"
+                                self.logger.debug(
+                                    f"Publishing initial brightness to {brightness_topic}: ?"
+                                )
                                 self.mqtt_client.publish(
                                     brightness_topic, "?", qos=1, retain=True
-                                )
-                                self.logger.debug(
-                                    f"Published initial brightness to {brightness_topic}: ?"
                                 )
 
                     published_devices.add(device_instance)
