@@ -101,13 +101,13 @@ bloc9:
         s1:
           template: "(3,0)"
           formatter: "{}"
-        s1_dim:
+        s1_brightness:
           template: "[0]"
           formatter: "{}"
         s2:
           template: "(7,0)"
           formatter: "{}"
-        s2_dim:
+        s2_brightness:
           template: "[4]"
           formatter: "{}"
     
@@ -118,13 +118,13 @@ bloc9:
         s3:
           template: "(3,0)"
           formatter: "{}"
-        s3_dim:
+        s3_brightness:
           template: "[0]"
           formatter: "{}"
         s4:
           template: "(7,0)"
           formatter: "{}"
-        s4_dim:
+        s4_brightness:
           template: "[4]"
           formatter: "{}"
     
@@ -135,12 +135,12 @@ bloc9:
         s5:
           template: "(3,0)"
           formatter: "{}"
-        s5_dim:
+        s5_brightness:
           template: "[0]"
           formatter: "{}"
         s6:
           template: "(7,0)"
           formatter: "{}"
-        s6_dim:
+        s6_brightness:
           template: "[4]"
           formatter: "{}"

@@ -467,19 +467,19 @@ class MQTTBridge:
                     for m in device_config.get("matchers", []):
                         all_properties.update(m.get("properties", {}).keys())
 
-                    # Publish discovery config for each switch property (not dimming properties)
+                    # Publish discovery config for each switch property (not brightness properties)
                     for prop_name in all_properties:
                         if not prop_name.endswith(
-                            "_dim"
-                        ):  # Only switches, not dimming values
+                            "_brightness"
+                        ):  # Only switches, not brightness values
                             self.publish_ha_discovery_config(
                                 device_key, bus_id, device_config, prop_name
                             )
 
-                            # For bloc9 devices, also publish initial brightness value if _dim property exists
+                            # For bloc9 devices, also publish initial brightness value if _brightness property exists
                             if (
                                 device_key == "bloc9"
-                                and f"{prop_name}_dim" in all_properties
+                                and f"{prop_name}_brightness" in all_properties
                             ):
                                 # Publish initial brightness as "?" (unknown) so the topic exists
                                 brightness_topic = f"{self.mqtt_topic_prefix}/scheiber/{device_key}/{bus_id}/{prop_name}/brightness"
@@ -495,11 +495,11 @@ class MQTTBridge:
                 # Update device state with new properties
                 self.device_states[device_instance].update(decoded)
 
-                # Publish individual property states, using brightness sub-topic for dimming
+                # Publish individual property states, using brightness sub-topic for brightness
                 for prop_name, value in decoded.items():
-                    # Publish dimming properties to /brightness sub-topic
-                    if prop_name.endswith("_dim"):
-                        base_prop = prop_name.replace("_dim", "")
+                    # Publish brightness properties to /brightness sub-topic
+                    if prop_name.endswith("_brightness"):
+                        base_prop = prop_name.replace("_brightness", "")
                         brightness_topic = f"{self.mqtt_topic_prefix}/scheiber/{device_key}/{bus_id}/{base_prop}/brightness"
                         payload = str(value) if value is not None else "?"
                         self.logger.debug(
