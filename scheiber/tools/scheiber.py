@@ -1,10 +1,16 @@
+"""
+Scheiber CAN bus control library.
+
+Provides low-level functions for sending commands to Scheiber devices over CAN bus.
+"""
+
 import time
-import threading
 import sys
+import logging
 import can
-import os
-import re
-from collections import defaultdict
+
+# Module logger
+logger = logging.getLogger(__name__)
 
 
 def parse_hex_data(hex_string):
@@ -12,15 +18,20 @@ def parse_hex_data(hex_string):
     return bytes.fromhex(hex_string.replace(" ", ""))
 
 
-def bloc9_switch(can_interface, bloc9_id, switch_nr, state):
+def bloc9_switch(can_interface, bloc9_id, switch_nr, state, brightness=None):
     """
-    Send a Bloc9 switch command via CAN bus.
+    Send a Bloc9 switch command via CAN bus with optional brightness control.
 
     Args:
-        bus: CAN bus instance
+        can_interface: CAN interface name (e.g., "can1")
         bloc9_id: Bloc9 device ID (number)
-        switch_nr: Switch number (number)
+        switch_nr: Switch number (0-5 for S1-S6)
         state: Boolean state (True for ON, False for OFF)
+        brightness: Optional brightness percentage (0-100). If provided:
+            - 0: Turn off (same as state=False)
+            - 1-100: Set brightness level (byte 1 = 0x11, byte 3 = mapped brightness)
+            - If None: Simple ON/OFF command (byte 1 = 0x01/0x00)
+            - Mapping: 0-100% is mapped to 0-255 with emphasis on upper 4 bits
 
     Constructs CAN ID as follows:
     - Shift bloc9_id left by 3 bits
@@ -28,33 +39,63 @@ def bloc9_switch(can_interface, bloc9_id, switch_nr, state):
     - Use that byte as the lowest byte in 0x02360600
 
     Constructs 4-byte body:
-    - Byte 0: switch_nr
-    - Byte 1: 0x01 if state is True, 0x00 if False
-    - Byte 2: 0x00
-    - Byte 3: 0x00
+    - Without brightness: [switch_nr, 0x01/0x00, 0x00, 0x00]
+    - With brightness: [switch_nr, 0x11, 0x00, brightness_level]
+    - Special case brightness=0: [switch_nr, 0x00, 0x00, 0x00] (turn off)
 
     Example: bloc9_id=10, switch_nr=3, state=True -> CAN ID: 0x023606D0, Data: 03 01 00 00
+    Example: bloc9_id=10, switch_nr=3, brightness=50 -> CAN ID: 0x023606D0, Data: 03 11 00 B4
     """
-    # Open CAN bus, construct CAN ID and data, send, then close bus
-    bus = can.interface.Bus(channel=can_interface, interface="socketcan")
+    bus = None
     try:
+        # Open CAN bus
+        bus = can.interface.Bus(channel=can_interface, interface="socketcan")
+        
         # Construct CAN ID: lowest byte = (bloc9_id << 3) | 0x80, masked to ensure it's a single byte
         low_byte = ((bloc9_id << 3) | 0x80) & 0xFF
         can_id = 0x02360600 | low_byte
 
-        # Construct 4-byte body
-        state_byte = 0x01 if state else 0x00
-        data = bytes([switch_nr, state_byte, 0x00, 0x00])
+        # Construct 4-byte body based on brightness parameter
+        if brightness is not None:
+            # Brightness control mode (0-100 percentage)
+            if brightness == 0:
+                # Brightness 0% = turn off
+                data = bytes([switch_nr, 0x00, 0x00, 0x00])
+                logger.debug(f"Bloc9 ID:{bloc9_id} Switch:{switch_nr} -> OFF (brightness=0%)")
+            else:
+                # Map brightness percentage (1-100) to byte value (0-255)
+                # Formula: ((brightness / 100) ^ 0.5) * 255
+                # Square root gives more granularity in lower range while
+                # still using full byte range and emphasizing upper bits
+                normalized = brightness / 100.0
+                brightness_byte = int((normalized**0.5) * 255)
+                # Clamp to valid range
+                brightness_byte = max(1, min(255, brightness_byte))
+
+                # Set brightness level (byte 1 = 0x11, byte 3 = brightness)
+                data = bytes([switch_nr, 0x11, 0x00, brightness_byte])
+                logger.debug(
+                    f"Bloc9 ID:{bloc9_id} Switch:{switch_nr} -> {brightness}% (byte: 0x{brightness_byte:02X})"
+                )
+        else:
+            # Simple ON/OFF mode
+            state_byte = 0x01 if state else 0x00
+            data = bytes([switch_nr, state_byte, 0x00, 0x00])
+            logger.debug(f"Bloc9 ID:{bloc9_id} Switch:{switch_nr} -> {'ON' if state else 'OFF'}")
 
         # Send the message
         msg = can.Message(arbitration_id=can_id, data=data)
         bus.send(msg)
-        print(
-            f"[bloc9_switch] Sent to ID 0x{can_id:08X}: {' '.join(f'{b:02X}' for b in data)}"
+        logger.info(
+            f"CAN TX: ID=0x{can_id:08X} Data={' '.join(f'{b:02X}' for b in data)}"
         )
+    except Exception as e:
+        logger.error(f"Failed to send CAN message: {e}")
+        raise
     finally:
         # Ensure the bus is properly closed
-        bus.shutdown()
+        if bus:
+            bus.shutdown()
 
 
 def send_burst(bus, sender_id, data, repetitions=3, interval=0.033):
@@ -71,25 +112,45 @@ def send_burst(bus, sender_id, data, repetitions=3, interval=0.033):
     arbitration_id = int(sender_id, 16)
     payload = parse_hex_data(data)
 
+    logger.debug(
+        f"Sending burst: ID=0x{sender_id} repetitions={repetitions} interval={interval}s"
+    )
+
     for i in range(repetitions):
         msg = can.Message(arbitration_id=arbitration_id, data=payload)
         bus.send(msg)
-        print(
-            f"[send_burst] Sent to {sender_id}: {data} (repetition {i+1}/{repetitions})"
+        logger.info(
+            f"CAN TX burst {i+1}/{repetitions}: ID=0x{sender_id} Data={data}"
         )
         if i < repetitions - 1:
             time.sleep(interval)
 
 
+def _setup_logging():
+    """Setup logging for command-line usage."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="[%(levelname)s] %(message)s",
+    )
+
+
 if __name__ == "__main__":
-    # Get CAN interface from command line argument, default to "can1"
+    _setup_logging()
+    
+    # Parse command line arguments
     switch_nr = sys.argv[1] if len(sys.argv) > 1 else "3"
     bus_nr = sys.argv[2] if len(sys.argv) > 2 else "7"
-    state = sys.argv[3] if len(sys.argv) > 3 else "ON"
-
-    # Example usage
-    # push_light_button(can_interface)
-    print(
-        f"[main] Toggling switch {switch_nr} on bus {bus_nr} to {'ON' if state != 'OFF' else 'OFF'}"
+    state_arg = sys.argv[3] if len(sys.argv) > 3 else "ON"
+    
+    state = state_arg.upper() != "OFF"
+    
+    logger.info(
+        f"Command: Bloc9 ID:{bus_nr} Switch:{switch_nr} -> {'ON' if state else 'OFF'}"
     )
-    bloc9_switch("can1", int(bus_nr), int(switch_nr), state != "OFF")
+    
+    try:
+        bloc9_switch("can1", int(bus_nr), int(switch_nr), state)
+        logger.info("Command sent successfully")
+    except Exception as e:
+        logger.error(f"Command failed: {e}")
+        sys.exit(1)

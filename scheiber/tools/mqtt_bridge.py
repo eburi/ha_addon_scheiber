@@ -152,8 +152,52 @@ class MQTTBridge:
 
         # Handle bloc9 switch commands
         if device_type == "bloc9":
-            # Extract switch number from property name (e.g., "s1" -> 0, "s2" -> 1, etc.)
-            if property_name.startswith("s") and property_name[1:].isdigit():
+            # Check if this is a brightness command
+            if property_name == "brightness":
+                # Brightness command format: <prefix>/scheiber/bloc9/<bus_id>/brightness/set
+                # This is a global brightness for the device (not implemented yet)
+                self.logger.warning(f"Global brightness command not supported: {topic}")
+                return
+
+            # Extract switch number and check for brightness suffix
+            if property_name.startswith("s") and "_brightness" in property_name:
+                # Individual switch brightness: s1_brightness, s2_brightness, etc.
+                base_property = property_name.replace("_brightness", "")
+                if base_property[1:].isdigit():
+                    switch_nr = int(base_property[1:]) - 1  # s1=0, s2=1, etc.
+
+                    try:
+                        brightness = int(payload)
+                        if brightness < 0 or brightness > 255:
+                            self.logger.error(
+                                f"Brightness value out of range (0-255): {brightness}"
+                            )
+                            return
+
+                        self.logger.info(
+                            f"Executing bloc9_switch: device={bus_id}, switch={switch_nr}, brightness={brightness}"
+                        )
+
+                        bloc9_switch(
+                            self.can_interface,
+                            bus_id,
+                            switch_nr,
+                            True,
+                            brightness=brightness,
+                        )
+                        self.logger.info(
+                            f"Brightness command sent successfully to {device_type} {bus_id} {property_name}"
+                        )
+                    except ValueError:
+                        self.logger.error(f"Invalid brightness value: {payload}")
+                    except Exception as e:
+                        self.logger.error(f"Failed to send brightness command: {e}")
+                else:
+                    self.logger.warning(
+                        f"Unknown property '{property_name}' for {device_type}"
+                    )
+            elif property_name.startswith("s") and property_name[1:].isdigit():
+                # Simple ON/OFF command for switch
                 switch_nr = int(property_name[1:]) - 1  # s1=0, s2=1, etc.
 
                 # Parse payload: "1" or "ON" = True, "0" or "OFF" = False
@@ -170,11 +214,6 @@ class MQTTBridge:
                     )
                 except Exception as e:
                     self.logger.error(f"Failed to send command: {e}")
-            elif property_name.endswith("_dim"):
-                # Handle dimming commands (future enhancement)
-                self.logger.debug(
-                    f"Dimming command received but not yet implemented: {topic} = {payload}"
-                )
             else:
                 self.logger.warning(
                     f"Unknown property '{property_name}' for {device_type}"
@@ -307,22 +346,15 @@ class MQTTBridge:
             },
         }
 
-        # Add brightness support if dimming property exists
-        dim_property = f"{property_name}_dim"
-        # Check if dimming is configured in any matcher
-        has_dimming = any(
-            dim_property in matcher.get("properties", {})
-            for matcher in device_config.get("matchers", [])
-        )
-
-        if has_dimming:
+        # Add brightness support - always enable for bloc9 switches
+        if device_type == "bloc9":
             config_payload["brightness_state_topic"] = (
-                f"{self.mqtt_topic_prefix}/scheiber/{device_type}/{device_id}/{dim_property}/state"
+                f"{self.mqtt_topic_prefix}/scheiber/{device_type}/{device_id}/{property_name}/brightness"
             )
             config_payload["brightness_command_topic"] = (
-                f"{self.mqtt_topic_prefix}/scheiber/{device_type}/{device_id}/{dim_property}/set"
+                f"{self.mqtt_topic_prefix}/scheiber/{device_type}/{device_id}/{property_name}/set_brightness"
             )
-            config_payload["brightness_scale"] = 255
+            config_payload["brightness_scale"] = 100
 
         config_json = json.dumps(config_payload)
         self.logger.debug(f"Publishing HA discovery config to {config_topic}")
@@ -443,9 +475,23 @@ class MQTTBridge:
                 # Update device state with new properties
                 self.device_states[device_instance].update(decoded)
 
-                # Publish individual property states
+                # Publish individual property states, using brightness sub-topic for dimming
                 for prop_name, value in decoded.items():
-                    self.publish_property_state(device_key, bus_id, prop_name, value)
+                    # Publish dimming properties to /brightness sub-topic
+                    if prop_name.endswith("_dim"):
+                        base_prop = prop_name.replace("_dim", "")
+                        brightness_topic = f"{self.mqtt_topic_prefix}/scheiber/{device_key}/{bus_id}/{base_prop}/brightness"
+                        payload = str(value) if value is not None else "?"
+                        self.logger.debug(
+                            f"Publishing brightness to {brightness_topic}: {payload}"
+                        )
+                        self.mqtt_client.publish(
+                            brightness_topic, payload, qos=1, retain=True
+                        )
+                    else:
+                        self.publish_property_state(
+                            device_key, bus_id, prop_name, value
+                        )
 
         except KeyboardInterrupt:
             self.logger.info("Stopping (Ctrl+C received)")

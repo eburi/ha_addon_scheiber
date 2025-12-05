@@ -43,20 +43,28 @@ JSON payload with:
 ### Device State
 ```
 <prefix>/scheiber/<device-type>/<bus-id>/<property>/state
+<prefix>/scheiber/<device-type>/<bus-id>/<property>/brightness
 ```
-Example: `homeassistant/scheiber/bloc9/10/s1/state` → `1` (ON) or `0` (OFF)
+Example: 
+- `homeassistant/scheiber/bloc9/10/s1/state` → `1` (ON) or `0` (OFF)
+- `homeassistant/scheiber/bloc9/10/s1/brightness` → `0-100` (brightness percentage)
 
 ### Device Commands
 ```
 <prefix>/scheiber/<device-type>/<bus-id>/<property>/set
+<prefix>/scheiber/<device-type>/<bus-id>/<property>/set_brightness
 ```
-Example: `homeassistant/scheiber/bloc9/10/s1/set` → `1` (ON) or `0` (OFF)
+Example: 
+- `homeassistant/scheiber/bloc9/10/s1/set` → `1` (ON) or `0` (OFF)
+- `homeassistant/scheiber/bloc9/10/s1/set_brightness` → `0-100` (brightness percentage)
 
-Publish to these topics to control devices. The bridge subscribes to all `/set` topics and sends corresponding CAN commands.
+Publish to these topics to control devices. The bridge subscribes to all `/set` and `/set_brightness` topics and sends corresponding CAN commands.
 
 **Supported payloads:**
-- ON: `1`, `ON`, `on`, `true`, `True`
-- OFF: `0`, `OFF`, `off`, `false`, `False`
+- ON/OFF: `1`, `ON`, `on`, `true`, `True` / `0`, `OFF`, `off`, `false`, `False`
+- Brightness: `0-100` (0% = off, 1-100% = brightness level)
+
+**Note:** Brightness 0 will turn the light off. The percentage (0-100) is mapped to CAN byte values (0-255) using a square root curve to emphasize upper bit changes. The CAN protocol uses byte 1 = 0x11 and byte 3 = mapped brightness value for dimming commands.
 
 ### Device Configuration
 ```
