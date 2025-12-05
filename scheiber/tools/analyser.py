@@ -316,7 +316,9 @@ def update_can_entry(msg):
         }
     else:
         entry = can_table[cid]
-        entry["prev_data"] = entry["last_data"]
+        # Only update prev_data if the message content actually changed
+        if entry["last_data"] != msg.data:
+            entry["prev_data"] = entry["last_data"]
         entry["last_data"] = msg.data
         entry["delta_ms"] = (now - entry["last_time"]) * 1000.0
         entry["last_time"] = now

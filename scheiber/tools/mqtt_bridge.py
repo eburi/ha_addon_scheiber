@@ -470,6 +470,20 @@ class MQTTBridge:
                                 device_key, bus_id, device_config, prop_name
                             )
 
+                            # For bloc9 devices, also publish initial brightness value if _dim property exists
+                            if (
+                                device_key == "bloc9"
+                                and f"{prop_name}_dim" in all_properties
+                            ):
+                                # Publish initial brightness as "?" (unknown) so the topic exists
+                                brightness_topic = f"{self.mqtt_topic_prefix}/scheiber/{device_key}/{bus_id}/{prop_name}/brightness"
+                                self.mqtt_client.publish(
+                                    brightness_topic, "?", qos=1, retain=True
+                                )
+                                self.logger.debug(
+                                    f"Published initial brightness to {brightness_topic}: ?"
+                                )
+
                     published_devices.add(device_instance)
 
                 # Update device state with new properties
