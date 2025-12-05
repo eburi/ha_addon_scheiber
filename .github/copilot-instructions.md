@@ -17,12 +17,14 @@ Important files and their roles
 - `scheiber/scheiber.py`: original interactive CAN listener and utilities (high-level). Use for reference only.
 - `scheiber/tools/scheiber.py`: low-level utility functions used by tools (e.g. `send_burst`, `bloc9_switch`, `test_switch`).
 - `scheiber/tools/canlistener.py`: active CAN listener with DEVICE_TYPES structure that decodes Bloc9 messages.
+- `scheiber/tools/device_types.yaml`: YAML configuration defining device types, matchers, and property extraction templates.
 - `scheiber/tools/mqtt_bridge.py`: MQTT bridge program that publishes CAN messages to MQTT broker.
 - `scheiber/tools/light.py`: `push_light_button()` helper (sends a two-packet press/release sequence).
 - `scheiber/tools/analyze_dimming.py`: Analysis tool to identify dimming byte patterns in CAN messages.
 - `scheiber/tools/analyser.py`: Interactive CAN sniffer (press spacebar to clear screen).
 - `scheiber/tools/data/`: sample dump files used for analysis and inference of message formats.
 - `scheiber/tools/can_names.csv`: human-readable mapping of known arbitration id prefixes and device comments.
+- `scheiber/tools/requirements.txt`: Python dependencies (python-can, paho-mqtt, PyYAML).
 - `scheiber/config.yaml`: Home Assistant addon configuration with version, options, and schema.
 - `scheiber/Dockerfile`: Container build configuration with virtualenv setup in /tools.
 - `scheiber/run.sh`: Deployment script that activates virtualenv and starts mqtt_bridge.py.
@@ -67,13 +69,13 @@ Common developer workflows (how to run things locally)
 What agents should do first (on a new task)
 1. Read `scheiber/tools/can_names.csv` and `scheiber/tools/data/` to understand message examples.
 2. Prefer changes in `scheiber/tools/*` — this folder contains the small, testable utilities.
-3. When adding decoding rules, update `canlistener.py` DEVICE_TYPES structure and include examples.
+3. When adding decoding rules, update `scheiber/tools/device_types.yaml` with new device types, matchers, or properties.
 
 Development environment
 - Python virtualenv: `scheiber/tools/.venv` (created by Dockerfile, used by run.sh)
 - VS Code settings: `.vscode/settings.json` points to virtualenv interpreter
 - Code formatting: Black formatter with format-on-save enabled
-- Dependencies: `python-can==4.3.1`, `paho-mqtt==2.1.0` (see `scheiber/tools/requirements.txt`)
+- Dependencies: `python-can==4.3.1`, `paho-mqtt==2.1.0`, `PyYAML==6.0.1` (see `scheiber/tools/requirements.txt`)
 
 
 Testing and safety

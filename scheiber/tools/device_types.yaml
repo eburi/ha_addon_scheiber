@@ -1,0 +1,82 @@
+# Device type definitions for CAN bus devices
+# Each device type has:
+#   - name: Human-readable device name
+#   - bus_id_extractor: How to extract device instance ID from arbitration_id
+#   - matchers: List of message patterns that update device properties
+#
+# Property extraction templates:
+#   - Bit extraction: "(byte_index,bit_index)" - extracts single bit (0 or 1)
+#   - Byte extraction: "[byte_index]" - extracts full byte value (0-255)
+#   - Formatter: optional format string for logging (default: '{}')
+
+bloc9:
+  name: "Bloc9"
+  # Extract bus ID from lowest byte: clear MSB, shift right 3
+  # Formula: ((arb_id & 0xFF) & ~0x80) >> 3
+  bus_id_extractor:
+    type: "formula"
+    formula: "((arb_id & 0xFF) & ~0x80) >> 3"
+  
+  matchers:
+    - address: 0x00000600
+      mask: 0xFFFFFF00
+      name: "Status update"
+      properties:
+        s1:
+          template: "(1,0)"
+          formatter: "{}"
+        s2:
+          template: "(1,1)"
+          formatter: "{}"
+        s3:
+          template: "(1,2)"
+          formatter: "{}"
+        s4:
+          template: "(1,3)"
+          formatter: "{}"
+        s5:
+          template: "(1,4)"
+          formatter: "{}"
+        s6:
+          template: "(1,5)"
+          formatter: "{}"
+    
+    - address: 0x02160600
+      mask: 0xFFFFFF00
+      name: "S1 & S2 Status update"
+      properties:
+        s1:
+          template: "(3,0)"
+          formatter: "{}"
+        s2:
+          template: "(3,1)"
+          formatter: "{}"
+        # Example for dimming (once protocol is known):
+        # s1_dim:
+        #   template: "[4]"
+        #   formatter: "S1_DIM={}"
+        # s2_dim:
+        #   template: "[5]"
+        #   formatter: "S2_DIM={}"
+    
+    - address: 0x02180600
+      mask: 0xFFFFFF00
+      name: "S3 & S4 Status update"
+      properties:
+        s3:
+          template: "(6,0)"
+          formatter: "{}"
+        s4:
+          template: "(6,1)"
+          formatter: "{}"
+    
+    - address: 0x021A0600
+      mask: 0xFFFFFF00
+      name: "S5 & S6 Status update"
+      properties:
+        s5:
+          template: "(6,4)"
+          formatter: "{}"
+        s6:
+          template: "(6,5)"
+          formatter: "{}"

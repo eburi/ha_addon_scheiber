@@ -1,72 +1,42 @@
 import time
 import can
+import yaml
+import os
 from collections import defaultdict
 
-# Device-centric configuration structure.
-# Each device type has:
-#   - bus_id_extractor: template to extract device instance ID from arbitration_id
-#   - matchers: list of message patterns that update device properties
-#     Each matcher has:
-#       - address/mask: for matching CAN messages (arbitration_id & mask) == (address & mask)
-#       - name: descriptive name for logging
-#       - properties: dict of property_name -> extraction config
-#
-# Property extraction templates:
-#   - Bit extraction: "(byte_index,bit_index)" - extracts single bit (0 or 1)
-#   - Byte extraction: "[byte_index]" - extracts full byte value (0-255)
-#   - Formatter: optional format string for logging (default: '{}')
-DEVICE_TYPES = {
-    "bloc9": {
-        "name": "Bloc9",
-        # Extract bus ID from lowest byte: clear MSB, shift right 3
-        "bus_id_extractor": lambda arb_id: ((arb_id & 0xFF) & ~0x80) >> 3,
-        "matchers": [
-            {
-                "address": 0x00000600,
-                "mask": 0xFFFFFF00,
-                "name": "Status update",
-                "properties": {
-                    "s1": {"template": "(1,0)", "formatter": "{}"},
-                    "s2": {"template": "(1,1)", "formatter": "{}"},
-                    "s3": {"template": "(1,2)", "formatter": "{}"},
-                    "s4": {"template": "(1,3)", "formatter": "{}"},
-                    "s5": {"template": "(1,4)", "formatter": "{}"},
-                    "s6": {"template": "(1,5)", "formatter": "{}"},
-                },
-            },
-            {
-                "address": 0x02160600,
-                "mask": 0xFFFFFF00,
-                "name": "S1 & S2 Status update",
-                "properties": {
-                    "s1": {"template": "(3,0)", "formatter": "{}"},
-                    "s2": {"template": "(3,1)", "formatter": "{}"},
-                    # Example for dimming (once protocol is known):
-                    # 's1_dim': {'template': '[4]', 'formatter': 'S1_DIM={}'},
-                    # 's2_dim': {'template': '[5]', 'formatter': 'S2_DIM={}'}
-                },
-            },
-            {
-                "address": 0x02180600,
-                "mask": 0xFFFFFF00,
-                "name": "S3 & S4 Status update",
-                "properties": {
-                    "s3": {"template": "(6,0)", "formatter": "{}"},
-                    "s4": {"template": "(6,1)", "formatter": "{}"},
-                },
-            },
-            {
-                "address": 0x021A0600,
-                "mask": 0xFFFFFF00,
-                "name": "S5 & S6 Status update",
-                "properties": {
-                    "s5": {"template": "(6,4)", "formatter": "{}"},
-                    "s6": {"template": "(6,5)", "formatter": "{}"},
-                },
-            },
-        ],
-    }
-}
+
+# Load device types from YAML configuration
+def _load_device_types():
+    """Load device type definitions from device_types.yaml."""
+    config_path = os.path.join(os.path.dirname(__file__), "device_types.yaml")
+
+    with open(config_path, "r") as f:
+        raw_config = yaml.safe_load(f)
+
+    device_types = {}
+
+    for device_key, device_config in raw_config.items():
+        # Convert bus_id_extractor formula to lambda
+        extractor_config = device_config.get("bus_id_extractor", {})
+        if extractor_config.get("type") == "formula":
+            formula = extractor_config["formula"]
+            # Create lambda from formula string (safe for our controlled input)
+            bus_id_extractor = eval(f"lambda arb_id: {formula}")
+        else:
+            # Default extractor
+            bus_id_extractor = lambda arb_id: (arb_id & 0xFF)
+
+        device_types[device_key] = {
+            "name": device_config["name"],
+            "bus_id_extractor": bus_id_extractor,
+            "matchers": device_config.get("matchers", []),
+        }
+
+    return device_types
+
+
+# Load device types at module import
+DEVICE_TYPES = _load_device_types()
 
 
 def _find_device_and_matcher(arb_id):
