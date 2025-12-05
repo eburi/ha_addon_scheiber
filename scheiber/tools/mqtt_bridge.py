@@ -62,7 +62,7 @@ class MQTTBridge:
         mqtt_password,
         can_interface,
         mqtt_port=1883,
-        mqtt_topic_prefix="scheiber",
+        mqtt_topic_prefix="homeassistant",
         log_level="info",
     ):
         self.logger = logging.getLogger(__name__)
@@ -535,8 +535,8 @@ def main():
     )
     parser.add_argument(
         "--mqtt-topic-prefix",
-        default="scheiber",
-        help="MQTT topic prefix (default: scheiber). Trailing slash will be stripped.",
+        default="homeassistant",
+        help="MQTT topic prefix (default: homeassistant). Trailing slash will be stripped.",
     )
     parser.add_argument(
         "--log-level",

@@ -79,6 +79,23 @@ Development environment
 - Code formatting: Black formatter with format-on-save enabled
 - Dependencies: `python-can==4.3.1`, `paho-mqtt==2.1.0`, `PyYAML==6.0.1` (see `scheiber/tools/requirements.txt`)
 
+MQTT topic conventions
+- **IMPORTANT**: The mqtt_bridge.py uses a configurable `--mqtt-topic-prefix` (default: "homeassistant")
+- All MQTT topics use this prefix variable, NOT hardcoded strings
+- The prefix provides the top-level MQTT namespace. "homeassistant" is the default because:
+  - Home Assistant MQTT Discovery automatically looks under `/homeassistant` for discovery configs
+  - Topics then become `homeassistant/scheiber/<device_type>/<bus_id>/<property>/config`
+  - This avoids needing to configure discovery_prefix in Home Assistant
+- If a different prefix is used (e.g., "boat"), topics would be `boat/scheiber/<device_type>/<bus_id>/<property>/config`
+- Topic structure (where `<prefix>` = mqtt_topic_prefix):
+  - Discovery configs: `<prefix>/scheiber/<device_type>/<bus_id>/<property>/config`
+  - State topics: `<prefix>/scheiber/<device_type>/<bus_id>/<property>/state`
+  - Command topics: `<prefix>/scheiber/<device_type>/<bus_id>/<property>/set`
+  - Brightness state: `<prefix>/scheiber/<device_type>/<bus_id>/<property>/brightness`
+  - Brightness command: `<prefix>/scheiber/<device_type>/<bus_id>/<property>/set_brightness`
+- **NEVER hardcode "homeassistant" in topic patterns** - always use the configurable prefix variable
+- The `/scheiber/` namespace after the prefix keeps scheiber-related topics organized and separated
+
 
 Testing and safety
 - There are no automated tests. Add small runnable scripts that can be executed without hardware by mocking `can.interface.Bus` or by guarding with `if __name__ == '__main__'`.
