@@ -46,18 +46,17 @@ bloc9:
       name: "S1 & S2 Status update"
       properties:
         s1:
-          template: "(3,0)"
+          template: "(2,0)"
+          formatter: "{}"
+        s1_dim:
+          template: "[0]"
           formatter: "{}"
         s2:
-          template: "(3,1)"
+          template: "(2,1)"
           formatter: "{}"
-        # Example for dimming (once protocol is known):
-        # s1_dim:
-        #   template: "[4]"
-        #   formatter: "S1_DIM={}"
-        # s2_dim:
-        #   template: "[5]"
-        #   formatter: "S2_DIM={}"
+        s2_dim:
+          template: "[1]"
+          formatter: "{}"
     
     - address: 0x02180600
       mask: 0xFFFFFF00
@@ -66,8 +65,14 @@ bloc9:
         s3:
           template: "(6,0)"
           formatter: "{}"
+        s3_dim:
+          template: "[4]"
+          formatter: "{}"
         s4:
           template: "(6,1)"
+          formatter: "{}"
+        s4_dim:
+          template: "[5]"
           formatter: "{}"
     
     - address: 0x021A0600
@@ -75,8 +80,14 @@ bloc9:
       name: "S5 & S6 Status update"
       properties:
         s5:
-          template: "(6,4)"
+          template: "(6,0)"
+          formatter: "{}"
+        s5_dim:
+          template: "[4]"
           formatter: "{}"
         s6:
-          template: "(6,5)"
+          template: "(6,1)"
+          formatter: "{}"
+        s6_dim:
+          template: "[5]"
           formatter: "{}"

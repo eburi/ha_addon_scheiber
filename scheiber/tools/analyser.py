@@ -430,7 +430,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="CAN sniffer tool")
     parser.add_argument(
-        "-i", "--interface", default="can0", help="CAN interface to use (default: can0)"
+        "-i", "--interface", default="can1", help="CAN interface to use (default: can0)"
     )
     parser.add_argument(
         "-f",
