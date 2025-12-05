@@ -34,9 +34,15 @@ from canlistener import (
 )
 
 
-def setup_logging(debug=False):
+def setup_logging(log_level="info"):
     """Configure logging to console with appropriate level."""
-    level = logging.DEBUG if debug else logging.INFO
+    level_map = {
+        "debug": logging.DEBUG,
+        "info": logging.INFO,
+        "warning": logging.WARNING,
+        "error": logging.ERROR,
+    }
+    level = level_map.get(log_level.lower(), logging.INFO)
     logging.basicConfig(
         level=level,
         format="[%(levelname)s] %(asctime)s - %(name)s: %(message)s",
@@ -54,7 +60,7 @@ class MQTTBridge:
         can_interface,
         mqtt_port=1883,
         mqtt_topic_prefix="scheiber",
-        debug=False,
+        log_level="info",
     ):
         self.logger = logging.getLogger(__name__)
         self.mqtt_host = mqtt_host
@@ -64,7 +70,7 @@ class MQTTBridge:
         self.can_interface = can_interface
         # Normalize topic prefix: strip trailing slash for consistent formatting
         self.mqtt_topic_prefix = mqtt_topic_prefix.rstrip("/")
-        self.debug = debug
+        self.log_level = log_level
 
         self.can_bus = None
         self.mqtt_client = None
@@ -420,11 +426,16 @@ def main():
         default="scheiber",
         help="MQTT topic prefix (default: scheiber). Trailing slash will be stripped.",
     )
-    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    parser.add_argument(
+        "--log-level",
+        default="info",
+        choices=["debug", "info", "warning", "error"],
+        help="Logging level (default: info)",
+    )
 
     args = parser.parse_args()
 
-    logger = setup_logging(debug=args.debug)
+    logger = setup_logging(log_level=args.log_level)
     logger.info("Starting Scheiber MQTT Bridge")
     logger.info(
         f"Configuration: mqtt_host={args.mqtt_host}:{args.mqtt_port}, mqtt_user={args.mqtt_user}, can_interface={args.can_interface}"
@@ -437,7 +448,7 @@ def main():
         mqtt_password=args.mqtt_password,
         can_interface=args.can_interface,
         mqtt_topic_prefix=args.mqtt_topic_prefix,
-        debug=args.debug,
+        log_level=args.log_level,
     )
     bridge.run()
 

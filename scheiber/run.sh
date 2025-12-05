@@ -51,5 +51,5 @@ exec python3 mqtt_bridge.py \
      --mqtt-user "${MQTT_USER}" \
      --mqtt-password "${MQTT_PASSWORD}" \
      --mqtt-topic-prefix "${MQTT_TOPIC_PREFIX}" \
-     --can-interface "${CAN_INTERFACE}"
+     --log-level "${LOG_LEVEL}" \
      --can-interface "${CAN_INTERFACE}"
