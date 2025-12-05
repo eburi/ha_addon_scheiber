@@ -8,6 +8,14 @@
 #   - Bit extraction: "(byte_index,bit_index)" - extracts single bit (0 or 1)
 #   - Byte extraction: "[byte_index]" - extracts full byte value (0-255)
 #   - Formatter: optional format string for logging (default: '{}')
+#
+# Message structure for switch pairs (8 bytes):
+#   Bytes 0-3: Lower switch data (S1, S3, S5)
+#     - Byte 0: Brightness level (0x01 = full on, 0x00 = off, 0x02-0xFF = dimmed)
+#     - Byte 3, bit 0: ON/OFF state
+#   Bytes 4-7: Higher switch data (S2, S4, S6)
+#     - Byte 4: Brightness level (0x01 = full on, 0x00 = off, 0x02-0xFF = dimmed)
+#     - Byte 7, bit 0: ON/OFF state
 
 bloc9:
   name: "Bloc9"
@@ -46,16 +54,16 @@ bloc9:
       name: "S1 & S2 Status update"
       properties:
         s1:
-          template: "(2,0)"
+          template: "(3,0)"
           formatter: "{}"
         s1_dim:
           template: "[0]"
           formatter: "{}"
         s2:
-          template: "(2,1)"
+          template: "(7,0)"
           formatter: "{}"
         s2_dim:
-          template: "[1]"
+          template: "[4]"
           formatter: "{}"
     
     - address: 0x02180600
@@ -63,16 +71,16 @@ bloc9:
       name: "S3 & S4 Status update"
       properties:
         s3:
-          template: "(6,0)"
+          template: "(3,0)"
           formatter: "{}"
         s3_dim:
-          template: "[4]"
+          template: "[0]"
           formatter: "{}"
         s4:
-          template: "(6,1)"
+          template: "(7,0)"
           formatter: "{}"
         s4_dim:
-          template: "[5]"
+          template: "[4]"
           formatter: "{}"
     
     - address: 0x021A0600
@@ -80,14 +88,14 @@ bloc9:
       name: "S5 & S6 Status update"
       properties:
         s5:
-          template: "(6,0)"
+          template: "(3,0)"
           formatter: "{}"
         s5_dim:
-          template: "[4]"
+          template: "[0]"
           formatter: "{}"
         s6:
-          template: "(6,1)"
+          template: "(7,0)"
           formatter: "{}"
         s6_dim:
-          template: "[5]"
+          template: "[4]"
           formatter: "{}"
