@@ -34,7 +34,7 @@ export LOG_LEVEL="${LOG_LEVEL}"
 # Use the CAN_IFACE value and configure just that device
 # Init can0
 ip link set can0 down 2>/dev/null
-ip link set can0 type can bitrate 250000 fd off restart-ms 100data
+ip link set can0 type can bitrate 250000 fd off restart-ms 100
 ip link set can0 up
 ifconfig can0 txqueuelen 10000
 
