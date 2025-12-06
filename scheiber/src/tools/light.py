@@ -1,7 +1,8 @@
-import time
-import can
-import sys
 import os
+import sys
+import time
+
+import can
 
 # Add parent directory to path to import from src
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))

@@ -7,15 +7,17 @@ Tests use 0-255 brightness scale (not percentage).
 Run with: cd scheiber/src && python ../../tests/test_brightness_command.py
 """
 
-import sys
 import os
+import sys
 
 # Add parent directory to path to import scheiber module
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scheiber", "src"))
 
 import unittest
-from unittest.mock import Mock, patch, call
+from unittest.mock import Mock, call, patch
+
 import can
+
 from scheiber import bloc9_switch
 
 

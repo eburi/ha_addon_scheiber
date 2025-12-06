@@ -17,10 +17,11 @@ The script shows:
   - Correlation analysis to help identify dimming bytes
 """
 
-import sys
-import can
-from collections import defaultdict
 import os
+import sys
+from collections import defaultdict
+
+import can
 
 # Add parent directory to path to import from src
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))

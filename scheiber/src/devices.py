@@ -8,7 +8,7 @@ Subclasses (Light, etc.) add device-specific behavior.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, Set
+from typing import Any, Dict, Optional, Set
 
 
 class ScheiberCanDevice(ABC):

@@ -4,13 +4,14 @@ Test cases for CAN message decoding from Scheiber devices.
 Tests all message types described in the README and protocol documentation.
 """
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scheiber", "src"))
 
 import unittest
-from can_decoder import find_device_and_matcher, extract_property_value
+
+from can_decoder import extract_property_value, find_device_and_matcher
 
 
 class TestBloc9StatusUpdate(unittest.TestCase):

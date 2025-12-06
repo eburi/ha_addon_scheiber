@@ -1,14 +1,15 @@
-import time
-import can
-from collections import defaultdict
-import sys
 import os
+import sys
+import time
+from collections import defaultdict
+
+import can
 
 # Add parent directory to path to import from src
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # Import CAN decoding utilities
-from can_decoder import DEVICE_TYPES, find_device_and_matcher, extract_property_value
+from can_decoder import DEVICE_TYPES, extract_property_value, find_device_and_matcher
 
 
 def listen(can_interface="can1"):

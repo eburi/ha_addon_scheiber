@@ -1,14 +1,13 @@
-import can  # type: ignore
-import time
+import argparse
+import atexit
+import pprint
+import select
 import sys
 import termios
+import time
 import tty
-import select
-import termios
-import tty
-import atexit
-import argparse
-import pprint
+
+import can  # type: ignore
 
 # ------------------------------------------
 # GLOBAL STATE

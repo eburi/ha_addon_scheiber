@@ -4,9 +4,10 @@ Scheiber CAN bus control library.
 Provides low-level functions for sending commands to Scheiber devices over CAN bus.
 """
 
-import time
-import sys
 import logging
+import sys
+import time
+
 import can
 
 # Module logger

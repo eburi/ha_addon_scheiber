@@ -21,18 +21,19 @@ import json
 import logging
 import sys
 from collections import defaultdict
+from typing import Any, Dict, List, Optional, Set
 
 import can
 import paho.mqtt.client as mqtt
 
 # Import CAN decoding utilities
-from can_decoder import find_device_and_matcher, extract_property_value
-
-# Import command functions from scheiber module
-from scheiber import bloc9_switch
+from can_decoder import extract_property_value, find_device_and_matcher
 
 # Import device class system
 from devices import create_device
+
+# Import command functions from scheiber module
+from scheiber import bloc9_switch
 
 
 def setup_logging(log_level="info"):
@@ -55,13 +56,13 @@ def setup_logging(log_level="info"):
 class MQTTBridge:
     def __init__(
         self,
-        mqtt_host,
-        mqtt_user,
-        mqtt_password,
-        can_interface,
-        mqtt_port=1883,
-        mqtt_topic_prefix="homeassistant",
-        log_level="info",
+        mqtt_host: str,
+        mqtt_user: str,
+        mqtt_password: str,
+        can_interface: str,
+        mqtt_port: int = 1883,
+        mqtt_topic_prefix: str = "homeassistant",
+        log_level: str = "info",
     ):
         self.logger = logging.getLogger(__name__)
         self.mqtt_host = mqtt_host
@@ -73,8 +74,8 @@ class MQTTBridge:
         self.mqtt_topic_prefix = mqtt_topic_prefix.rstrip("/")
         self.log_level = log_level
 
-        self.can_bus = None
-        self.mqtt_client = None
+        self.can_bus: Optional[can.BusABC] = None
+        self.mqtt_client: Optional[mqtt.Client] = None
         self.last_seen = {}
 
         # Track device instances: (device_type, device_id) -> ScheiberCanDevice
@@ -254,7 +255,10 @@ class MQTTBridge:
         self.logger.debug(
             f"Connecting to MQTT broker at {self.mqtt_host}:{self.mqtt_port}"
         )
-        self.mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        # CallbackAPIVersion is available in paho-mqtt 2.0+
+        from paho.mqtt.enums import CallbackAPIVersion
+
+        self.mqtt_client = mqtt.Client(CallbackAPIVersion.VERSION2)
         self.mqtt_client.on_connect = self.on_mqtt_connect
         self.mqtt_client.on_disconnect = self.on_mqtt_disconnect
         self.mqtt_client.on_message = self.on_mqtt_message
@@ -326,7 +330,8 @@ class MQTTBridge:
         # Only publish if changed
         if payload_json != self.last_bus_stats_json:
             self.logger.debug(f"Publishing bus stats to {topic}: {payload_json}")
-            self.mqtt_client.publish(topic, payload_json, qos=1, retain=True)
+            if self.mqtt_client:
+                self.mqtt_client.publish(topic, payload_json, qos=1, retain=True)
             self.last_bus_stats_json = payload_json
 
     def decode_message(self, matcher, raw_data):
@@ -359,6 +364,8 @@ class MQTTBridge:
         try:
             message_count = 0
             while True:
+                if not self.can_bus:
+                    break
                 msg = self.can_bus.recv(timeout=1.0)
                 if msg is None:
                     continue
@@ -412,6 +419,10 @@ class MQTTBridge:
                         f"First message from {device_key} ID:{bus_id}, creating device instance"
                     )
 
+                    # Type assertion: device_key and bus_id are guaranteed to be str and int here
+                    # because we already checked device_config is not None above
+                    assert device_key is not None
+                    assert bus_id is not None
                     device = create_device(
                         device_key,
                         bus_id,

@@ -1,11 +1,11 @@
 {
-  "python.defaultInterpreterPath": "${workspaceFolder}/scheiber/tools/.venv/bin/python",
+  "python.defaultInterpreterPath": "${workspaceFolder}/scheiber/src/.venv/bin/python",
   "python.linting.enabled": true,
   "python.linting.pylintEnabled": false,
   "python.linting.flake8Enabled": false,
   "python.analysis.typeCheckingMode": "basic",
   "python.analysis.extraPaths": [
-    "${workspaceFolder}/scheiber/tools"
+    "${workspaceFolder}/scheiber/src"
   ],
   "python.analysis.autoSearchPaths": true,
   "python.envFile": "${workspaceFolder}/.env",

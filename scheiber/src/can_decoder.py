@@ -6,8 +6,9 @@ Provides device-agnostic utilities for parsing CAN messages based on YAML config
 This module is used by both canlistener.py (debug tool) and mqtt_bridge.py (production).
 """
 
-import yaml
 import os
+
+import yaml
 
 
 def _load_device_types():
