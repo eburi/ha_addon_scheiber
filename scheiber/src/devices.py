@@ -6,9 +6,11 @@ Base class ScheiberCanDevice provides common functionality.
 Subclasses (Bloc9, etc.) add device-specific behavior including command handling.
 """
 
+import json
 import logging
 import re
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import can
@@ -25,6 +27,7 @@ class ScheiberCanDevice(ABC):
         mqtt_client,
         mqtt_topic_prefix: str,
         can_bus: Optional[can.BusABC],
+        data_dir: Optional[str] = None,
     ):
         self.device_type = device_type
         self.device_id = device_id
@@ -32,6 +35,7 @@ class ScheiberCanDevice(ABC):
         self.mqtt_client = mqtt_client
         self.mqtt_topic_prefix = mqtt_topic_prefix
         self.can_bus = can_bus
+        self.data_dir = data_dir
         self.logger = logging.getLogger(
             f"{__name__}.{self.__class__.__name__}.{device_type}_{device_id}"
         )
@@ -133,6 +137,7 @@ class Bloc9(ScheiberCanDevice):
         mqtt_client,
         mqtt_topic_prefix: str,
         can_bus: Optional[can.BusABC],
+        data_dir: Optional[str] = None,
     ):
         super().__init__(
             device_type,
@@ -141,8 +146,21 @@ class Bloc9(ScheiberCanDevice):
             mqtt_client,
             mqtt_topic_prefix,
             can_bus,
+            data_dir,
         )
-        self.logger.info(f"Initialized Bloc9 device: {device_type} {device_id}")
+
+        # Set state cache directory from data_dir or use default
+        if data_dir:
+            self.state_cache_dir = Path(data_dir) / "state_cache"
+        else:
+            self.state_cache_dir = Path(__file__).parent / ".state_cache"
+
+        self.logger.info(
+            f"Initialized Bloc9 device: {device_type} {device_id}, state_cache={self.state_cache_dir}"
+        )
+
+        # Load persisted state and publish if available
+        self._load_and_publish_persisted_state()
 
     def register_command_topics(self) -> List[Tuple[str, Callable[[str, str], None]]]:
         """Register command topics for all switch properties."""
@@ -364,6 +382,9 @@ class Bloc9(ScheiberCanDevice):
             payload = str(value) if value is not None else "?"
             self.logger.debug(f"Publishing brightness to {brightness_topic}: {payload}")
             self.mqtt_client.publish(brightness_topic, payload, qos=1, retain=True)
+
+            # Persist brightness state
+            self._persist_state(property_name, value)
         # Skip stat properties
         elif property_name.startswith("stat"):
             return
@@ -376,6 +397,94 @@ class Bloc9(ScheiberCanDevice):
             payload = str(value) if value is not None else "?"
             self.logger.debug(f"Publishing property state to {topic}: {payload}")
             self.mqtt_client.publish(topic, payload, qos=1, retain=True)
+
+            # Persist switch state
+            self._persist_state(property_name, value)
+
+    def _get_state_file_path(self) -> Path:
+        """Get the path to the state file for this device."""
+        return self.state_cache_dir / f"bloc9_{self.device_id}.json"
+
+    def _persist_state(self, property_name: str, value: Any):
+        """Persist a property state to disk."""
+        try:
+            # Ensure state cache directory exists
+            self.state_cache_dir.mkdir(parents=True, exist_ok=True)
+
+            state_file = self._get_state_file_path()
+
+            # Load existing state or create new
+            if state_file.exists():
+                with open(state_file, "r") as f:
+                    state_data = json.load(f)
+            else:
+                state_data = {}
+
+            # Update state
+            state_data[property_name] = value
+
+            # Write back to file
+            with open(state_file, "w") as f:
+                json.dump(state_data, f, indent=2)
+
+            self.logger.debug(f"Persisted state: {property_name}={value}")
+        except Exception as e:
+            self.logger.error(f"Failed to persist state for {property_name}: {e}")
+
+    def _load_persisted_state(self) -> Dict[str, Any]:
+        """Load persisted state from disk."""
+        state_file = self._get_state_file_path()
+
+        if not state_file.exists():
+            self.logger.debug("No persisted state found")
+            return {}
+
+        try:
+            with open(state_file, "r") as f:
+                state_data = json.load(f)
+            self.logger.info(
+                f"Loaded persisted state with {len(state_data)} properties"
+            )
+            return state_data
+        except Exception as e:
+            self.logger.error(f"Failed to load persisted state: {e}")
+            return {}
+
+    def _load_and_publish_persisted_state(self):
+        """Load persisted state and publish to MQTT as initial state."""
+        persisted_state = self._load_persisted_state()
+
+        if not persisted_state:
+            return
+
+        self.logger.info(
+            f"Publishing {len(persisted_state)} persisted properties to MQTT"
+        )
+
+        for property_name, value in persisted_state.items():
+            try:
+                # Handle brightness properties
+                if property_name.endswith("_brightness"):
+                    base_prop = property_name.replace("_brightness", "")
+                    brightness_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{base_prop}/brightness"
+                    payload = str(value) if value is not None else "?"
+                    self.logger.debug(
+                        f"Restoring brightness to {brightness_topic}: {payload}"
+                    )
+                    self.mqtt_client.publish(
+                        brightness_topic, payload, qos=1, retain=True
+                    )
+                # Skip stat properties
+                elif property_name.startswith("stat"):
+                    continue
+                # Handle regular switch state
+                else:
+                    topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{property_name}/state"
+                    payload = str(value) if value is not None else "?"
+                    self.logger.debug(f"Restoring switch state to {topic}: {payload}")
+                    self.mqtt_client.publish(topic, payload, qos=1, retain=True)
+            except Exception as e:
+                self.logger.error(f"Failed to restore state for {property_name}: {e}")
 
 
 # Device type registry - maps device type names to classes
@@ -394,6 +503,7 @@ def create_device(
     mqtt_client,
     mqtt_topic_prefix: str,
     can_bus,
+    data_dir: Optional[str] = None,
 ) -> ScheiberCanDevice:
     """Factory function to create appropriate device instance."""
     device_class = DEVICE_TYPE_CLASSES.get(device_type, ScheiberCanDevice)
@@ -406,5 +516,11 @@ def create_device(
         device_class = Bloc9
 
     return device_class(
-        device_type, device_id, device_config, mqtt_client, mqtt_topic_prefix, can_bus
+        device_type,
+        device_id,
+        device_config,
+        mqtt_client,
+        mqtt_topic_prefix,
+        can_bus,
+        data_dir,
     )

@@ -60,6 +60,7 @@ class MQTTBridge:
         mqtt_port: int = 1883,
         mqtt_topic_prefix: str = "homeassistant",
         log_level: str = "info",
+        data_dir: Optional[str] = None,
     ):
         self.logger = logging.getLogger(__name__)
         self.mqtt_host = mqtt_host
@@ -70,6 +71,7 @@ class MQTTBridge:
         # Normalize topic prefix: strip trailing slash for consistent formatting
         self.mqtt_topic_prefix = mqtt_topic_prefix.rstrip("/")
         self.log_level = log_level
+        self.data_dir = data_dir
 
         self.can_bus: Optional[can.BusABC] = None
         self.mqtt_client: Optional[mqtt.Client] = None
@@ -321,6 +323,7 @@ class MQTTBridge:
                         self.mqtt_client,
                         self.mqtt_topic_prefix,
                         self.can_bus,
+                        self.data_dir,
                     )
                     self.devices[device_instance_key] = device
 
@@ -400,6 +403,11 @@ def main():
         choices=["debug", "info", "warning", "error"],
         help="Logging level (default: info)",
     )
+    parser.add_argument(
+        "--data-dir",
+        default=None,
+        help="Directory for persistent data (default: .state_cache in src). Use /data in Docker.",
+    )
 
     args = parser.parse_args()
 
@@ -417,6 +425,7 @@ def main():
         can_interface=args.can_interface,
         mqtt_topic_prefix=args.mqtt_topic_prefix,
         log_level=args.log_level,
+        data_dir=args.data_dir,
     )
     bridge.run()
 

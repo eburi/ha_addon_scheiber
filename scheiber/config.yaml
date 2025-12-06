@@ -1,6 +1,6 @@
 name: scheiber
 slug: scheiber
-version: "1.4.1"
+version: "1.5.0"
 description: >
   Interface to scheiber
 
@@ -17,6 +17,11 @@ privileged:
   - NET_ADMIN
   - SYS_RAWIO
 
+map:
+  - type: homeassistant_config
+    read_only: False
+    path: /custom/config/path
+
 options:
   can_interface: can1
   mqtt_host: localhost
@@ -25,6 +30,7 @@ options:
   mqtt_password: mqtt
   mqtt_topic_prefix: homeassistant
   log_level: info
+  data_dir: /data
 
 schema:
   can_interface: str
@@ -34,3 +40,4 @@ schema:
   mqtt_password: password
   mqtt_topic_prefix: str
   log_level: list(info|debug|warning|error)
+  data_dir: str?
