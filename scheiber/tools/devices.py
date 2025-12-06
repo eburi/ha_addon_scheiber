@@ -37,6 +37,9 @@ class ScheiberCanDevice(ABC):
         # Track which properties have been published
         self.published_properties = set()
 
+        # Track which properties are available (received data from CAN bus)
+        self.available_properties = set()
+
     def get_all_properties(self) -> Set[str]:
         """Get all unique properties across all matchers for this device."""
         all_properties = set()
@@ -47,6 +50,16 @@ class ScheiberCanDevice(ABC):
     def update_state(self, decoded_properties: Dict[str, Any]):
         """Update device state with decoded properties."""
         self.state.update(decoded_properties)
+
+    def mark_property_available(self, property_name: str):
+        """Mark a property as available and publish availability status."""
+        if property_name not in self.available_properties:
+            self.available_properties.add(property_name)
+            availability_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{property_name}/availability"
+            self.logger.debug(
+                f"Publishing availability to {availability_topic}: online"
+            )
+            self.mqtt_client.publish(availability_topic, "online", qos=1, retain=True)
 
     @abstractmethod
     def publish_discovery_config(self):
@@ -108,6 +121,7 @@ class Bloc9(ScheiberCanDevice):
 
             config_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{prop_name}/config"
             state_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{prop_name}/state"
+            availability_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{prop_name}/availability"
 
             config_payload = {
                 "name": f"{self.device_config.get('name', self.device_type)} {self.device_id} {prop_name.upper()}",
@@ -115,6 +129,9 @@ class Bloc9(ScheiberCanDevice):
                 "default_entity_id": default_entity_id,
                 "device_class": "light",
                 "state_topic": state_topic,
+                "availability_topic": availability_topic,
+                "payload_available": "online",
+                "payload_not_available": "offline",
                 "command_topic": f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{prop_name}/set",
                 "payload_on": "1",
                 "payload_off": "0",
@@ -133,6 +150,8 @@ class Bloc9(ScheiberCanDevice):
 
             # Add brightness support if _brightness property exists
             if f"{prop_name}_brightness" in all_properties:
+                config_payload["brightness"] = True
+                config_payload["supported_color_modes"] = ["brightness"]
                 config_payload["brightness_state_topic"] = (
                     f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{prop_name}/brightness"
                 )
@@ -154,6 +173,12 @@ class Bloc9(ScheiberCanDevice):
             )
             self.mqtt_client.publish(config_topic, config_json, qos=1, retain=True)
 
+            # Publish initial offline availability status
+            self.logger.debug(
+                f"Publishing initial availability to {availability_topic}: offline"
+            )
+            self.mqtt_client.publish(availability_topic, "offline", qos=1, retain=True)
+
             self.published_properties.add(prop_name)
 
     def publish_state(self, property_name: str, value: Any):
@@ -161,6 +186,10 @@ class Bloc9(ScheiberCanDevice):
         # Handle brightness properties
         if property_name.endswith("_brightness"):
             base_prop = property_name.replace("_brightness", "")
+
+            # Mark base property as available when we get brightness data
+            self.mark_property_available(base_prop)
+
             brightness_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{base_prop}/brightness"
             payload = str(value) if value is not None else "?"
             self.logger.debug(f"Publishing brightness to {brightness_topic}: {payload}")
@@ -170,6 +199,9 @@ class Bloc9(ScheiberCanDevice):
             return
         # Handle regular switch state
         else:
+            # Mark property as available when we publish state
+            self.mark_property_available(property_name)
+
             topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{property_name}/state"
             payload = str(value) if value is not None else "?"
             self.logger.debug(f"Publishing property state to {topic}: {payload}")
