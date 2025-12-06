@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ha-addon-scheiber"
-version = "1.3.2"
+version = "1.3.3"
 description = "Home Assistant addon for Scheiber CAN bus devices"
 readme = "README.md"
 requires-python = ">=3.9"
