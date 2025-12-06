@@ -10,7 +10,7 @@ The MQTT bridge has been refactored to use an object-oriented device class hiera
 
 ```
 ScheiberCanDevice (Abstract Base Class)
-    ├── Light (Bloc9 switches with brightness)
+    ├── Bloc9 (Bloc9 switches with brightness)
     ├── TankSensor (future)
     ├── BatteryMonitor (future)
     └── ... (extensible)
@@ -20,7 +20,7 @@ ScheiberCanDevice (Abstract Base Class)
 
 - **`devices.py`**: Device class definitions
   - `ScheiberCanDevice`: Abstract base class with common functionality
-  - `Light`: Concrete class for lights with brightness support
+  - `Bloc9`: Concrete class for Bloc9 switches with brightness support
   - `DEVICE_TYPE_CLASSES`: Registry mapping device types to classes
   - `create_device()`: Factory function
 
@@ -52,7 +52,7 @@ ScheiberCanDevice (Abstract Base Class)
 - `state`: Current device state dict
 - `logger`: Per-device logger
 
-### Light Class
+### Bloc9 Class
 
 **Features**:
 - Publishes Home Assistant light entity discovery configs
@@ -103,7 +103,7 @@ class TankSensor(ScheiberCanDevice):
 # In devices.py
 
 DEVICE_TYPE_CLASSES = {
-    "bloc9": Light,
+    "bloc9": Bloc9,
     "tank_sensor": TankSensor,  # Add new mapping
     # ...
 }

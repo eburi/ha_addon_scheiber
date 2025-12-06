@@ -19,6 +19,7 @@ Important files and their roles
 - `scheiber/tools/canlistener.py`: active CAN listener with DEVICE_TYPES structure that decodes Bloc9 messages.
 - `scheiber/tools/device_types.yaml`: YAML configuration defining device types, matchers, and property extraction templates.
 - `scheiber/tools/mqtt_bridge.py`: MQTT bridge program that publishes CAN messages to MQTT broker.
+- `scheiber/tools/devices.py`: Device class hierarchy with ScheiberCanDevice base and Bloc9 concrete class.
 - `scheiber/tools/light.py`: `push_light_button()` helper (sends a two-packet press/release sequence).
 - `scheiber/tools/analyze_dimming.py`: Analysis tool to identify dimming byte patterns in CAN messages.
 - `scheiber/tools/analyser.py`: Interactive CAN sniffer (press spacebar to clear screen).

@@ -73,8 +73,8 @@ class ScheiberCanDevice(ABC):
         self.mqtt_client.publish(topic, payload_json, qos=1, retain=True)
 
 
-class Light(ScheiberCanDevice):
-    """Light device with brightness support (e.g., Bloc9 switches)."""
+class Bloc9(ScheiberCanDevice):
+    """Bloc9 device with switch and brightness support."""
 
     def __init__(
         self,
@@ -87,7 +87,7 @@ class Light(ScheiberCanDevice):
         super().__init__(
             device_type, device_id, device_config, mqtt_client, mqtt_topic_prefix
         )
-        self.logger.info(f"Initialized Light device: {device_type} {device_id}")
+        self.logger.info(f"Initialized Bloc9 device: {device_type} {device_id}")
 
     def publish_discovery_config(self):
         """Publish Home Assistant MQTT Discovery config for light components."""
@@ -178,7 +178,7 @@ class Light(ScheiberCanDevice):
 
 # Device type registry - maps device type names to classes
 DEVICE_TYPE_CLASSES = {
-    "bloc9": Light,
+    "bloc9": Bloc9,
     # Add more device types here:
     # "tank_sensor": TankSensor,
     # "battery_monitor": BatteryMonitor,
@@ -195,12 +195,12 @@ def create_device(
     """Factory function to create appropriate device instance."""
     device_class = DEVICE_TYPE_CLASSES.get(device_type, ScheiberCanDevice)
 
-    # ScheiberCanDevice is abstract, so if no specific class found, use Light as default
+    # ScheiberCanDevice is abstract, so if no specific class found, use Bloc9 as default
     if device_class == ScheiberCanDevice:
         logging.warning(
-            f"No device class found for type '{device_type}', using Light as default"
+            f"No device class found for type '{device_type}', using Bloc9 as default"
         )
-        device_class = Light
+        device_class = Bloc9
 
     return device_class(
         device_type, device_id, device_config, mqtt_client, mqtt_topic_prefix
