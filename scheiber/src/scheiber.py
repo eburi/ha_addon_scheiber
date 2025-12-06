@@ -52,8 +52,6 @@ def bloc9_switch(can_interface, bloc9_id, switch_nr, state, brightness=None):
     try:
         # Open CAN bus
         bus = can.interface.Bus(channel=can_interface, interface="socketcan")
-
-        # Construct CAN ID: lowest byte = (bloc9_id << 3) | 0x80, masked to ensure it's a single byte
         low_byte = ((bloc9_id << 3) | 0x80) & 0xFF
         can_id = 0x02360600 | low_byte
 
