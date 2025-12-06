@@ -11,6 +11,7 @@ __pycache__/
 build/
 develop-eggs/
 dist/
+downloads/
 download/
 eggs/
 .eggs/
@@ -19,6 +20,7 @@ lib64/
 parts/
 sdist/
 var/
+wheels/
 *.egg-info/
 .installed.cfg
 *.egg
@@ -44,7 +46,10 @@ htmlcov/
 .pytest_cache/
 nosetests.xml
 coverage.xml
+*.cover
 *,cover
+.hypothesis/
+coverage/
 
 # Translations
 *.mo
@@ -87,7 +92,7 @@ __pypackages__/
 .env
 .env.*
 
-# virtualenv
+# Virtual environments
 venv/
 .env/
 .venv/
@@ -120,6 +125,9 @@ typings/
 # IDEs
 .idea/
 *.iml
+*.swp
+*.swo
+*~
 
 # macOS
 .DS_Store
@@ -131,11 +139,8 @@ Thumbs.db
 secrets.yml
 credentials.json
 
-# Logs
-*.log
-
-# Coverage
-coverage/
-
 # Misc
 *.sqlite3
+
+# Project specific
+scheiber/src/.venv/
