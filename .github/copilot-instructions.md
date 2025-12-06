@@ -5,32 +5,36 @@ Keep updates short and concrete; prefer small, focused edits using the repo's ex
 
 Core purpose
 - This repository provides Python utilities that interact with scheiber devices over a SocketCAN bus.
-- Key runtime integration points: `python-can` (socketcan backend), the `scheiber/tools` helpers, and sample CAN dumps in `scheiber/tools/data/`.
+- Key runtime integration points: `python-can` (socketcan backend), core modules in `scheiber/src/`, and debugging tools in `scheiber/src/tools/`.
 
 **Working directory assumption**
-- All Python code in `scheiber/tools/` is deployed to run with `scheiber/tools/` as the working directory.
-- Scripts should use relative imports (e.g., `from canlistener import PATTERNS`) when importing sibling modules in tools/.
-- Data files are expected at `./data/` (relative to tools/).
-- When testing locally, run scripts from the tools folder or adjust sys.path accordingly.
+- Production code in `scheiber/src/` runs with `scheiber/src/` as the working directory.
+- Debug tools in `scheiber/src/tools/` add parent directory to path: `sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))`
+- Data files for debug tools are in `scheiber/src/tools/data/`.
+- When testing locally, run scripts from the src folder or adjust sys.path accordingly.
 
 Important files and their roles
-- `scheiber/scheiber.py`: original interactive CAN listener and utilities (high-level). Use for reference only.
-- `scheiber/tools/scheiber.py`: low-level utility functions used by tools (e.g. `send_burst`, `bloc9_switch`, `test_switch`).
-- `scheiber/tools/canlistener.py`: active CAN listener with DEVICE_TYPES structure that decodes Bloc9 messages.
-- `scheiber/tools/device_types.yaml`: YAML configuration defining device types, matchers, and property extraction templates.
-- `scheiber/tools/mqtt_bridge.py`: MQTT bridge program that publishes CAN messages to MQTT broker.
-- `scheiber/tools/devices.py`: Device class hierarchy with ScheiberCanDevice base and Bloc9 concrete class.
-- `scheiber/tools/light.py`: `push_light_button()` helper (sends a two-packet press/release sequence).
-- `scheiber/tools/analyze_dimming.py`: Analysis tool to identify dimming byte patterns in CAN messages.
-- `scheiber/tools/analyser.py`: Interactive CAN sniffer (press spacebar to clear screen).
-- `scheiber/tools/data/`: sample dump files used for analysis and inference of message formats.
-  - `command.md`: Verified command protocol for S5/S6 switches showing 0-indexed switch numbers
-  - Other dumps: various CAN traffic captures for protocol analysis
-- `scheiber/tools/can_names.csv`: human-readable mapping of known arbitration id prefixes and device comments.
-- `scheiber/tools/requirements.txt`: Python dependencies (python-can, paho-mqtt, PyYAML).
-- `scheiber/config.yaml`: Home Assistant addon configuration with version, options, and schema.
-- `scheiber/Dockerfile`: Container build configuration with virtualenv setup in /tools.
-- `scheiber/run.sh`: Deployment script that activates virtualenv and starts mqtt_bridge.py.
+- **Production code (scheiber/src/)**:
+  - `can_decoder.py`: CAN message decoding utilities (find_device_and_matcher, extract_property_value)
+  - `device_types.yaml`: YAML configuration defining device types, matchers, and property extraction templates
+  - `mqtt_bridge.py`: Main MQTT bridge program that publishes CAN messages to MQTT broker
+  - `devices.py`: Device class hierarchy with ScheiberCanDevice base and Bloc9 concrete class
+  - `scheiber.py`: Low-level CAN command functions (bloc9_switch, send_burst)
+  - `requirements.txt`: Python dependencies (python-can, paho-mqtt, PyYAML)
+
+- **Debug/analysis tools (scheiber/src/tools/)**:
+  - `canlistener.py`: CAN listener for debugging (shows decoded messages)
+  - `analyser.py`: Interactive CAN sniffer (press spacebar to clear screen)
+  - `analyze_dimming.py`: Analysis tool to identify dimming byte patterns
+  - `light.py`: push_light_button() helper (sends two-packet press/release sequence)
+  - `data/`: Sample CAN dumps for protocol analysis
+    - `command.md`: Verified command protocol for S5/S6 switches showing 0-indexed switch numbers
+  - `can_names.csv`: Human-readable mapping of known arbitration IDs
+
+- **Deployment (scheiber/)**:
+  - `config.yaml`: Home Assistant addon configuration with version, options, and schema
+  - `Dockerfile`: Container build configuration with virtualenv setup in /src
+  - `run.sh`: Deployment script that activates virtualenv and starts mqtt_bridge.py
 
 Key patterns and protocols (must be respected)
 - Bloc9 CAN-ID construction (used when sending commands):
@@ -48,7 +52,7 @@ Key patterns and protocols (must be respected)
   - `0x021A0600` — S5 & S6 change messages
 
 Agent coding rules for this repo
-- Follow existing style (snake_case functions, concise helpers in `scheiber/tools`).
+- Follow existing style (snake_case functions, concise helpers in `scheiber/src`).
 - When changing code that opens `can.interface.Bus`, always open in a try/finally and call `bus.shutdown()` in `finally`.
 - Use `apply_patch` for edits (small focused patches). Don't reformat whole files.
 - Avoid touching hardware-specific code unless the change is clearly safer (e.g., better error handling or clear abstractions). When in doubt, add a small wrapper or feature-flag.
@@ -59,26 +63,27 @@ Agent coding rules for this repo
   - Example: `0.5.8` → `0.5.9` for bug fix, `0.5.8` → `0.6.0` for new feature, `0.5.8` → `1.0.0` for breaking change
 
 Common developer workflows (how to run things locally)
-- Install runtime deps (if not present): `pip install python-can paho-mqtt`
-- Python environment: virtualenv at `scheiber/tools/.venv` with dependencies from `requirements.txt`
-- **All scripts run from the `scheiber/tools/` folder:**
-  - Test switch sequence: `cd scheiber/tools && python scheiber.py 3 7`
-  - CAN listener: `cd scheiber/tools && python canlistener.py can1`
-  - Interactive analyzer: `cd scheiber/tools && python analyser.py -i can0` (spacebar to clear)
-  - Light button: `cd scheiber/tools && python light.py can1`
-  - Dimming analysis: `cd scheiber/tools && python analyze_dimming.py can1`
-  - MQTT bridge: `cd scheiber/tools && python mqtt_bridge.py --debug --mqtt-host localhost --mqtt-port 1883`
+- Install runtime deps (if not present): `pip install python-can paho-mqtt PyYAML`
+- Python environment: virtualenv at `scheiber/src/.venv` with dependencies from `requirements.txt`
+- **All scripts run from the `scheiber/src/` folder:**
+  - Test switch sequence: `cd scheiber/src && python scheiber.py 3 7`
+  - MQTT bridge: `cd scheiber/src && python mqtt_bridge.py --debug --mqtt-host localhost --mqtt-port 1883`
+- **Debug tools run from `scheiber/src/tools/`:**
+  - CAN listener: `cd scheiber/src/tools && python canlistener.py can1`
+  - Interactive analyzer: `cd scheiber/src/tools && python analyser.py -i can0` (spacebar to clear)
+  - Light button: `cd scheiber/src/tools && python light.py can1`
+  - Dimming analysis: `cd scheiber/src/tools && python analyze_dimming.py can1`
 
 What agents should do first (on a new task)
-1. Read `scheiber/tools/can_names.csv` and `scheiber/tools/data/` to understand message examples.
-2. Prefer changes in `scheiber/tools/*` — this folder contains the small, testable utilities.
-3. When adding decoding rules, update `scheiber/tools/device_types.yaml` with new device types, matchers, or properties.
+1. Read `scheiber/src/tools/can_names.csv` and `scheiber/src/tools/data/` to understand message examples.
+2. Prefer changes in `scheiber/src/*` for production code.
+3. When adding decoding rules, update `scheiber/src/device_types.yaml` with new device types, matchers, or properties.
 
 Development environment
-- Python virtualenv: `scheiber/tools/.venv` (created by Dockerfile, used by run.sh)
+- Python virtualenv: `scheiber/src/.venv` (created by Dockerfile, used by run.sh)
 - VS Code settings: `.vscode/settings.json` points to virtualenv interpreter
 - Code formatting: Black formatter with format-on-save enabled
-- Dependencies: `python-can==4.3.1`, `paho-mqtt==2.1.0`, `PyYAML==6.0.1` (see `scheiber/tools/requirements.txt`)
+- Dependencies: `python-can==4.3.1`, `paho-mqtt==2.1.0`, `PyYAML==6.0.1` (see `scheiber/src/requirements.txt`)
 
 MQTT topic conventions
 - **IMPORTANT**: The mqtt_bridge.py uses a configurable `--mqtt-topic-prefix` (default: "homeassistant")

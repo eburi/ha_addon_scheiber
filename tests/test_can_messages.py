@@ -7,10 +7,10 @@ Tests all message types described in the README and protocol documentation.
 import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scheiber", "tools"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scheiber", "src"))
 
 import unittest
-from canlistener import _find_device_and_matcher, _extract_property_value
+from can_decoder import find_device_and_matcher, extract_property_value
 
 
 class TestBloc9StatusUpdate(unittest.TestCase):
@@ -19,7 +19,7 @@ class TestBloc9StatusUpdate(unittest.TestCase):
     def test_status_update_matching(self):
         """Test that status update messages match the bloc9 device."""
         arb_id = 0x000006C0  # bus_id=8
-        device_key, device_config, matcher, bus_id = _find_device_and_matcher(arb_id)
+        device_key, device_config, matcher, bus_id = find_device_and_matcher(arb_id)
 
         self.assertIsNotNone(device_key, "Should find a matching device")
         self.assertEqual(device_key, "bloc9")
@@ -35,7 +35,7 @@ class TestBloc9StatusUpdate(unittest.TestCase):
         ]
 
         for arb_id, expected_bus_id in test_cases:
-            _, _, _, bus_id = _find_device_and_matcher(arb_id)
+            _, _, _, bus_id = find_device_and_matcher(arb_id)
             self.assertEqual(
                 bus_id, expected_bus_id, f"Bus ID mismatch for CAN ID 0x{arb_id:08X}"
             )
@@ -43,7 +43,7 @@ class TestBloc9StatusUpdate(unittest.TestCase):
     def test_status_properties_present(self):
         """Test that status matcher has all expected properties."""
         arb_id = 0x000006C0
-        _, _, matcher, _ = _find_device_and_matcher(arb_id)
+        _, _, matcher, _ = find_device_and_matcher(arb_id)
 
         self.assertIn("properties", matcher)
         # Status messages should have properties like s1-s6
@@ -59,7 +59,7 @@ class TestBloc9SwitchMessages(unittest.TestCase):
     def test_s1_s2_matching(self):
         """Test S1 & S2 message (0x02160600 prefix) matching."""
         arb_id = 0x021606C0  # bus_id=8
-        device_key, _, matcher, bus_id = _find_device_and_matcher(arb_id)
+        device_key, _, matcher, bus_id = find_device_and_matcher(arb_id)
 
         self.assertEqual(device_key, "bloc9")
         self.assertEqual(bus_id, 8)
@@ -72,7 +72,7 @@ class TestBloc9SwitchMessages(unittest.TestCase):
     def test_s3_s4_matching(self):
         """Test S3 & S4 message (0x02180600 prefix) matching."""
         arb_id = 0x021806B8  # bus_id=7
-        device_key, _, matcher, bus_id = _find_device_and_matcher(arb_id)
+        device_key, _, matcher, bus_id = find_device_and_matcher(arb_id)
 
         self.assertEqual(device_key, "bloc9")
         self.assertEqual(bus_id, 7)
@@ -84,7 +84,7 @@ class TestBloc9SwitchMessages(unittest.TestCase):
     def test_s5_s6_matching(self):
         """Test S5 & S6 message (0x021A0600 prefix) matching."""
         arb_id = 0x021A06D0  # bus_id=10
-        device_key, _, matcher, bus_id = _find_device_and_matcher(arb_id)
+        device_key, _, matcher, bus_id = find_device_and_matcher(arb_id)
 
         self.assertEqual(device_key, "bloc9")
         self.assertEqual(bus_id, 10)
@@ -102,7 +102,7 @@ class TestBloc9SwitchMessages(unittest.TestCase):
         ]
 
         for arb_id, expected_bus_id in test_cases:
-            _, _, _, bus_id = _find_device_and_matcher(arb_id)
+            _, _, _, bus_id = find_device_and_matcher(arb_id)
             self.assertEqual(bus_id, expected_bus_id)
 
 
@@ -162,14 +162,14 @@ class TestMessageMatching(unittest.TestCase):
     def test_unmatched_message(self):
         """Test that unrecognized CAN IDs return None."""
         unknown_id = 0x12345678
-        result = _find_device_and_matcher(unknown_id)
+        result = find_device_and_matcher(unknown_id)
 
         self.assertEqual(result, (None, None, None, None))
 
     def test_device_type_structure(self):
         """Test that matched messages return proper structure."""
         arb_id = 0x000006C0
-        device_key, device_config, matcher, bus_id = _find_device_and_matcher(arb_id)
+        device_key, device_config, matcher, bus_id = find_device_and_matcher(arb_id)
 
         self.assertIsNotNone(device_key)
         self.assertIsNotNone(device_config)
@@ -192,15 +192,15 @@ class TestPropertyExtraction(unittest.TestCase):
         data = bytes([0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01])
 
         # Bit 0 of byte 3 should be 1
-        value = _extract_property_value(data, "(3,0)")
+        value = extract_property_value(data, "(3,0)")
         self.assertEqual(value, 1)
 
         # Bit 1 of byte 3 should be 0
-        value = _extract_property_value(data, "(3,1)")
+        value = extract_property_value(data, "(3,1)")
         self.assertEqual(value, 0)
 
         # Bit 0 of byte 7 should be 1
-        value = _extract_property_value(data, "(7,0)")
+        value = extract_property_value(data, "(7,0)")
         self.assertEqual(value, 1)
 
     def test_byte_extraction(self):
@@ -208,11 +208,11 @@ class TestPropertyExtraction(unittest.TestCase):
         data = bytes([0xAB, 0x00, 0x00, 0x01, 0xCD, 0x00, 0x00, 0x01])
 
         # Byte 0 = 0xAB = 171
-        value = _extract_property_value(data, "[0]")
+        value = extract_property_value(data, "[0]")
         self.assertEqual(value, 171)
 
         # Byte 4 = 0xCD = 205
-        value = _extract_property_value(data, "[4]")
+        value = extract_property_value(data, "[4]")
         self.assertEqual(value, 205)
 
 
@@ -245,7 +245,7 @@ class TestBusIdExtraction(unittest.TestCase):
         ]
 
         for arb_id, expected_bus_id in test_cases:
-            _, _, _, bus_id = _find_device_and_matcher(arb_id)
+            _, _, _, bus_id = find_device_and_matcher(arb_id)
             self.assertEqual(bus_id, expected_bus_id)
 
 
@@ -270,7 +270,7 @@ class TestEdgeCases(unittest.TestCase):
 
         # Should handle gracefully (exact behavior depends on implementation)
         try:
-            value = _extract_property_value(data, "[0]")
+            value = extract_property_value(data, "[0]")
             # If it doesn't raise, we expect None or 0
             self.assertIn(value, [None, 0])
         except (IndexError, ValueError):

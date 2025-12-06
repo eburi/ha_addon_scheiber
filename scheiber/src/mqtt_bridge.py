@@ -25,13 +25,8 @@ from collections import defaultdict
 import can
 import paho.mqtt.client as mqtt
 
-# Import device types and utilities from canlistener (relative import - run from tools/ folder)
-from canlistener import (
-    DEVICE_TYPES,
-    _find_device_and_matcher,
-    _bloc9_id_from_low,
-    _extract_property_value,
-)
+# Import CAN decoding utilities
+from can_decoder import find_device_and_matcher, extract_property_value
 
 # Import command functions from scheiber module
 from scheiber import bloc9_switch
@@ -344,7 +339,7 @@ class MQTTBridge:
                 )
                 continue
             template = prop_config.get("template")
-            value = _extract_property_value(raw_data, template)
+            value = extract_property_value(raw_data, template)
             decoded[prop_name] = value if value is not None else None
 
         return decoded
@@ -366,7 +361,7 @@ class MQTTBridge:
                     continue
 
                 arb = msg.arbitration_id
-                device_key, device_config, matcher, bus_id = _find_device_and_matcher(
+                device_key, device_config, matcher, bus_id = find_device_and_matcher(
                     arb
                 )
 

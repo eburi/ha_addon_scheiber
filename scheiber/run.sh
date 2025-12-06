@@ -43,7 +43,7 @@ ip link set can1 up
 ifconfig can1 txqueuelen 10000
 
 # Start scheiber mqtt bridge
-cd /tools
+cd /src
 source .venv/bin/activate
 exec python3 mqtt_bridge.py \
      --mqtt-host "${MQTT_HOST}" \
