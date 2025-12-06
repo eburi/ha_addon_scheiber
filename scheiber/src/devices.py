@@ -303,7 +303,7 @@ class Bloc9(ScheiberCanDevice):
             if prop_name.endswith("_brightness") or prop_name.startswith("stat"):
                 continue
 
-            unique_id = f"{self.device_type}_{self.device_id}_{prop_name}"
+            unique_id = f"{self.device_type}_{self.device_id}_{prop_name}_v2"
             default_entity_id = (
                 f"light.scheiber_{self.device_type}_{self.device_id}_{prop_name}"
             )
