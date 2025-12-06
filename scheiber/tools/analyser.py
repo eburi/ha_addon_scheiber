@@ -242,15 +242,19 @@ def dump_message(msg):
     if not entry:
         return
 
-    # Determine if this message changed
-    prev = entry.get("prev_data")
     curr = entry.get("last_data")
-    changed = (prev is None) or (prev != curr)
+    last_displayed = entry.get("last_displayed_data")
+
+    # Determine if this message is different from the last one we displayed
+    changed = (last_displayed is None) or (last_displayed != curr)
+
     # In change-only mode: skip unchanged messages
     if change_only_mode:
         if changed:
             dump_message_print(msg, entry, binary_mode=False)
             dump_message_print(msg, entry, binary_mode=True)
+            # Update last displayed data
+            entry["last_displayed_data"] = bytes(curr)
     else:
         dump_message_print(msg, entry, binary_mode)
 
@@ -313,6 +317,7 @@ def update_can_entry(msg):
             "count": 1,
             "first_seen": now,
             "history": [],
+            "last_displayed_data": None,  # Track last data we actually printed in dump mode
         }
     else:
         entry = can_table[cid]
