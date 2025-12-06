@@ -158,7 +158,7 @@ class Bloc9(ScheiberCanDevice):
                 config_payload["brightness_command_topic"] = (
                     f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{prop_name}/set_brightness"
                 )
-                config_payload["brightness_scale"] = 100
+                # Default brightness_scale is 255 (0-255 range)
 
                 # Publish initial brightness value
                 brightness_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{prop_name}/brightness"

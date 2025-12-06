@@ -106,6 +106,10 @@ class MQTTBridge:
             command_topic = f"{self.mqtt_topic_prefix}/scheiber/+/+/+/set"
             client.subscribe(command_topic)
             self.logger.info(f"Subscribed to command topic: {command_topic}")
+            # Subscribe to brightness command topics
+            brightness_topic = f"{self.mqtt_topic_prefix}/scheiber/+/+/+/set_brightness"
+            client.subscribe(brightness_topic)
+            self.logger.info(f"Subscribed to brightness topic: {brightness_topic}")
         else:
             self.logger.error(
                 f"Failed to connect to MQTT broker, reason code {reason_code}"
@@ -130,8 +134,73 @@ class MQTTBridge:
         self.logger.debug(f"Received MQTT message on {topic}: {payload}")
 
         # Parse command topics: <prefix>/scheiber/<device_type>/<bus_id>/<property>/set
+        # or brightness topics: <prefix>/scheiber/<device_type>/<bus_id>/<property>/set_brightness
         if topic.endswith("/set"):
             self.handle_command(topic, payload)
+        elif topic.endswith("/set_brightness"):
+            self.handle_brightness_command(topic, payload)
+
+    def handle_brightness_command(self, topic, payload):
+        """Handle brightness command messages."""
+        import re
+
+        # Parse topic: <prefix>/scheiber/<device_type>/<bus_id>/<property>/set_brightness
+        pattern = rf"^{re.escape(self.mqtt_topic_prefix)}/scheiber/([^/]+)/([^/]+)/([^/]+)/set_brightness$"
+        match = re.match(pattern, topic)
+
+        if not match:
+            self.logger.warning(f"Could not parse brightness command topic: {topic}")
+            return
+
+        device_type = match.group(1)
+        bus_id_str = match.group(2)
+        property_name = match.group(3)
+
+        try:
+            bus_id = int(bus_id_str)
+        except ValueError:
+            self.logger.error(f"Invalid bus_id '{bus_id_str}' in topic {topic}")
+            return
+
+        # Handle bloc9 brightness commands
+        if device_type == "bloc9":
+            if property_name.startswith("s") and property_name[1:].isdigit():
+                switch_nr = int(property_name[1:]) - 1  # s1=0, s2=1, etc.
+
+                try:
+                    brightness = int(payload)
+                    if brightness < 0 or brightness > 255:
+                        self.logger.error(
+                            f"Brightness value out of range (0-255): {brightness}"
+                        )
+                        return
+
+                    self.logger.info(
+                        f"Executing brightness command: device={bus_id}, switch={switch_nr}, brightness={brightness}"
+                    )
+
+                    bloc9_switch(
+                        self.can_interface,
+                        bus_id,
+                        switch_nr,
+                        True,
+                        brightness=brightness,
+                    )
+                    self.logger.info(
+                        f"Brightness command sent successfully to {device_type} {bus_id} {property_name}"
+                    )
+                except ValueError:
+                    self.logger.error(f"Invalid brightness value: {payload}")
+                except Exception as e:
+                    self.logger.error(f"Failed to send brightness command: {e}")
+            else:
+                self.logger.warning(
+                    f"Unknown property '{property_name}' for brightness command"
+                )
+        else:
+            self.logger.warning(
+                f"Unsupported device type for brightness: {device_type}"
+            )
 
     def handle_command(self, topic, payload):
         """Handle command messages for device control."""
@@ -157,51 +226,7 @@ class MQTTBridge:
 
         # Handle bloc9 switch commands
         if device_type == "bloc9":
-            # Check if this is a brightness command
-            if property_name == "brightness":
-                # Brightness command format: <prefix>/scheiber/bloc9/<bus_id>/brightness/set
-                # This is a global brightness for the device (not implemented yet)
-                self.logger.warning(f"Global brightness command not supported: {topic}")
-                return
-
-            # Extract switch number and check for brightness suffix
-            if property_name.startswith("s") and "_brightness" in property_name:
-                # Individual switch brightness: s1_brightness, s2_brightness, etc.
-                base_property = property_name.replace("_brightness", "")
-                if base_property[1:].isdigit():
-                    switch_nr = int(base_property[1:]) - 1  # s1=0, s2=1, etc.
-
-                    try:
-                        brightness = int(payload)
-                        if brightness < 0 or brightness > 255:
-                            self.logger.error(
-                                f"Brightness value out of range (0-255): {brightness}"
-                            )
-                            return
-
-                        self.logger.info(
-                            f"Executing bloc9_switch: device={bus_id}, switch={switch_nr}, brightness={brightness}"
-                        )
-
-                        bloc9_switch(
-                            self.can_interface,
-                            bus_id,
-                            switch_nr,
-                            True,
-                            brightness=brightness,
-                        )
-                        self.logger.info(
-                            f"Brightness command sent successfully to {device_type} {bus_id} {property_name}"
-                        )
-                    except ValueError:
-                        self.logger.error(f"Invalid brightness value: {payload}")
-                    except Exception as e:
-                        self.logger.error(f"Failed to send brightness command: {e}")
-                else:
-                    self.logger.warning(
-                        f"Unknown property '{property_name}' for {device_type}"
-                    )
-            elif property_name.startswith("s") and property_name[1:].isdigit():
+            if property_name.startswith("s") and property_name[1:].isdigit():
                 # Simple ON/OFF command for switch
                 switch_nr = int(property_name[1:]) - 1  # s1=0, s2=1, etc.
 

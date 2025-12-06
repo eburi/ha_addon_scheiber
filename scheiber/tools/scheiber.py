@@ -27,11 +27,11 @@ def bloc9_switch(can_interface, bloc9_id, switch_nr, state, brightness=None):
         bloc9_id: Bloc9 device ID (number)
         switch_nr: Switch number (0-5 for S1-S6)
         state: Boolean state (True for ON, False for OFF)
-        brightness: Optional brightness percentage (0-100). If provided:
+        brightness: Optional brightness level (0-255). If provided:
             - 0: Turn off (same as state=False)
-            - 1-100: Set brightness level (byte 1 = 0x11, byte 3 = mapped brightness)
+            - 1-254: Set brightness level (byte 1 = 0x11, byte 3 = brightness)
+            - 255: Turn on (byte 1 = 0x01)
             - If None: Simple ON/OFF command (byte 1 = 0x01/0x00)
-            - Mapping: 0-100% is mapped to 0-255 with emphasis on upper 4 bits
 
     Constructs CAN ID as follows:
     - Shift bloc9_id left by 3 bits
@@ -40,11 +40,12 @@ def bloc9_switch(can_interface, bloc9_id, switch_nr, state, brightness=None):
 
     Constructs 4-byte body:
     - Without brightness: [switch_nr, 0x01/0x00, 0x00, 0x00]
-    - With brightness: [switch_nr, 0x11, 0x00, brightness_level]
+    - With brightness 1-254: [switch_nr, 0x11, 0x00, brightness]
     - Special case brightness=0: [switch_nr, 0x00, 0x00, 0x00] (turn off)
+    - Special case brightness=255: [switch_nr, 0x01, 0x00, 0x00] (turn on)
 
     Example: bloc9_id=10, switch_nr=3, state=True -> CAN ID: 0x023606D0, Data: 03 01 00 00
-    Example: bloc9_id=10, switch_nr=3, brightness=50 -> CAN ID: 0x023606D0, Data: 03 11 00 B4
+    Example: bloc9_id=10, switch_nr=3, brightness=128 -> CAN ID: 0x023606D0, Data: 03 11 00 80
     """
     bus = None
     try:
@@ -57,27 +58,26 @@ def bloc9_switch(can_interface, bloc9_id, switch_nr, state, brightness=None):
 
         # Construct 4-byte body based on brightness parameter
         if brightness is not None:
-            # Brightness control mode (0-100 percentage)
+            # Brightness control mode (0-255 direct value)
             if brightness == 0:
-                # Brightness 0% = turn off
+                # Brightness 0 = turn off
                 data = bytes([switch_nr, 0x00, 0x00, 0x00])
                 logger.debug(
-                    f"Bloc9 ID:{bloc9_id} Switch:{switch_nr} -> OFF (brightness=0%)"
+                    f"Bloc9 ID:{bloc9_id} Switch:{switch_nr} -> OFF (brightness=0)"
+                )
+            elif brightness == 255:
+                # Brightness 255 = turn on (without brightness control)
+                data = bytes([switch_nr, 0x01, 0x00, 0x00])
+                logger.debug(
+                    f"Bloc9 ID:{bloc9_id} Switch:{switch_nr} -> ON (brightness=255)"
                 )
             else:
-                # Map brightness percentage (1-100) to byte value (0-255)
-                # Formula: ((brightness / 100) ^ 0.5) * 255
-                # Square root gives more granularity in lower range while
-                # still using full byte range and emphasizing upper bits
-                normalized = brightness / 100.0
-                brightness_byte = int((normalized**0.5) * 255)
-                # Clamp to valid range
-                brightness_byte = max(1, min(255, brightness_byte))
-
                 # Set brightness level (byte 1 = 0x11, byte 3 = brightness)
+                # Clamp to valid range 1-254
+                brightness_byte = max(1, min(254, brightness))
                 data = bytes([switch_nr, 0x11, 0x00, brightness_byte])
                 logger.debug(
-                    f"Bloc9 ID:{bloc9_id} Switch:{switch_nr} -> {brightness}% (byte: 0x{brightness_byte:02X})"
+                    f"Bloc9 ID:{bloc9_id} Switch:{switch_nr} -> brightness={brightness_byte} (0x{brightness_byte:02X})"
                 )
         else:
             # Simple ON/OFF mode

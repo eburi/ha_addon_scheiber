@@ -17,5 +17,14 @@
     }
   },
   "python.formatting.provider": "black",
-  "python-envs.pythonProjects": []
+  "python-envs.pythonProjects": [],
+  "python.testing.unittestArgs": [
+    "-v",
+    "-s",
+    "./tests",
+    "-p",
+    "test_*.py"
+  ],
+  "python.testing.pytestEnabled": false,
+  "python.testing.unittestEnabled": true
 }
