@@ -89,6 +89,9 @@ class MQTTBridge:
         }
         self.last_bus_stats_json = None  # Track last published state to detect changes
 
+        # Track unknown arbitration IDs that have been logged
+        self.logged_unknown_ids = set()
+
         self.logger.info(
             f"Initialized MQTTBridge with mqtt_host={mqtt_host}:{mqtt_port}, can_interface={can_interface}, topic_prefix={self.mqtt_topic_prefix}"
         )
@@ -375,7 +378,10 @@ class MQTTBridge:
                     self.publish_bus_statistics()
 
                 if device_config is None or matcher is None:
-                    self.logger.debug(f"Ignoring unknown arbitration ID 0x{arb:08X}")
+                    # Only log this unknown ID once
+                    if arb not in self.logged_unknown_ids:
+                        self.logger.info(f"Ignoring unknown arbitration ID 0x{arb:08X}")
+                        self.logged_unknown_ids.add(arb)
                     continue
 
                 raw = bytes(msg.data)
