@@ -138,3 +138,7 @@ cmd = "python scheiber/src/tools/analyser.py"
 [tool.poe.tasks.bloc9-status]
 help = "Run Bloc9 status analyzer (usage: poe bloc9-status can1 [bloc9_id])"
 cmd = "python scheiber/src/tools/bloc9_status.py"
+
+[tool.poe.tasks.analyze-0x02040588]
+help = "Analyze 0x02040588 messages and correlation with bloc9 changes (usage: poe analyze-0x02040588 can1)"
+cmd = "python scheiber/src/tools/analyze_0x02040588.py"

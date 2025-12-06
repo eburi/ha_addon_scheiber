@@ -1,0 +1,326 @@
+=== Analysis Summary ===
+
+Observed 15 switch change(s) with message correlations:
+
+1. Bloc9 #7 - s5 s5: 0 -> 1
+   6 message(s) changed within 2.0s:
+     CHG: 0x02060588
+          Before: 00 01 00 00 01 05
+          After:  00 01 00 00 01 04
+      Status message changed:
+        Byte 5: 00000101 -> 00000100 (0x05 -> 0x04)
+          Changed: bit0: 1->0
+     CHG: 0x02040588
+          Before: 00 40 00 4C 00 01 01 06
+          After:  00 40 00 4C 00 00 01 06
+      Status message changed:
+        Byte 5: 00000001 -> 00000000 (0x01 -> 0x00)
+          Changed: bit0: 1->0
+     CHG: 0x02060580
+          Before: 7F FF 00 00 01 04
+          After:  7F FF 00 00 01 05
+      Status message changed:
+        Byte 5: 00000100 -> 00000101 (0x04 -> 0x05)
+          Changed: bit0: 0->1
+     CHG: 0x04001A80
+          Before: 01 54 45 1F 02
+          After:  01 54 45 1F 01
+      Status message changed:
+        Byte 4: 00000010 -> 00000001 (0x02 -> 0x01)
+          Changed: bit0: 0->1, bit1: 1->0
+     CHG: 0x04021FC0
+          Before: 00 FF 00 00 20 00 00 00
+          After:  00 FF 00 01 00 00 00 00
+      Status message changed:
+        Byte 3: 00000000 -> 00000001 (0x00 -> 0x01)
+          Changed: bit0: 0->1
+        Byte 4: 00100000 -> 00000000 (0x20 -> 0x00)
+          Changed: bit5: 1->0
+     NEW: 0x021606D0 = 00 00 00 00 00 00 01 01
+
+2. Bloc9 #7 - s5 s5: 0 -> 1
+   2 message(s) changed within 2.0s:
+     CHG: 0x02060588
+          Before: 00 02 00 00 01 05
+          After:  00 01 00 00 01 04
+      Status message changed:
+        Byte 1: 00000010 -> 00000001 (0x02 -> 0x01)
+          Changed: bit0: 0->1, bit1: 1->0
+        Byte 5: 00000101 -> 00000100 (0x05 -> 0x04)
+          Changed: bit0: 1->0
+     CHG: 0x02040588
+          Before: 00 40 00 4C 00 01 01 05
+          After:  00 40 00 4C 00 00 01 05
+      Status message changed:
+        Byte 5: 00000001 -> 00000000 (0x01 -> 0x00)
+          Changed: bit0: 1->0
+
+3. Bloc9 #7 - s2 s2_brightness: 0 -> 55
+   3 message(s) changed within 2.0s:
+     CHG: 0x02060588
+          Before: 00 02 00 00 01 04
+          After:  00 01 00 00 01 04
+      Status message changed:
+        Byte 1: 00000010 -> 00000001 (0x02 -> 0x01)
+          Changed: bit0: 0->1, bit1: 1->0
+     CHG: 0x02040580
+          Before: 00 64 00 56 00 01 00 FE
+          After:  00 64 00 56 00 00 00 FE
+      Status message changed:
+        Byte 5: 00000001 -> 00000000 (0x01 -> 0x00)
+          Changed: bit0: 1->0
+     CHG: 0x02040588
+          Before: 00 40 00 4C 00 00 01 05
+          After:  00 40 00 4C 00 00 01 06
+      Status message changed:
+        Byte 7: 00000101 -> 00000110 (0x05 -> 0x06)
+          Changed: bit0: 1->0, bit1: 0->1
+
+4. Bloc9 #7 - s2 s2_brightness: 0 -> 55
+   4 message(s) changed within 2.0s:
+     CHG: 0x02060588
+          Before: 00 02 00 00 01 04
+          After:  00 01 00 00 01 05
+      Status message changed:
+        Byte 1: 00000010 -> 00000001 (0x02 -> 0x01)
+          Changed: bit0: 0->1, bit1: 1->0
+        Byte 5: 00000100 -> 00000101 (0x04 -> 0x05)
+          Changed: bit0: 0->1
+     CHG: 0x02040580
+          Before: 00 64 00 56 00 01 00 FE
+          After:  00 64 00 56 00 02 00 FE
+      Status message changed:
+        Byte 5: 00000001 -> 00000010 (0x01 -> 0x02)
+          Changed: bit0: 1->0, bit1: 0->1
+     CHG: 0x02040588
+          Before: 00 40 00 4C 00 01 01 06
+          After:  00 40 00 4C 00 01 01 05
+      Status message changed:
+        Byte 7: 00000110 -> 00000101 (0x06 -> 0x05)
+          Changed: bit0: 0->1, bit1: 1->0
+     CHG: 0x02060580
+          Before: 7F FF 00 00 01 05
+          After:  7F FF 00 00 01 04
+      Status message changed:
+        Byte 5: 00000101 -> 00000100 (0x05 -> 0x04)
+          Changed: bit0: 1->0
+
+5. Bloc9 #7 - s2 s2_brightness: 55 -> 0
+   3 message(s) changed within 2.0s:
+     CHG: 0x02060588
+          Before: 00 01 00 00 01 05
+          After:  00 01 00 00 01 04
+      Status message changed:
+        Byte 5: 00000101 -> 00000100 (0x05 -> 0x04)
+          Changed: bit0: 1->0
+     CHG: 0x02040588
+          Before: 00 40 00 4C 00 00 01 05
+          After:  00 40 00 4C 00 00 01 06
+      Status message changed:
+        Byte 7: 00000101 -> 00000110 (0x05 -> 0x06)
+          Changed: bit0: 1->0, bit1: 0->1
+     CHG: 0x02060580
+          Before: 7F FF 00 00 01 04
+          After:  7F FF 00 00 01 05
+      Status message changed:
+        Byte 5: 00000100 -> 00000101 (0x04 -> 0x05)
+          Changed: bit0: 0->1
+
+6. Bloc9 #7 - s2 s2: 0 -> 1
+   5 message(s) changed within 2.0s:
+     CHG: 0x02060B88
+          Before: 00 84 00 00
+          After:  00 83 00 00
+      Status message changed:
+        Byte 1: 10000100 -> 10000011 (0x84 -> 0x83)
+          Changed: bit0: 0->1, bit1: 0->1, bit2: 1->0
+     CHG: 0x02040580
+          Before: 00 64 00 56 00 01 00 FF
+          After:  00 64 00 56 00 01 00 FE
+      Status message changed:
+        Byte 7: 11111111 -> 11111110 (0xFF -> 0xFE)
+          Changed: bit0: 1->0
+     CHG: 0x02040588
+          Before: 00 40 00 4C 00 00 01 06
+          After:  00 40 00 4C 00 01 01 05
+      Status message changed:
+        Byte 5: 00000000 -> 00000001 (0x00 -> 0x01)
+          Changed: bit0: 0->1
+        Byte 7: 00000110 -> 00000101 (0x06 -> 0x05)
+          Changed: bit0: 0->1, bit1: 1->0
+     CHG: 0x04001A80
+          Before: 01 54 45 1F 04
+          After:  01 54 45 1F 83
+      Status message changed:
+        Byte 4: 00000100 -> 10000011 (0x04 -> 0x83)
+          Changed: bit0: 0->1, bit1: 0->1, bit2: 1->0, bit7: 0->1
+     NEW: 0x00080000 = 19 0C 06 06 07 16 00
+
+7. Bloc9 #7 - s4 s4_brightness: 44 -> 43
+   3 message(s) changed within 2.0s:
+     CHG: 0x02060588
+          Before: 00 02 00 00 01 05
+          After:  00 02 00 00 01 04
+      Status message changed:
+        Byte 5: 00000101 -> 00000100 (0x05 -> 0x04)
+          Changed: bit0: 1->0
+     CHG: 0x02060580
+          Before: 7F FF 00 00 01 04
+          After:  7F FF 00 00 01 05
+      Status message changed:
+        Byte 5: 00000100 -> 00000101 (0x04 -> 0x05)
+          Changed: bit0: 0->1
+     NEW: 0x097A2380 = 00 04 00 01 00 00 FF FF
+
+8. Bloc9 #7 - s4 s4_brightness: 136 -> 129
+   3 message(s) changed within 2.0s:
+     CHG: 0x02040580
+          Before: 00 64 00 56 00 00 00 FE
+          After:  00 64 00 56 00 01 00 FE
+      Status message changed:
+        Byte 5: 00000000 -> 00000001 (0x00 -> 0x01)
+          Changed: bit0: 0->1
+     CHG: 0x02040588
+          Before: 00 40 00 4C 00 00 01 05
+          After:  00 40 00 4C 00 01 01 06
+      Status message changed:
+        Byte 5: 00000000 -> 00000001 (0x00 -> 0x01)
+          Changed: bit0: 0->1
+        Byte 7: 00000101 -> 00000110 (0x05 -> 0x06)
+          Changed: bit0: 1->0, bit1: 0->1
+     CHG: 0x02040B88
+          Before: 00 00 00 00 00 E6 00 32
+          After:  00 00 00 00 00 E1 00 32
+      Status message changed:
+        Byte 5: 11100110 -> 11100001 (0xE6 -> 0xE1)
+          Changed: bit0: 0->1, bit1: 1->0, bit2: 1->0
+
+9. Bloc9 #7 - s4 s4_brightness: 0 -> 129
+   0 message(s) changed within 2.0s:
+
+10. Bloc9 #7 - s2 s2: 0 -> 1
+   2 message(s) changed within 2.0s:
+     CHG: 0x02040580
+          Before: 00 64 00 56 00 00 00 FE
+          After:  00 64 00 56 00 01 00 FE
+      Status message changed:
+        Byte 5: 00000000 -> 00000001 (0x00 -> 0x01)
+          Changed: bit0: 0->1
+     CHG: 0x02040588
+          Before: 00 40 00 4C 00 00 01 06
+          After:  00 40 00 4C 00 01 01 06
+      Status message changed:
+        Byte 5: 00000000 -> 00000001 (0x00 -> 0x01)
+          Changed: bit0: 0->1
+
+11. Bloc9 #7 - s2 s2_brightness: 37 -> 34
+   2 message(s) changed within 2.0s:
+     CHG: 0x02060B88
+          Before: 00 84 00 00
+          After:  00 83 00 00
+      Status message changed:
+        Byte 1: 10000100 -> 10000011 (0x84 -> 0x83)
+          Changed: bit0: 0->1, bit1: 0->1, bit2: 1->0
+     CHG: 0x02040588
+          Before: 00 40 00 4C 00 01 01 05
+          After:  00 40 00 4C 00 00 01 06
+      Status message changed:
+        Byte 5: 00000001 -> 00000000 (0x01 -> 0x00)
+          Changed: bit0: 1->0
+        Byte 7: 00000101 -> 00000110 (0x05 -> 0x06)
+          Changed: bit0: 1->0, bit1: 0->1
+
+12. Bloc9 #7 - s2 s2_brightness: 34 -> 0
+   2 message(s) changed within 2.0s:
+     CHG: 0x02060588
+          Before: 00 02 00 00 01 05
+          After:  00 01 00 00 01 05
+      Status message changed:
+        Byte 1: 00000010 -> 00000001 (0x02 -> 0x01)
+          Changed: bit0: 0->1, bit1: 1->0
+     CHG: 0x02040580
+          Before: 00 64 00 56 00 01 00 FD
+          After:  00 64 00 56 00 01 00 FE
+      Status message changed:
+        Byte 7: 11111101 -> 11111110 (0xFD -> 0xFE)
+          Changed: bit0: 1->0, bit1: 0->1
+
+13. Bloc9 #7 - s4 s4_brightness: 93 -> 101
+   2 message(s) changed within 2.0s:
+     CHG: 0x02060588
+          Before: 00 02 00 00 01 04
+          After:  00 01 00 00 01 05
+      Status message changed:
+        Byte 1: 00000010 -> 00000001 (0x02 -> 0x01)
+          Changed: bit0: 0->1, bit1: 1->0
+        Byte 5: 00000100 -> 00000101 (0x04 -> 0x05)
+          Changed: bit0: 0->1
+     CHG: 0x02040588
+          Before: 00 40 00 4C 00 00 01 06
+          After:  00 40 00 4C 00 00 01 05
+      Status message changed:
+        Byte 7: 00000110 -> 00000101 (0x06 -> 0x05)
+          Changed: bit0: 0->1, bit1: 1->0
+
+14. Bloc9 #7 - s3 s3_brightness: 93 -> 106
+   2 message(s) changed within 2.0s:
+     CHG: 0x02060588
+          Before: 00 02 00 00 01 04
+          After:  00 01 00 00 01 04
+      Status message changed:
+        Byte 1: 00000010 -> 00000001 (0x02 -> 0x01)
+          Changed: bit0: 0->1, bit1: 1->0
+     CHG: 0x02040B88
+          Before: 00 00 00 00 00 E1 00 32
+          After:  00 00 00 00 00 E6 00 32
+      Status message changed:
+        Byte 5: 11100001 -> 11100110 (0xE1 -> 0xE6)
+          Changed: bit0: 1->0, bit1: 0->1, bit2: 0->1
+
+15. Bloc9 #7 - s4 s4: 0 -> 1
+   2 message(s) changed within 2.0s:
+     CHG: 0x02060588
+          Before: 00 01 00 00 01 04
+          After:  00 02 00 00 01 04
+      Status message changed:
+        Byte 1: 00000001 -> 00000010 (0x01 -> 0x02)
+          Changed: bit0: 1->0, bit1: 0->1
+     CHG: 0x02040588
+          Before: 00 40 00 4C 00 01 01 05
+          After:  00 40 00 4C 00 00 01 05
+      Status message changed:
+        Byte 5: 00000001 -> 00000000 (0x01 -> 0x00)
+          Changed: bit0: 1->0
+
+
+=== Pattern Analysis ===
+
+Messages that consistently correlate with switch changes:
+
+  0x02040588: Changed in 11/15 events (73%)
+    → Unknown message type
+  0x02060588: Changed in 10/15 events (67%)
+    → Unknown message type
+  0x02040580: Changed in 6/15 events (40%)
+    → Unknown message type
+  0x02060580: Changed in 4/15 events (27%)
+    → Unknown message type
+  0x04001A80: Changed in 2/15 events (13%)
+    → Unknown message type
+  0x02060B88: Changed in 2/15 events (13%)
+    → Unknown message type
+  0x02040B88: Changed in 2/15 events (13%)
+    → Unknown message type
+  0x04021FC0: Changed in 1/15 events (7%)
+    → Unknown message type
+  0x021606D0: Changed in 1/15 events (7%)
+    → Bloc9 (ID 10): S1 & S2 Status update
+  0x00080000: Changed in 1/15 events (7%)
+    → Unknown message type
+  0x097A2380: Changed in 1/15 events (7%)
+    → Unknown message type
+
+✓ Found messages that correlate with switch state changes!
+  These messages could potentially be used to track system state.
+
+Total unique CAN messages observed: 40
