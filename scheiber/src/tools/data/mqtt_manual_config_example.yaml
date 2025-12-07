@@ -1,0 +1,2243 @@
+## Scheiber Bloc9 MQTT Entities
+## Configuration for 10 Bloc9 dimmer switches with 6 outputs each
+## 
+## BUS_ID to Device Mapping:
+## BUS_ID 1  = X11 (Bloc9 1)
+## BUS_ID 2  = X10 (Bloc9 2)
+## BUS_ID 3  = X12 (Bloc9 3)
+## BUS_ID 4  = X13 (Bloc9 4)
+## BUS_ID 5  = X14 (Bloc9 5)
+## BUS_ID 6  = X25 (Bloc9 6)
+## BUS_ID 7  = X26 (Bloc9 7)
+## BUS_ID 8  = X27 (Bloc9 8)
+## BUS_ID 9  = X28 (Bloc9 9)
+## BUS_ID 10 = X20 (Bloc9 10)
+
+mqtt:
+  # Bloc9 Controller Devices (master devices with JSON attributes)
+  sensor:
+    - unique_id: "scheiber_bloc9_bus1_controller"
+      name: "X11 Bloc9 1 Controller"
+      state_topic: "homeassistant/scheiber/bloc9/1"
+      value_template: "{{ value_json.bus_id | default('1') }}"
+      json_attributes_topic: "homeassistant/scheiber/bloc9/1"
+      device:
+        identifiers: ["scheiber_bloc9_1"]
+        name: "X11 Bloc9 1"
+        model: "Bloc9"
+        manufacturer: "Scheiber"
+        suggested_area: "Electronics"
+
+    - unique_id: "scheiber_bloc9_bus2_controller"
+      name: "X10 Bloc9 2 Controller"
+      state_topic: "homeassistant/scheiber/bloc9/2"
+      value_template: "{{ value_json.bus_id | default('2') }}"
+      json_attributes_topic: "homeassistant/scheiber/bloc9/2"
+      device:
+        identifiers: ["scheiber_bloc9_2"]
+        name: "X10 Bloc9 2"
+        model: "Bloc9"
+        manufacturer: "Scheiber"
+        suggested_area: "Navigation"
+
+    - unique_id: "scheiber_bloc9_bus3_controller"
+      name: "X12 Bloc9 3 Controller"
+      state_topic: "homeassistant/scheiber/bloc9/3"
+      value_template: "{{ value_json.bus_id | default('3') }}"
+      json_attributes_topic: "homeassistant/scheiber/bloc9/3"
+      device:
+        identifiers: ["scheiber_bloc9_3"]
+        name: "X12 Bloc9 3"
+        model: "Bloc9"
+        manufacturer: "Scheiber"
+        suggested_area: "Crew Cabin Stbd"
+
+    - unique_id: "scheiber_bloc9_bus4_controller"
+      name: "X13 Bloc9 4 Controller"
+      state_topic: "homeassistant/scheiber/bloc9/4"
+      value_template: "{{ value_json.bus_id | default('4') }}"
+      json_attributes_topic: "homeassistant/scheiber/bloc9/4"
+      device:
+        identifiers: ["scheiber_bloc9_4"]
+        name: "X13 Bloc9 4"
+        model: "Bloc9"
+        manufacturer: "Scheiber"
+        suggested_area: "Marc's Cabin"
+
+    - unique_id: "scheiber_bloc9_bus5_controller"
+      name: "X14 Bloc9 5 Controller"
+      state_topic: "homeassistant/scheiber/bloc9/5"
+      value_template: "{{ value_json.bus_id | default('5') }}"
+      json_attributes_topic: "homeassistant/scheiber/bloc9/5"
+      device:
+        identifiers: ["scheiber_bloc9_5"]
+        name: "X14 Bloc9 5"
+        model: "Bloc9"
+        manufacturer: "Scheiber"
+        suggested_area: "Bilge"
+
+    - unique_id: "scheiber_bloc9_bus6_controller"
+      name: "X25 Bloc9 6 Controller"
+      state_topic: "homeassistant/scheiber/bloc9/6"
+      value_template: "{{ value_json.bus_id | default('6') }}"
+      json_attributes_topic: "homeassistant/scheiber/bloc9/6"
+      device:
+        identifiers: ["scheiber_bloc9_6"]
+        name: "X25 Bloc9 6"
+        model: "Bloc9"
+        manufacturer: "Scheiber"
+        suggested_area: "Deck"
+
+    - unique_id: "scheiber_bloc9_bus7_controller"
+      name: "X26 Bloc9 7 Controller"
+      state_topic: "homeassistant/scheiber/bloc9/7"
+      value_template: "{{ value_json.bus_id | default('7') }}"
+      json_attributes_topic: "homeassistant/scheiber/bloc9/7"
+      device:
+        identifiers: ["scheiber_bloc9_7"]
+        name: "X26 Bloc9 7"
+        model: "Bloc9"
+        manufacturer: "Scheiber"
+        suggested_area: "Saloon"
+
+    - unique_id: "scheiber_bloc9_bus8_controller"
+      name: "X27 Bloc9 8 Controller"
+      state_topic: "homeassistant/scheiber/bloc9/8"
+      value_template: "{{ value_json.bus_id | default('8') }}"
+      json_attributes_topic: "homeassistant/scheiber/bloc9/8"
+      device:
+        identifiers: ["scheiber_bloc9_8"]
+        name: "X27 Bloc9 8"
+        model: "Bloc9"
+        manufacturer: "Scheiber"
+        suggested_area: "Guest Cabin Port"
+
+    - unique_id: "scheiber_bloc9_bus9_controller"
+      name: "X28 Bloc9 9 Controller"
+      state_topic: "homeassistant/scheiber/bloc9/9"
+      value_template: "{{ value_json.bus_id | default('9') }}"
+      json_attributes_topic: "homeassistant/scheiber/bloc9/9"
+      device:
+        identifiers: ["scheiber_bloc9_9"]
+        name: "X28 Bloc9 9"
+        model: "Bloc9"
+        manufacturer: "Scheiber"
+        suggested_area: "Dotzi's Cabin"
+
+    - unique_id: "scheiber_bloc9_bus10_controller"
+      name: "X20 Bloc9 10 Controller"
+      state_topic: "homeassistant/scheiber/bloc9/10"
+      value_template: "{{ value_json.bus_id | default('10') }}"
+      json_attributes_topic: "homeassistant/scheiber/bloc9/10"
+      device:
+        identifiers: ["scheiber_bloc9_10"]
+        name: "X20 Bloc9 10"
+        model: "Bloc9"
+        manufacturer: "Scheiber"
+        suggested_area: "Exterior"
+
+mqtt:
+  # Individual Light Devices (each light is its own device)
+  light:
+    # X12 Bloc9 3 - Crew Cabin Stbd
+    - name: "Bloc9 3 S1"
+      unique_id: "bloc9_3_s1_v2"
+      default_entity_id: "light.scheiber_bloc9_3_s1"
+      state_topic: "homeassistant/scheiber/bloc9/3/s1/state"
+      availability_topic: "homeassistant/scheiber/bloc9/3/s1/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/3/s1/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/3/s1/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/3/s1/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_3"]
+        name: "Main Light Crew Cabin Toilette Stbd"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_3"
+        suggested_area: "Crew Cabin Stbd"
+
+    - name: "Bloc9 3"
+      unique_id: "bloc9_3_s2_v2"
+      default_entity_id: "light.scheiber_bloc9_3_s2"
+      state_topic: "homeassistant/scheiber/bloc9/3/s2/state"
+      availability_topic: "homeassistant/scheiber/bloc9/3/s2/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/3/s2/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/3/s2/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/3/s2/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_3"]
+        name: "Ambient Light Crew Cabin Toilette Stbd"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_3"
+        suggested_area: "Crew Cabin Stbd"
+
+    - name: "Bloc9 3"
+      unique_id: "bloc9_3_s3_v2"
+      default_entity_id: "light.scheiber_bloc9_3_s3"
+      state_topic: "homeassistant/scheiber/bloc9/3/s3/state"
+      availability_topic: "homeassistant/scheiber/bloc9/3/s3/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/3/s3/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/3/s3/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/3/s3/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_3"]
+        name: "Main Light Crew Cabin Stbd"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_3"
+        suggested_area: "Crew Cabin Stbd"
+
+    - name: "Bloc9 3"
+      unique_id: "bloc9_3_s4_v2"
+      default_entity_id: "light.scheiber_bloc9_3_s4"
+      state_topic: "homeassistant/scheiber/bloc9/3/s4/state"
+      availability_topic: "homeassistant/scheiber/bloc9/3/s4/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/3/s4/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/3/s4/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/3/s4/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_3"]
+        name: "Ambient Light Crew Cabin Stbd"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_3"
+        suggested_area: "Crew Cabin Stbd"
+
+    - name: "Bloc9 3"
+      unique_id: "bloc9_3_s5_v2"
+      default_entity_id: "light.scheiber_bloc9_3_s5"
+      state_topic: "homeassistant/scheiber/bloc9/3/s5/state"
+      availability_topic: "homeassistant/scheiber/bloc9/3/s5/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/3/s5/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/3/s5/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/3/s5/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_3"]
+        name: "Main Light Hallway Stbd"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_3"
+        suggested_area: "Crew Cabin Stbd"
+
+    - name: "Bloc9 3"
+      unique_id: "bloc9_3_s6_v2"
+      default_entity_id: "light.scheiber_bloc9_3_s6"
+      state_topic: "homeassistant/scheiber/bloc9/3/s6/state"
+      availability_topic: "homeassistant/scheiber/bloc9/3/s6/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/3/s6/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/3/s6/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/3/s6/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_3"]
+        name: "Under Stairs Light Hallway Stbd"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_3"
+        suggested_area: "Crew Cabin Stbd"
+
+    # X13 Bloc9 4 - Marc's Cabin
+    - name: "Bloc9 3"
+      unique_id: "bloc9_4_s1_v2"
+      default_entity_id: "light.scheiber_bloc9_4_s1"
+      state_topic: "homeassistant/scheiber/bloc9/4/s1/state"
+      availability_topic: "homeassistant/scheiber/bloc9/4/s1/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/4/s1/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/4/s1/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/4/s1/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_4"]
+        name: "Main Light Door Marc Cabin"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_4"
+        suggested_area: "Marc's Cabin"
+
+    - name: "Bloc9 4"
+      unique_id: "bloc9_4_s2_v2"
+      default_entity_id: "light.scheiber_bloc9_4_s2"
+      state_topic: "homeassistant/scheiber/bloc9/4/s2/state"
+      availability_topic: "homeassistant/scheiber/bloc9/4/s2/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/4/s2/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/4/s2/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/4/s2/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_4"]
+        name: "Ambient Light Shower/Sink Marc Cabin"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_4"
+        suggested_area: "Marc's Cabin"
+
+    - name: "Bloc9 4"
+      unique_id: "bloc9_4_s3_v2"
+      default_entity_id: "light.scheiber_bloc9_4_s3"
+      state_topic: "homeassistant/scheiber/bloc9/4/s3/state"
+      availability_topic: "homeassistant/scheiber/bloc9/4/s3/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/4/s3/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/4/s3/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/4/s3/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_4"]
+        name: "Main Light Sink Marc Cabin"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_4"
+        suggested_area: "Marc's Cabin"
+
+    - name: "Bloc9 4"
+      unique_id: "bloc9_4_s4_v2"
+      default_entity_id: "light.scheiber_bloc9_4_s4"
+      state_topic: "homeassistant/scheiber/bloc9/4/s4/state"
+      availability_topic: "homeassistant/scheiber/bloc9/4/s4/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/4/s4/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/4/s4/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/4/s4/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_4"]
+        name: "Toilet Light Marc Cabin"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_4"
+        suggested_area: "Marc's Cabin"
+
+    - name: "Bloc9 4"
+      unique_id: "bloc9_4_s5_v2"
+      default_entity_id: "light.scheiber_bloc9_4_s5"
+      state_topic: "homeassistant/scheiber/bloc9/4/s5/state"
+      availability_topic: "homeassistant/scheiber/bloc9/4/s5/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/4/s5/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/4/s5/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/4/s5/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_4"]
+        name: "Main Light Marc Cabin"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_4"
+        suggested_area: "Marc's Cabin"
+
+    - name: "Bloc9 4"
+      unique_id: "bloc9_4_s6_v2"
+      default_entity_id: "light.scheiber_bloc9_4_s6"
+      state_topic: "homeassistant/scheiber/bloc9/4/s6/state"
+      availability_topic: "homeassistant/scheiber/bloc9/4/s6/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/4/s6/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/4/s6/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/4/s6/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_4"]
+        name: "Ambient Light Marc Cabin"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_4"
+        suggested_area: "Marc's Cabin"
+
+    # X26 Bloc9 7 - Saloon & Cockpit
+    - name: "Bloc9 4"
+      unique_id: "bloc9_7_s1_v2"
+      default_entity_id: "light.scheiber_bloc9_7_s1"
+      state_topic: "homeassistant/scheiber/bloc9/7/s1/state"
+      availability_topic: "homeassistant/scheiber/bloc9/7/s1/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/7/s1/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/7/s1/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/7/s1/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_7"]
+        name: "Main Light Saloon Front"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_7"
+        suggested_area: "Saloon"
+
+    - name: "Bloc9 7"
+      unique_id: "bloc9_7_s2_v2"
+      default_entity_id: "light.scheiber_bloc9_7_s2"
+      state_topic: "homeassistant/scheiber/bloc9/7/s2/state"
+      availability_topic: "homeassistant/scheiber/bloc9/7/s2/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/7/s2/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/7/s2/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/7/s2/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_7"]
+        name: "Main Light Saloon Aft"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_7"
+        suggested_area: "Saloon"
+
+    - name: "Bloc9 7"
+      unique_id: "bloc9_7_s3_v2"
+      default_entity_id: "light.scheiber_bloc9_7_s3"
+      state_topic: "homeassistant/scheiber/bloc9/7/s3/state"
+      availability_topic: "homeassistant/scheiber/bloc9/7/s3/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/7/s3/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/7/s3/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/7/s3/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_7"]
+        name: "Cove Light Saloon"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_7"
+        suggested_area: "Saloon"
+
+    - name: "Bloc9 7"
+      unique_id: "bloc9_7_s4_v2"
+      default_entity_id: "light.scheiber_bloc9_7_s4"
+      state_topic: "homeassistant/scheiber/bloc9/7/s4/state"
+      availability_topic: "homeassistant/scheiber/bloc9/7/s4/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/7/s4/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/7/s4/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/7/s4/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_7"]
+        name: "Ambient Light Saloon Sofa"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_7"
+        suggested_area: "Saloon"
+
+    - name: "Bloc9 7"
+      unique_id: "bloc9_7_s5_v2"
+      default_entity_id: "light.scheiber_bloc9_7_s5"
+      state_topic: "homeassistant/scheiber/bloc9/7/s5/state"
+      availability_topic: "homeassistant/scheiber/bloc9/7/s5/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/7/s5/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/7/s5/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/7/s5/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_7"]
+        name: "Main Light Cockpit"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_7"
+        suggested_area: "Cockpit"
+
+    # X27 Bloc9 8 - Guest Cabin Port
+    - name: "Bloc9 7"
+      unique_id: "bloc9_8_s1_v2"
+      default_entity_id: "light.scheiber_bloc9_8_s1"
+      state_topic: "homeassistant/scheiber/bloc9/8/s1/state"
+      availability_topic: "homeassistant/scheiber/bloc9/8/s1/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/8/s1/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/8/s1/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/8/s1/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_8"]
+        name: "Main Light Guest Cabin Toilet Port"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_8"
+        suggested_area: "Guest Cabin Port"
+
+    - name: "Bloc9 8"
+      unique_id: "bloc9_8_s2_v2"
+      default_entity_id: "light.scheiber_bloc9_8_s2"
+      state_topic: "homeassistant/scheiber/bloc9/8/s2/state"
+      availability_topic: "homeassistant/scheiber/bloc9/8/s2/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/8/s2/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/8/s2/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/8/s2/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_8"]
+        name: "Ambient Light Guest Cabin Toilette Port"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_8"
+        suggested_area: "Guest Cabin Port"
+
+    - name: "Bloc9 8"
+      unique_id: "bloc9_8_s3_v2"
+      default_entity_id: "light.scheiber_bloc9_8_s3"
+      state_topic: "homeassistant/scheiber/bloc9/8/s3/state"
+      availability_topic: "homeassistant/scheiber/bloc9/8/s3/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/8/s3/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/8/s3/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/8/s3/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_8"]
+        name: "Main Light Guest Cabin Port"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_8"
+        suggested_area: "Guest Cabin Port"
+
+    - name: "Bloc9 8"
+      unique_id: "bloc9_8_s4_v2"
+      default_entity_id: "light.scheiber_bloc9_8_s4"
+      state_topic: "homeassistant/scheiber/bloc9/8/s4/state"
+      availability_topic: "homeassistant/scheiber/bloc9/8/s4/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/8/s4/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/8/s4/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/8/s4/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_8"]
+        name: "Ambient Light Guest Cabin Port"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_8"
+        suggested_area: "Guest Cabin Port"
+
+    - name: "Bloc9 8"
+      unique_id: "bloc9_8_s5_v2"
+      default_entity_id: "light.scheiber_bloc9_8_s5"
+      state_topic: "homeassistant/scheiber/bloc9/8/s5/state"
+      availability_topic: "homeassistant/scheiber/bloc9/8/s5/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/8/s5/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/8/s5/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/8/s5/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_8"]
+        name: "Main Light Hallway Port"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_8"
+        suggested_area: "Guest Cabin Port"
+
+    - name: "Bloc9 8"
+      unique_id: "bloc9_8_s6_v2"
+      default_entity_id: "light.scheiber_bloc9_8_s6"
+      state_topic: "homeassistant/scheiber/bloc9/8/s6/state"
+      availability_topic: "homeassistant/scheiber/bloc9/8/s6/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/8/s6/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/8/s6/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/8/s6/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_8"]
+        name: "Under Stairs Light Hallway Port"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_8"
+        suggested_area: "Guest Cabin Port"
+
+    # X28 Bloc9 9 - Dotzi's Cabin
+    - name: "Bloc9 8"
+      unique_id: "bloc9_9_s3_v2"
+      default_entity_id: "light.scheiber_bloc9_9_s3"
+      state_topic: "homeassistant/scheiber/bloc9/9/s3/state"
+      availability_topic: "homeassistant/scheiber/bloc9/9/s3/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/9/s3/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/9/s3/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/9/s3/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_9"]
+        name: "Main Light Dotzi Toilet"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_9"
+        suggested_area: "Dotzi's Cabin"
+
+    - name: "Bloc9 9"
+      unique_id: "bloc9_9_s4_v2"
+      default_entity_id: "light.scheiber_bloc9_9_s4"
+      state_topic: "homeassistant/scheiber/bloc9/9/s4/state"
+      availability_topic: "homeassistant/scheiber/bloc9/9/s4/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/9/s4/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/9/s4/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/9/s4/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_9"]
+        name: "Ambient Light Dotzi Toilet"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_9"
+        suggested_area: "Dotzi's Cabin"
+
+    - name: "Bloc9 9"
+      unique_id: "bloc9_9_s5_v2"
+      default_entity_id: "light.scheiber_bloc9_9_s5"
+      state_topic: "homeassistant/scheiber/bloc9/9/s5/state"
+      availability_topic: "homeassistant/scheiber/bloc9/9/s5/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/9/s5/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/9/s5/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/9/s5/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_9"]
+        name: "Main Light Dotzi Cabin"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_9"
+        suggested_area: "Dotzi's Cabin"
+
+    - name: "Bloc9 9"
+      unique_id: "bloc9_9_s6_v2"
+      default_entity_id: "light.scheiber_bloc9_9_s6"
+      state_topic: "homeassistant/scheiber/bloc9/9/s6/state"
+      availability_topic: "homeassistant/scheiber/bloc9/9/s6/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/9/s6/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/9/s6/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/9/s6/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_9"]
+        name: "Ambient Light Dotzi Cabin"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_9"
+        suggested_area: "Dotzi's Cabin"
+
+    # X20 Bloc9 10 - Exterior Lights
+    - name: "Bloc9 9"
+      unique_id: "bloc9_10_s1_v2"
+      default_entity_id: "light.scheiber_bloc9_10_s1"
+      state_topic: "homeassistant/scheiber/bloc9/10/s1/state"
+      availability_topic: "homeassistant/scheiber/bloc9/10/s1/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/10/s1/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/10/s1/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/10/s1/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      icon: mdi:wall-sconce-flat
+      device:
+        identifiers: ["scheiber_bloc9_10"]
+        name: "Courtesy Lights"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_10"
+        suggested_area: "Exterior"
+
+    - name: "Bloc9 10"
+      unique_id: "bloc9_10_s2_v2"
+      default_entity_id: "light.scheiber_bloc9_10_s2"
+      state_topic: "homeassistant/scheiber/bloc9/10/s2/state"
+      availability_topic: "homeassistant/scheiber/bloc9/10/s2/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/10/s2/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/10/s2/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/10/s2/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_10"]
+        name: "Secret Light"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_10"
+        suggested_area: "Exterior"
+
+    - name: "Bloc9 10"
+      unique_id: "bloc9_10_s3_v2"
+      default_entity_id: "light.scheiber_bloc9_10_s3"
+      state_topic: "homeassistant/scheiber/bloc9/10/s3/state"
+      availability_topic: "homeassistant/scheiber/bloc9/10/s3/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/10/s3/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/10/s3/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/10/s3/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      icon: mdi:led-strip-variant
+      device:
+        identifiers: ["scheiber_bloc9_10"]
+        name: "Aft Beam Light"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_10"
+        suggested_area: "Exterior"
+
+    - name: "Bloc9 10"
+      unique_id: "bloc9_10_s4_v2"
+      default_entity_id: "light.scheiber_bloc9_10_s4"
+      state_topic: "homeassistant/scheiber/bloc9/10/s4/state"
+      availability_topic: "homeassistant/scheiber/bloc9/10/s4/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/10/s4/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/10/s4/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/10/s4/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      icon: mdi:waves
+      device:
+        identifiers: ["scheiber_bloc9_10"]
+        name: "Under Water Light"
+        model: "Bloc9 Light Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_10"
+        suggested_area: "Exterior"
+
+  # Individual Switch Devices (each switch is its own device)
+  switch:
+    # X11 Bloc9 1 - Reading Light & Fan Stbd
+    - name: "Bloc9 10"
+      unique_id: "bloc9_1_s3_v2"
+      default_entity_id: "switch.scheiber_bloc9_1_s3"
+      state_topic: "homeassistant/scheiber/bloc9/1/s3/state"
+      availability_topic: "homeassistant/scheiber/bloc9/1/s3/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/1/s3/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      icon: mdi:fan
+      device:
+        identifiers: ["scheiber_bloc9_1"]
+        name: "Reading Light & Fan Stbd"
+        model: "Bloc9 Switch Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_1"
+
+    # X11 Bloc9 1 - Electronic Power Systems
+    - name: "Bloc9 1"
+      unique_id: "bloc9_1_s1_v2"
+      default_entity_id: "switch.scheiber_bloc9_1_s1"
+      state_topic: "homeassistant/scheiber/bloc9/1/s1/state"
+      availability_topic: "homeassistant/scheiber/bloc9/1/s1/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/1/s1/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      icon: mdi:power-socket
+      device:
+        identifiers: ["scheiber_bloc9_1"]
+        name: "Electronic 12V"
+        model: "Bloc9 Switch Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_1"
+        suggested_area: "Electronics"
+
+    - name: "Bloc9 1"
+      unique_id: "bloc9_1_s2_v2"
+      default_entity_id: "switch.scheiber_bloc9_1_s2"
+      state_topic: "homeassistant/scheiber/bloc9/1/s2/state"
+      availability_topic: "homeassistant/scheiber/bloc9/1/s2/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/1/s2/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      icon: mdi:power-socket
+      device:
+        identifiers: ["scheiber_bloc9_1"]
+        name: "Electronic 24V"
+        model: "Bloc9 Switch Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_1"
+        suggested_area: "Electronics"
+
+    # X26 Bloc9 7 - Reading Light & Fan Port
+    - name: "Bloc9 1"
+      unique_id: "bloc9_7_s6_v2"
+      default_entity_id: "switch.scheiber_bloc9_7_s6"
+      state_topic: "homeassistant/scheiber/bloc9/7/s6/state"
+      availability_topic: "homeassistant/scheiber/bloc9/7/s6/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/7/s6/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      icon: mdi:fan
+      device:
+        identifiers: ["scheiber_bloc9_7"]
+        name: "Reading Light & Fan Port"
+        model: "Bloc9 Switch Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_7"
+
+    # X10 Bloc9 2 - Navigation Light
+    - name: "Bloc9 7"
+      unique_id: "bloc9_2_s1_v2"
+      default_entity_id: "switch.scheiber_bloc9_2_s1"
+      state_topic: "homeassistant/scheiber/bloc9/2/s1/state"
+      availability_topic: "homeassistant/scheiber/bloc9/2/s1/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/2/s1/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      icon: mdi:navigation-variant
+      device:
+        identifiers: ["scheiber_bloc9_2"]
+        name: "Navigation Light"
+        model: "Bloc9 Switch Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_2"
+        suggested_area: "Navigation"
+
+    # X10 Bloc9 2 - Steam Light
+    - name: "Bloc9 2"
+      unique_id: "bloc9_2_s2_v2"
+      default_entity_id: "switch.scheiber_bloc9_2_s2"
+      state_topic: "homeassistant/scheiber/bloc9/2/s2/state"
+      availability_topic: "homeassistant/scheiber/bloc9/2/s2/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/2/s2/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      icon: mdi:lighthouse
+      device:
+        identifiers: ["scheiber_bloc9_2"]
+        name: "Steam Light"
+        model: "Bloc9 Switch Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_2"
+        suggested_area: "Navigation"
+
+    # X10 Bloc9 2 - Anchor Light
+    - name: "Bloc9 2"
+      unique_id: "bloc9_2_s3_v2"
+      default_entity_id: "switch.scheiber_bloc9_2_s3"
+      state_topic: "homeassistant/scheiber/bloc9/2/s3/state"
+      availability_topic: "homeassistant/scheiber/bloc9/2/s3/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/2/s3/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      icon: mdi:anchor
+      device:
+        identifiers: ["scheiber_bloc9_2"]
+        name: "Anchor Light"
+        model: "Bloc9 Switch Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_2"
+        suggested_area: "Navigation"
+
+    # X25 Bloc9 6 - Decklight Bow
+    - name: "Bloc9 2"
+      unique_id: "bloc9_6_s3_v2"
+      default_entity_id: "switch.scheiber_bloc9_6_s3"
+      state_topic: "homeassistant/scheiber/bloc9/6/s3/state"
+      availability_topic: "homeassistant/scheiber/bloc9/6/s3/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/6/s3/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      icon: mdi:lightbulb-on
+      device:
+        identifiers: ["scheiber_bloc9_6"]
+        name: "Decklight Bow"
+        model: "Bloc9 Switch Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_6"
+        suggested_area: "Deck"
+
+    # X10 Bloc9 2 - Power Fridge (not a light)
+    - name: "Bloc9 6"
+      unique_id: "bloc9_2_s4_v2"
+      default_entity_id: "switch.scheiber_bloc9_2_s4"
+      state_topic: "homeassistant/scheiber/bloc9/2/s4/state"
+      availability_topic: "homeassistant/scheiber/bloc9/2/s4/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/2/s4/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      icon: mdi:fridge
+      device:
+        identifiers: ["scheiber_bloc9_2"]
+        name: "Power Fridge"
+        model: "Bloc9 Switch Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_2"
+
+    # X14 Bloc9 5 - Bilge Pumps (all configured as switches)
+    - name: "Bloc9 2"
+      unique_id: "bloc9_5_s1_v2"
+      default_entity_id: "switch.scheiber_bloc9_5_s1"
+      state_topic: "homeassistant/scheiber/bloc9/5/s1/state"
+      availability_topic: "homeassistant/scheiber/bloc9/5/s1/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/5/s1/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      icon: mdi:water-pump
+      device:
+        identifiers: ["scheiber_bloc9_5"]
+        name: "Automatic Bilge Pump Engine Room Stbd"
+        model: "Bloc9 Switch Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_5"
+        suggested_area: "Bilge"
+
+    - name: "Bloc9 5"
+      unique_id: "bloc9_5_s2_v2"
+      default_entity_id: "switch.scheiber_bloc9_5_s2"
+      state_topic: "homeassistant/scheiber/bloc9/5/s2/state"
+      availability_topic: "homeassistant/scheiber/bloc9/5/s2/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/5/s2/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      icon: mdi:water-pump
+      device:
+        identifiers: ["scheiber_bloc9_5"]
+        name: "Automatic Bilge Pump Stbd"
+        model: "Bloc9 Switch Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_5"
+        suggested_area: "Bilge"
+
+    - name: "Bloc9 5"
+      unique_id: "bloc9_5_s3_v2"
+      default_entity_id: "switch.scheiber_bloc9_5_s3"
+      state_topic: "homeassistant/scheiber/bloc9/5/s3/state"
+      availability_topic: "homeassistant/scheiber/bloc9/5/s3/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/5/s3/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      icon: mdi:water-pump
+      device:
+        identifiers: ["scheiber_bloc9_5"]
+        name: "Manual Bilge Pump Stbd"
+        model: "Bloc9 Switch Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_5"
+        suggested_area: "Bilge"
+
+    - name: "Bloc9 5"
+      unique_id: "bloc9_5_s4_v2"
+      default_entity_id: "switch.scheiber_bloc9_5_s4"
+      state_topic: "homeassistant/scheiber/bloc9/5/s4/state"
+      availability_topic: "homeassistant/scheiber/bloc9/5/s4/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/5/s4/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      icon: mdi:water-pump
+      device:
+        identifiers: ["scheiber_bloc9_5"]
+        name: "Automatic Bilge Pump Engine Room Port"
+        model: "Bloc9 Switch Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_5"
+        suggested_area: "Bilge"
+
+    - name: "Bloc9 5"
+      unique_id: "bloc9_5_s5_v2"
+      default_entity_id: "switch.scheiber_bloc9_5_s5"
+      state_topic: "homeassistant/scheiber/bloc9/5/s5/state"
+      availability_topic: "homeassistant/scheiber/bloc9/5/s5/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/5/s5/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      icon: mdi:water-pump
+      device:
+        identifiers: ["scheiber_bloc9_5"]
+        name: "Automatic Bilge Pump Port"
+        model: "Bloc9 Switch Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_5"
+        suggested_area: "Bilge"
+
+    - name: "Bloc9 5"
+      unique_id: "bloc9_5_s6_v2"
+      default_entity_id: "switch.scheiber_bloc9_5_s6"
+      state_topic: "homeassistant/scheiber/bloc9/5/s6/state"
+      availability_topic: "homeassistant/scheiber/bloc9/5/s6/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/5/s6/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      icon: mdi:water-pump
+      device:
+        identifiers: ["scheiber_bloc9_5"]
+        name: "Manual Bilge Pump Port"
+        model: "Bloc9 Switch Output"
+        manufacturer: "Scheiber"
+        via_device: "scheiber_bloc9_5"
+        suggested_area: "Bilge"
+
+# Note: Unused/unassigned outputs (marked as "(none)" in backup) are intentionally omitted:
+# - X11 Bloc9 1: S4, S5, S6
+# - X10 Bloc9 2: S5, S6
+# - X25 Bloc9 6: S1, S2, S4, S5, S6
+# - X28 Bloc9 9: S1, S2
+# - X20 Bloc9 10: S5, S6
+# These can be added later if needed by copying the light/switch template above
+
+    # Bloc9 1 - Electronic Systems & Reading Light
+    - unique_id: "bloc9_1_s1"
+      state_topic: "homeassistant/scheiber/bloc9/1/s1/state"
+      availability_topic: "homeassistant/scheiber/bloc9/1/s1/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/1/s1/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/1/s1/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/1/s1/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_1"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 5"
+
+    - unique_id: "bloc9_1_s2"
+      state_topic: "homeassistant/scheiber/bloc9/1/s2/state"
+      availability_topic: "homeassistant/scheiber/bloc9/1/s2/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/1/s2/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/1/s2/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/1/s2/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_1"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 1"
+
+    - unique_id: "bloc9_1_s3"
+      state_topic: "homeassistant/scheiber/bloc9/1/s3/state"
+      availability_topic: "homeassistant/scheiber/bloc9/1/s3/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/1/s3/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/1/s3/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/1/s3/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_1"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 1"
+
+    # Bloc9 2 - Navigation & Anchor Lights
+    - unique_id: "bloc9_2_s1"
+      state_topic: "homeassistant/scheiber/bloc9/2/s1/state"
+      availability_topic: "homeassistant/scheiber/bloc9/2/s1/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/2/s1/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/2/s1/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/2/s1/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      icon: mdi:navigation-variant
+      device:
+        identifiers: ["scheiber_bloc9_2"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 2"
+
+    - unique_id: "bloc9_2_s2"
+      state_topic: "homeassistant/scheiber/bloc9/2/s2/state"
+      availability_topic: "homeassistant/scheiber/bloc9/2/s2/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/2/s2/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/2/s2/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/2/s2/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      icon: mdi:lighthouse
+      device:
+        identifiers: ["scheiber_bloc9_2"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 2"
+
+    - unique_id: "bloc9_2_s3"
+      state_topic: "homeassistant/scheiber/bloc9/2/s3/state"
+      availability_topic: "homeassistant/scheiber/bloc9/2/s3/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/2/s3/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/2/s3/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/2/s3/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      icon: mdi:anchor
+      device:
+        identifiers: ["scheiber_bloc9_2"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 2"
+
+    # Bloc9 3 - Crew Cabin Stbd
+    - unique_id: "bloc9_3_s1"
+      state_topic: "homeassistant/scheiber/bloc9/3/s1/state"
+      availability_topic: "homeassistant/scheiber/bloc9/3/s1/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/3/s1/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/3/s1/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/3/s1/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_3"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 3 - Crew Cabin Stbd"
+
+    - unique_id: "bloc9_3_s2"
+      state_topic: "homeassistant/scheiber/bloc9/3/s2/state"
+      availability_topic: "homeassistant/scheiber/bloc9/3/s2/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/3/s2/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/3/s2/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/3/s2/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_3"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 3 - Crew Cabin Stbd"
+
+    - unique_id: "bloc9_3_s3"
+      state_topic: "homeassistant/scheiber/bloc9/3/s3/state"
+      availability_topic: "homeassistant/scheiber/bloc9/3/s3/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/3/s3/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/3/s3/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/3/s3/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_3"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 3 - Crew Cabin Stbd"
+
+    - unique_id: "bloc9_3_s4"
+      state_topic: "homeassistant/scheiber/bloc9/3/s4/state"
+      availability_topic: "homeassistant/scheiber/bloc9/3/s4/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/3/s4/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/3/s4/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/3/s4/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_3"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 3 - Crew Cabin Stbd"
+
+    - unique_id: "bloc9_3_s5"
+      state_topic: "homeassistant/scheiber/bloc9/3/s5/state"
+      availability_topic: "homeassistant/scheiber/bloc9/3/s5/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/3/s5/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/3/s5/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/3/s5/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_3"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 3 - Crew Cabin Stbd"
+
+    - unique_id: "bloc9_3_s6"
+      state_topic: "homeassistant/scheiber/bloc9/3/s6/state"
+      availability_topic: "homeassistant/scheiber/bloc9/3/s6/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/3/s6/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/3/s6/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/3/s6/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_3"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 3 - Crew Cabin Stbd"
+
+    # Bloc9 4 - Marc's Cabin
+    - unique_id: "bloc9_4_s1"
+      state_topic: "homeassistant/scheiber/bloc9/4/s1/state"
+      availability_topic: "homeassistant/scheiber/bloc9/4/s1/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/4/s1/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/4/s1/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/4/s1/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_4"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 4 - Marc's Cabin"
+
+    - unique_id: "bloc9_4_s2"
+      state_topic: "homeassistant/scheiber/bloc9/4/s2/state"
+      availability_topic: "homeassistant/scheiber/bloc9/4/s2/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/4/s2/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/4/s2/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/4/s2/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_4"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 4 - Marc's Cabin"
+
+    - unique_id: "bloc9_4_s3"
+      state_topic: "homeassistant/scheiber/bloc9/4/s3/state"
+      availability_topic: "homeassistant/scheiber/bloc9/4/s3/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/4/s3/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/4/s3/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/4/s3/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_4"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 4 - Marc's Cabin"
+
+    - unique_id: "bloc9_4_s4"
+      state_topic: "homeassistant/scheiber/bloc9/4/s4/state"
+      availability_topic: "homeassistant/scheiber/bloc9/4/s4/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/4/s4/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/4/s4/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/4/s4/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_4"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 4 - Marc's Cabin"
+
+    - unique_id: "bloc9_4_s5"
+      state_topic: "homeassistant/scheiber/bloc9/4/s5/state"
+      availability_topic: "homeassistant/scheiber/bloc9/4/s5/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/4/s5/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/4/s5/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/4/s5/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_4"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 4 - Marc's Cabin"
+
+    - unique_id: "bloc9_4_s6"
+      state_topic: "homeassistant/scheiber/bloc9/4/s6/state"
+      availability_topic: "homeassistant/scheiber/bloc9/4/s6/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/4/s6/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/4/s6/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/4/s6/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_4"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 4 - Marc's Cabin"
+
+    # Bloc9 6 - Deck Lighting
+    - unique_id: "bloc9_6_s3"
+      state_topic: "homeassistant/scheiber/bloc9/6/s3/state"
+      availability_topic: "homeassistant/scheiber/bloc9/6/s3/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/6/s3/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/6/s3/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/6/s3/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      icon: mdi:lightbulb-on
+      device:
+        identifiers: ["scheiber_bloc9_6"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 6 - Deck"
+
+    # Bloc9 7 - Saloon & Cockpit
+    - unique_id: "bloc9_7_s1"
+      state_topic: "homeassistant/scheiber/bloc9/7/s1/state"
+      availability_topic: "homeassistant/scheiber/bloc9/7/s1/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/7/s1/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/7/s1/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/7/s1/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_7"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 7 - Saloon"
+
+    - unique_id: "bloc9_7_s2"
+      state_topic: "homeassistant/scheiber/bloc9/7/s2/state"
+      availability_topic: "homeassistant/scheiber/bloc9/7/s2/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/7/s2/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/7/s2/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/7/s2/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_7"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 7 - Saloon"
+
+    - unique_id: "bloc9_7_s3"
+      state_topic: "homeassistant/scheiber/bloc9/7/s3/state"
+      availability_topic: "homeassistant/scheiber/bloc9/7/s3/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/7/s3/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/7/s3/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/7/s3/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_7"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 7 - Saloon"
+
+    - unique_id: "bloc9_7_s4"
+      state_topic: "homeassistant/scheiber/bloc9/7/s4/state"
+      availability_topic: "homeassistant/scheiber/bloc9/7/s4/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/7/s4/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/7/s4/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/7/s4/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_7"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 7 - Saloon"
+
+    - unique_id: "bloc9_7_s5"
+      state_topic: "homeassistant/scheiber/bloc9/7/s5/state"
+      availability_topic: "homeassistant/scheiber/bloc9/7/s5/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/7/s5/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/7/s5/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/7/s5/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_7"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 7 - Saloon"
+
+    - unique_id: "bloc9_7_s6"
+      state_topic: "homeassistant/scheiber/bloc9/7/s6/state"
+      availability_topic: "homeassistant/scheiber/bloc9/7/s6/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/7/s6/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/7/s6/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/7/s6/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_7"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 7 - Saloon"
+
+    # Bloc9 8 - Guest Cabin Port
+    - unique_id: "bloc9_8_s1"
+      state_topic: "homeassistant/scheiber/bloc9/8/s1/state"
+      availability_topic: "homeassistant/scheiber/bloc9/8/s1/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/8/s1/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/8/s1/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/8/s1/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_8"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 8 - Guest Cabin Port"
+
+    - unique_id: "bloc9_8_s2"
+      state_topic: "homeassistant/scheiber/bloc9/8/s2/state"
+      availability_topic: "homeassistant/scheiber/bloc9/8/s2/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/8/s2/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/8/s2/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/8/s2/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_8"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 8 - Guest Cabin Port"
+
+    - unique_id: "bloc9_8_s3"
+      state_topic: "homeassistant/scheiber/bloc9/8/s3/state"
+      availability_topic: "homeassistant/scheiber/bloc9/8/s3/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/8/s3/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/8/s3/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/8/s3/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_8"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 8 - Guest Cabin Port"
+
+    - unique_id: "bloc9_8_s4"
+      state_topic: "homeassistant/scheiber/bloc9/8/s4/state"
+      availability_topic: "homeassistant/scheiber/bloc9/8/s4/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/8/s4/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/8/s4/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/8/s4/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_8"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 8 - Guest Cabin Port"
+
+    - unique_id: "bloc9_8_s5"
+      state_topic: "homeassistant/scheiber/bloc9/8/s5/state"
+      availability_topic: "homeassistant/scheiber/bloc9/8/s5/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/8/s5/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/8/s5/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/8/s5/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_8"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 8 - Guest Cabin Port"
+
+    - unique_id: "bloc9_8_s6"
+      state_topic: "homeassistant/scheiber/bloc9/8/s6/state"
+      availability_topic: "homeassistant/scheiber/bloc9/8/s6/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/8/s6/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/8/s6/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/8/s6/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_8"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 8 - Guest Cabin Port"
+
+    # Bloc9 9 - Dotzi's Cabin
+    - unique_id: "bloc9_9_s3"
+      state_topic: "homeassistant/scheiber/bloc9/9/s3/state"
+      availability_topic: "homeassistant/scheiber/bloc9/9/s3/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/9/s3/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/9/s3/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/9/s3/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_9"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 9 - Dotzi's Cabin"
+
+    - unique_id: "bloc9_9_s4"
+      state_topic: "homeassistant/scheiber/bloc9/9/s4/state"
+      availability_topic: "homeassistant/scheiber/bloc9/9/s4/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/9/s4/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/9/s4/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/9/s4/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_9"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 9 - Dotzi's Cabin"
+
+    - unique_id: "bloc9_9_s5"
+      state_topic: "homeassistant/scheiber/bloc9/9/s5/state"
+      availability_topic: "homeassistant/scheiber/bloc9/9/s5/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/9/s5/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/9/s5/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/9/s5/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_9"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 9 - Dotzi's Cabin"
+
+    - unique_id: "bloc9_9_s6"
+      state_topic: "homeassistant/scheiber/bloc9/9/s6/state"
+      availability_topic: "homeassistant/scheiber/bloc9/9/s6/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/9/s6/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/9/s6/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/9/s6/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_9"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 9 - Dotzi's Cabin"
+
+    # Bloc9 10 - Exterior Lights
+    - unique_id: "bloc9_10_s1"
+      state_topic: "homeassistant/scheiber/bloc9/10/s1/state"
+      availability_topic: "homeassistant/scheiber/bloc9/10/s1/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/10/s1/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/10/s1/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/10/s1/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      icon: mdi:wall-sconce-flat
+      device:
+        identifiers: ["scheiber_bloc9_10"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 10 - Exterior"
+
+    - unique_id: "bloc9_10_s2"
+      state_topic: "homeassistant/scheiber/bloc9/10/s2/state"
+      availability_topic: "homeassistant/scheiber/bloc9/10/s2/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/10/s2/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/10/s2/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/10/s2/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      device:
+        identifiers: ["scheiber_bloc9_10"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 10 - Exterior"
+
+    - unique_id: "bloc9_10_s3"
+      state_topic: "homeassistant/scheiber/bloc9/10/s3/state"
+      availability_topic: "homeassistant/scheiber/bloc9/10/s3/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/10/s3/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/10/s3/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/10/s3/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      icon: mdi:led-strip-variant
+      device:
+        identifiers: ["scheiber_bloc9_10"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 10 - Exterior"
+
+    - unique_id: "bloc9_10_s4"
+      state_topic: "homeassistant/scheiber/bloc9/10/s4/state"
+      availability_topic: "homeassistant/scheiber/bloc9/10/s4/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/10/s4/set"
+      payload_on: "1"
+      payload_off: "0"
+      optimistic: false
+      qos: 1
+      retain: true
+      brightness_state_topic: "homeassistant/scheiber/bloc9/10/s4/brightness"
+      brightness_command_topic: "homeassistant/scheiber/bloc9/10/s4/set_brightness"
+      on_command_type: "brightness"
+      brightness_scale: 255
+      icon: mdi:waves
+      device:
+        identifiers: ["scheiber_bloc9_10"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 10 - Exterior"
+
+  # Switches (for non-dimmable loads like pumps and power systems)
+  switch:
+    # Bloc9 2 - Power Fridge (not a light)
+    - unique_id: "bloc9_2_s4"
+      state_topic: "homeassistant/scheiber/bloc9/2/s4/state"
+      availability_topic: "homeassistant/scheiber/bloc9/2/s4/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/2/s4/set"
+      payload_on: "1"
+      payload_off: "0"
+      icon: mdi:fridge
+      optimistic: false
+      qos: 1
+      retain: true
+      device:
+        identifiers: ["scheiber_bloc9_2"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 2"
+
+    # Bloc9 5 - Bilge Pumps (all configured as switches)
+    - unique_id: "bloc9_5_s1"
+      state_topic: "homeassistant/scheiber/bloc9/5/s1/state"
+      availability_topic: "homeassistant/scheiber/bloc9/5/s1/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/5/s1/set"
+      payload_on: "1"
+      payload_off: "0"
+      icon: mdi:water-pump
+      optimistic: false
+      qos: 1
+      retain: true
+      device:
+        identifiers: ["scheiber_bloc9_5"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 5 - Bilge Pumps"
+
+    - unique_id: "bloc9_5_s2"
+      state_topic: "homeassistant/scheiber/bloc9/5/s2/state"
+      availability_topic: "homeassistant/scheiber/bloc9/5/s2/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/5/s2/set"
+      payload_on: "1"
+      payload_off: "0"
+      icon: mdi:water-pump
+      optimistic: false
+      qos: 1
+      retain: true
+      device:
+        identifiers: ["scheiber_bloc9_5"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 5 - Bilge Pumps"
+
+    - unique_id: "bloc9_5_s3"
+      state_topic: "homeassistant/scheiber/bloc9/5/s3/state"
+      availability_topic: "homeassistant/scheiber/bloc9/5/s3/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/5/s3/set"
+      payload_on: "1"
+      payload_off: "0"
+      icon: mdi:water-pump
+      optimistic: false
+      qos: 1
+      retain: true
+      device:
+        identifiers: ["scheiber_bloc9_5"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 5 - Bilge Pumps"
+
+    - unique_id: "bloc9_5_s4"
+      state_topic: "homeassistant/scheiber/bloc9/5/s4/state"
+      availability_topic: "homeassistant/scheiber/bloc9/5/s4/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/5/s4/set"
+      payload_on: "1"
+      payload_off: "0"
+      icon: mdi:water-pump
+      optimistic: false
+      qos: 1
+      retain: true
+      device:
+        identifiers: ["scheiber_bloc9_5"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 5 - Bilge Pumps"
+
+    - unique_id: "bloc9_5_s5"
+      state_topic: "homeassistant/scheiber/bloc9/5/s5/state"
+      availability_topic: "homeassistant/scheiber/bloc9/5/s5/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/5/s5/set"
+      payload_on: "1"
+      payload_off: "0"
+      icon: mdi:water-pump
+      optimistic: false
+      qos: 1
+      retain: true
+      device:
+        identifiers: ["scheiber_bloc9_5"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 5 - Bilge Pumps"
+
+    - unique_id: "bloc9_5_s6"
+      state_topic: "homeassistant/scheiber/bloc9/5/s6/state"
+      availability_topic: "homeassistant/scheiber/bloc9/5/s6/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+      command_topic: "homeassistant/scheiber/bloc9/5/s6/set"
+      payload_on: "1"
+      payload_off: "0"
+      icon: mdi:water-pump
+      optimistic: false
+      qos: 1
+      retain: true
+      device:
+        identifiers: ["scheiber_bloc9_5"]
+        manufacturer: "Scheiber"
+        model: "Bloc9"
+        name: "Bloc9 5 - Bilge Pumps"
+
+# Note: Unused/unassigned outputs (marked as "(none)" in backup) are intentionally omitted:
+# - Bloc9 1: S4, S5, S6
+# - Bloc9 2: S5, S6
+# - Bloc9 6: S1, S2, S4, S5, S6
+# - Bloc9 9: S1, S2
+# - Bloc9 10: S5, S6
+# These can be added later if needed by copying the light template above
