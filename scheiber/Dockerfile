@@ -8,7 +8,6 @@ RUN pip3 install --break-system-packages python-can
 WORKDIR /
 
 COPY run.sh .
-COPY gateway.py .
 COPY src/ /src
 RUN chmod u+x /src/tools/*.sh
 

@@ -1,7 +1,7 @@
 #!/usr/bin/with-contenv bashio
 set -e
 
-bashio::log.info "Starting scheiber CAN 2 MQTT Gateway..."
+bashio::log.info "Starting scheiber CAN 2 MQTT Bridge..."
 
 # Read config values using bashio
 CAN_IFACE=$(bashio::config 'can_interface')
