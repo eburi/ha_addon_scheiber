@@ -441,15 +441,29 @@ class Bloc9(ScheiberCanDevice):
         """
         import json
 
+        self.logger.debug(
+            f"_publish_bloc9_sensor_device: discovery_configs count={len(self.discovery_configs)}"
+        )
+        if self.discovery_configs:
+            self.logger.debug(
+                f"_publish_bloc9_sensor_device: first config = {self.discovery_configs[0]}"
+            )
+
         # Get device name from first discovery config (guaranteed to exist when called)
         # This method is only called from publish_discovery_config() after checking
         # that self.discovery_configs is not empty
         device_name = self.discovery_configs[0].device_name
 
+        self.logger.debug(
+            f"_publish_bloc9_sensor_device: device_name from discovery_config = '{device_name}'"
+        )
+
         # Convert device name to snake_case for sensor entity_id
         sensor_entity_id = name_to_snake_case(device_name)
 
-        # Discovery topic for the Bloc9 sensor
+        self.logger.debug(
+            f"_publish_bloc9_sensor_device: sensor_entity_id (snake_case) = '{sensor_entity_id}'"
+        )  # Discovery topic for the Bloc9 sensor
         discovery_topic = f"{self.mqtt_topic_prefix}/sensor/{sensor_entity_id}/config"
 
         # State topic uses the base Bloc9 topic (JSON payload with bus stats)
@@ -477,9 +491,14 @@ class Bloc9(ScheiberCanDevice):
         }
 
         config_json = json.dumps(config_payload)
-        self.logger.debug(
-            f"Publishing Bloc9 sensor discovery to {discovery_topic}: {config_json}"
+        self.logger.info(f"Publishing Bloc9 sensor discovery:")
+        self.logger.info(f"  Topic: {discovery_topic}")
+        self.logger.info(f"  Device name: {device_name}")
+        self.logger.info(f"  Sensor entity_id: {sensor_entity_id}")
+        self.logger.info(
+            f"  Via_device ID: scheiber_{self.device_type}_{self.device_id}"
         )
+        self.logger.debug(f"  Full config: {config_json}")
         self.mqtt_client.publish(discovery_topic, config_json, qos=1, retain=True)
 
         # Publish initial offline availability for the Bloc9 device
@@ -526,6 +545,14 @@ class Bloc9(ScheiberCanDevice):
             command_topic = f"{scheiber_base}/set"
             availability_topic = f"{scheiber_base}/availability"
 
+            # Calculate via_device ID that links to parent Bloc9
+            via_device_id = f"scheiber_{self.device_type}_{self.device_id}"
+
+            self.logger.debug(
+                f"Publishing {disc_config.component}.{disc_config.entity_id}: "
+                f"device_name='{disc_config.device_name}', via_device='{via_device_id}'"
+            )
+
             # Each light/switch is its own device with via_device pointing to Bloc9
             config_payload = {
                 "name": disc_config.name,
@@ -545,7 +572,7 @@ class Bloc9(ScheiberCanDevice):
                     "name": disc_config.name,
                     "model": f"{disc_config.device_name} - {disc_config.output.upper()}",
                     "manufacturer": "Scheiber",
-                    "via_device": f"scheiber_{self.device_type}_{self.device_id}",
+                    "via_device": via_device_id,
                 },
             }
 

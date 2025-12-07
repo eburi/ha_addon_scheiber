@@ -1,7 +1,8 @@
 #!/usr/bin/with-contenv bashio
 set -e
 
-bashio::log.info "Starting scheiber CAN 2 MQTT Bridge..."
+bashio::log.info "---------------------------------------------------------------------------"
+bashio::log.info "Starting scheiber CAN 2 MQTT Bridge (version $(bashio::addon.version()))..."
 
 # Read config values using bashio
 CAN_IFACE=$(bashio::config 'can_interface')
@@ -14,6 +15,8 @@ LOG_LEVEL=$(bashio::config 'log_level')
 DATA_DIR=$(bashio::config 'data_dir')
 CONFIG_FILE=$(bashio::config 'config_file')
 
+bashio::log.info "---------------------------------------------------------------------------"
+bashio::log.info "Configuration Values:"
 bashio::log.info "Using CAN interface: ${CAN_IFACE}"
 bashio::log.info "MQTT user: ${MQTT_USER}"
 bashio::log.info "MQTT host: ${MQTT_HOST}:${MQTT_PORT}"
@@ -34,6 +37,8 @@ export LOG_LEVEL="${LOG_LEVEL}"
 export DATA_DIR="${DATA_DIR}"
 export CONFIG_FILE="${CONFIG_FILE}"
 
+bashio::log.info "---------------------------------------------------------------------------"
+bashio::log.info "Setting up CAN interface..."
 ## Setup
 # Use the CAN_IFACE value and configure just that device
 # Init can0
@@ -48,6 +53,8 @@ ip link set can1 type can bitrate 250000 fd off restart-ms 100
 ip link set can1 up
 ifconfig can1 txqueuelen 10000
 
+bashio::log.info "---------------------------------------------------------------------------"
+bashio::log.info "Starting actual bridge..."
 # Start scheiber mqtt bridge
 cd /src
 source .venv/bin/activate
