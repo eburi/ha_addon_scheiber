@@ -112,6 +112,14 @@ class ScheiberCanDevice(ABC):
         """Publish property state to MQTT."""
         pass
 
+    def update_heartbeat(self):
+        """Update device heartbeat. Override in subclasses to implement availability tracking."""
+        pass
+
+    def check_heartbeat(self):
+        """Check device heartbeat. Override in subclasses to implement availability tracking."""
+        pass
+
     def publish_device_info(self):
         """Publish device information to MQTT."""
         topic = self.get_base_topic()
@@ -466,10 +474,9 @@ class Bloc9(ScheiberCanDevice):
 
     def publish_state(self, property_name: str, value: Any):
         """Publish property state to MQTT, handling brightness separately."""
-        # Update heartbeat on any state message (status messages indicate device is alive)
+        # Skip publishing stat properties (used only for heartbeat)
         if property_name.startswith("stat"):
-            self.update_heartbeat()
-            return  # Don't publish stat properties
+            return
 
         # Handle brightness properties
         if property_name.endswith("_brightness"):

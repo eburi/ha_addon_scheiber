@@ -365,6 +365,9 @@ class MQTTBridge:
                 else:
                     device = self.devices[device_instance_key]
 
+                # Update heartbeat on any successful message match
+                device.update_heartbeat()
+
                 # Update device state with new properties
                 device.update_state(decoded)
 
@@ -375,8 +378,7 @@ class MQTTBridge:
                 # Check heartbeat for all devices periodically (every 10 messages)
                 if message_count % 10 == 0:
                     for device_inst in self.devices.values():
-                        if hasattr(device_inst, "check_heartbeat"):
-                            device_inst.check_heartbeat()
+                        device_inst.check_heartbeat()
 
         except KeyboardInterrupt:
             self.logger.info("Stopping (Ctrl+C received)")
