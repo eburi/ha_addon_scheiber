@@ -1,0 +1,206 @@
+# Scheiber MQTT Bridge Configuration
+# 
+# This file configures which Bloc9 switches are exposed to Home Assistant
+# via MQTT Discovery. Only explicitly configured outputs will be discovered.
+#
+# Structure:
+#   bloc9:
+#     - bus_id: <1-10>          # Bloc9 device ID on CAN bus
+#       name: "Bloc9 X"         # Human-readable device name
+#       lights: []              # List of outputs to expose as dimmable lights
+#         - name: "Light Name"  # Display name in Home Assistant
+#           entity_id: "light.entity_name"  # Entity ID (without domain prefix)
+#           output: sX          # Bloc9 output (s1-s6)
+#       switches: []            # List of outputs to expose as on/off switches
+#         - name: "Switch Name"
+#           entity_id: "switch.entity_name"
+#           output: sX
+
+bloc9:
+  - bus_id: 1
+    name: "Bloc9 1"
+    lights: []
+    switches:
+      - name: "Electronic 12V"
+        entity_id: "switch.scheiber_bloc9_1_s1"
+        output: s1
+      - name: "Electronic 24V"
+        entity_id: "switch.scheiber_bloc9_1_s2"
+        output: s2
+      - name: "Reading Light & Fan Stbd"
+        entity_id: "switch.reading_light_fan_stbd"
+        output: s3
+
+  - bus_id: 2
+    name: "Bloc9 2"
+    lights: []
+    switches:
+      - name: "Navigation Light"
+        entity_id: "switch.navigation_light"
+        output: s1
+      - name: "Steam Light"
+        entity_id: "switch.steam_light"
+        output: s2
+      - name: "Anchor Light"
+        entity_id: "switch.anchor_light"
+        output: s3
+      - name: "Power Fridge"
+        entity_id: "switch.scheiber_bloc9_2_s4"
+        output: s4
+
+  - bus_id: 3
+    name: "Bloc9 3"
+    switches: []
+    lights:
+      - name: "Main Light Crew Cabin Toilette Stbd"
+        entity_id: "light.main_light_crew_cabin_toilette_stbd"
+        output: s1
+      - name: "Ambient Light Crew Cabin Toilette Stbd"
+        entity_id: "light.ambient_light_crew_cabin_toilette_stbd"
+        output: s2
+      - name: "Main Light Crew Cabin Stbd"
+        entity_id: "light.main_light_crew_cabin_stbd"
+        output: s3
+      - name: "Ambient Light Crew Cabin Stbd"
+        entity_id: "light.ambient_light_crew_cabin_stbd"
+        output: s4
+      - name: "Main Light Hallway Stbd"
+        entity_id: "light.main_loght_hallway_stbd"
+        output: s5
+      - name: "Under Stairs Light Hallway Stbd"
+        entity_id: "light.under_stairs_light_hallway_stbd"
+        output: s6
+
+  - bus_id: 4
+    name: "Bloc9 4"
+    switches: []
+    lights:
+      - name: "Main Light Door Marc Cabin"
+        entity_id: "light.main_light_door_marc_cabin"
+        output: s1
+      - name: "Ambient Light Shower/Sink Marc Cabin"
+        entity_id: "light.ambient_light_shower_sink_marc_cabin"
+        output: s2
+      - name: "Main Light Sink Marc Cabine"
+        entity_id: "light.main_light_sink_marc_cabine"
+        output: s3
+      - name: "Toilet Light Marc Cabin"
+        entity_id: "light.toilet_light_marc_cabin"
+        output: s4
+      - name: "Main Light Marc Cabin"
+        entity_id: "light.main_light_marc_cabin"
+        output: s5
+      - name: "Ambient Light Marc Cabin"
+        entity_id: "light.ambient_light_marc_cabin"
+        output: s6
+
+  - bus_id: 5
+    name: "Bloc9 5"
+    lights: []
+    switches:
+      - name: "Automatic Bilge Pump Engine Room Stbd"
+        entity_id: "switch.scheiber_bloc9_5_s1"
+        output: s1
+      - name: "Automatic Bilge Pump Stbd"
+        entity_id: "switch.scheiber_bloc9_5_s2"
+        output: s2
+      - name: "Manual Bilge Pump Stbd"
+        entity_id: "switch.manual_bilge_pump_stbd"
+        output: s3
+      - name: "Automatic Bilge Pump Engine Room Port"
+        entity_id: "switch.scheiber_bloc9_5_s4"
+        output: s4
+      - name: "Automatic Bilge Pump Port"
+        entity_id: "switch.scheiber_bloc9_5_s5"
+        output: s5
+      - name: "Manual Bilge Pump Port"
+        entity_id: "switch.manual_bilge_pump_port"
+        output: s6
+
+  - bus_id: 6
+    name: "Bloc9 6"
+    lights: []
+    switches:
+      - name: "Decklight Bow"
+        entity_id: "switch.decklight_bow"
+        output: s3
+
+  - bus_id: 7
+    name: "Bloc9 7"
+    switches:
+      - name: "Reading Light & Fan Port"
+        entity_id: "switch.reading_light_fan_port"
+        output: s6
+    lights:
+      - name: "Main Light Saloon Front"
+        entity_id: "light.main_light_saloon_front"
+        output: s1
+      - name: "Main Light Saloon Aft"
+        entity_id: "light.main_light_saloon_aft"
+        output: s2
+      - name: "Cove Light Saloon"
+        entity_id: "light.cove_light_saloon"
+        output: s3
+      - name: "Ambient Light saloon Sofa"
+        entity_id: "light.ambient_light_saloon_sofa"
+        output: s4
+      - name: "Main Light Cockpit"
+        entity_id: "light.scheiber_bloc9_7_s5"
+        output: s5
+
+  - bus_id: 8
+    name: "Bloc9 8"
+    switches: []
+    lights:
+      - name: "Main Light Guest Cabin Toilet Port"
+        entity_id: "light.main_light_guest_cabin_toilet_port"
+        output: s1
+      - name: "Ambient Light Guest Cabin Toilette Port"
+        entity_id: "light.ambient_light_guest_cabin_toilette_port"
+        output: s2
+      - name: "Main Light Guest Cabin Port"
+        entity_id: "light.main_light_guest_cabin_port"
+        output: s3
+      - name: "Ambient Light Guest Cabin Port"
+        entity_id: "light.ambient_light_guest_cabin_port"
+        output: s4
+      - name: "Main Light Hallway Port"
+        entity_id: "light.main_light_hallway_port"
+        output: s5
+      - name: "Under Stairs Light Hallway Port"
+        entity_id: "light.scheiber_bloc9_8_s6"
+        output: s6
+
+  - bus_id: 9
+    name: "Bloc9 9"
+    switches: []
+    lights:
+      - name: "Main Light Dotzi Toilet"
+        entity_id: "light.main_light_dotzi_toilet"
+        output: s3
+      - name: "Ambient Light Dotzi Toilet"
+        entity_id: "light.ambient_light_dotzi_toilet"
+        output: s4
+      - name: "Main Light Dotzi Cabin"
+        entity_id: "light.main_light_dotzi_cabin"
+        output: s5
+      - name: "Ambient Light Dotzi Cabin"
+        entity_id: "light.ambient_light_dotzi_cabin"
+        output: s6
+
+  - bus_id: 10
+    name: "Bloc9 10"
+    switches: []
+    lights:
+      - name: "Courtesy Lights"
+        entity_id: "light.courtesy_lights"
+        output: s1
+      - name: "Secret Light"
+        entity_id: "light.secret_light"
+        output: s2
+      - name: "Aft Beam Light"
+        entity_id: "light.aft_beam_light"
+        output: s3
+      - name: "Under Water Light"
+        entity_id: "light.under_water_light"
+        output: s4

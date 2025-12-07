@@ -28,6 +28,7 @@ class ScheiberCanDevice(ABC):
         mqtt_topic_prefix: str,
         can_bus: Optional[can.BusABC],
         data_dir: Optional[str] = None,
+        discovery_configs: Optional[List] = None,
     ):
         self.device_type = device_type
         self.device_id = device_id
@@ -36,6 +37,7 @@ class ScheiberCanDevice(ABC):
         self.mqtt_topic_prefix = mqtt_topic_prefix
         self.can_bus = can_bus
         self.data_dir = data_dir
+        self.discovery_configs = discovery_configs or []
         self.logger = logging.getLogger(
             f"{__name__}.{self.__class__.__name__}.{device_type}_{device_id}"
         )
@@ -147,6 +149,7 @@ class Bloc9(ScheiberCanDevice):
         mqtt_topic_prefix: str,
         can_bus: Optional[can.BusABC],
         data_dir: Optional[str] = None,
+        discovery_configs: Optional[List] = None,
     ):
         super().__init__(
             device_type,
@@ -165,7 +168,9 @@ class Bloc9(ScheiberCanDevice):
             self.state_cache_dir = Path(__file__).parent / ".state_cache"
 
         self.logger.info(
-            f"Initialized Bloc9 device: {device_type} {device_id}, state_cache={self.state_cache_dir}"
+            f"Initialized Bloc9 device: {device_type} {device_id}, "
+            f"state_cache={self.state_cache_dir}, "
+            f"discovered_entities={len(self.discovery_configs)}"
         )
 
         # Heartbeat tracking for availability
@@ -235,50 +240,31 @@ class Bloc9(ScheiberCanDevice):
             )
 
     def _mark_all_properties_online(self):
-        """Mark all switch properties as online (available)."""
-        all_properties = self.get_all_properties()
-        for prop_name in all_properties:
-            # Only mark switch properties (not brightness/stat properties)
-            if not prop_name.endswith("_brightness") and not prop_name.startswith(
-                "stat"
-            ):
-                availability_topic = self.get_property_topic(prop_name, "availability")
-                self.mqtt_client.publish(
-                    availability_topic, "online", qos=1, retain=True
-                )
-                self.logger.debug(f"Marked {prop_name} as online")
+        """Mark all configured outputs as online (available)."""
+        for disc_config in self.discovery_configs:
+            availability_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{disc_config.output}/availability"
+            self.mqtt_client.publish(availability_topic, "online", qos=1, retain=True)
+            self.logger.debug(f"Marked {disc_config.output} as online")
 
     def _mark_all_properties_offline(self):
-        """Mark all switch properties as offline (unavailable)."""
-        all_properties = self.get_all_properties()
-        for prop_name in all_properties:
-            # Only mark switch properties (not brightness/stat properties)
-            if not prop_name.endswith("_brightness") and not prop_name.startswith(
-                "stat"
-            ):
-                availability_topic = self.get_property_topic(prop_name, "availability")
-                self.mqtt_client.publish(
-                    availability_topic, "offline", qos=1, retain=True
-                )
-                self.logger.debug(f"Marked {prop_name} as offline")
+        """Mark all configured outputs as offline (unavailable)."""
+        for disc_config in self.discovery_configs:
+            availability_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{disc_config.output}/availability"
+            self.mqtt_client.publish(availability_topic, "offline", qos=1, retain=True)
+            self.logger.debug(f"Marked {disc_config.output} as offline")
 
     def register_command_topics(self) -> List[Tuple[str, Callable[[str, str], None]]]:
-        """Register command topics for all switch properties."""
+        """Register command topics for explicitly configured outputs only."""
         topics = []
-        all_properties = self.get_all_properties()
 
-        for prop_name in all_properties:
-            # Skip internal properties
-            if prop_name.endswith("_brightness") or prop_name.startswith("stat"):
-                continue
-
+        for disc_config in self.discovery_configs:
             # Register ON/OFF command topic
-            command_topic = self.get_property_topic(prop_name, "set")
+            command_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{disc_config.output}/set"
             topics.append((command_topic, self.handle_command))
 
-            # Register brightness command topic if brightness is supported
-            if f"{prop_name}_brightness" in all_properties:
-                brightness_topic = self.get_property_topic(prop_name, "set_brightness")
+            # Register brightness command topic for lights
+            if disc_config.component == "light":
+                brightness_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{disc_config.output}/set_brightness"
                 topics.append((brightness_topic, self.handle_command))
 
         return topics
@@ -431,73 +417,77 @@ class Bloc9(ScheiberCanDevice):
             raise
 
     def publish_discovery_config(self):
-        """Publish Home Assistant MQTT Discovery config for light components."""
+        """
+        Publish Home Assistant MQTT Discovery config for explicitly configured entities.
+
+        Uses standard HA discovery pattern: <discovery_prefix>/{component}/{object_id}/config
+        Only publishes discovery for outputs that are explicitly configured in scheiber.yaml.
+        """
         import json
 
-        all_properties = self.get_all_properties()
-
-        # Publish config for each switch property (not brightness/stat properties)
-        for prop_name in all_properties:
-            # Skip internal properties
-            if prop_name.endswith("_brightness") or prop_name.startswith("stat"):
-                continue
-
-            unique_id = f"{self.device_type}_{self.device_id}_{prop_name}_v2"
-            default_entity_id = (
-                f"light.scheiber_{self.device_type}_{self.device_id}_{prop_name}"
+        if not self.discovery_configs:
+            self.logger.info(
+                f"No discovery configs for Bloc9 {self.device_id}, skipping discovery"
             )
+            return
 
-            config_topic = self.get_property_topic(prop_name, "config")
-            state_topic = self.get_property_topic(prop_name, "state")
-            availability_topic = self.get_property_topic(prop_name, "availability")
+        self.logger.info(
+            f"Publishing discovery for {len(self.discovery_configs)} entities on Bloc9 {self.device_id}"
+        )
 
+        for disc_config in self.discovery_configs:
+            # Build discovery topic: <discovery_prefix>/{component}/{object_id}/config
+            discovery_topic = f"{self.mqtt_topic_prefix}/{disc_config.component}/{disc_config.entity_id}/config"
+
+            # Build scheiber topic paths for state and commands
+            scheiber_base = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{disc_config.output}"
+            state_topic = f"{scheiber_base}/state"
+            command_topic = f"{scheiber_base}/set"
+            availability_topic = f"{scheiber_base}/availability"
+
+            # Base payload for both lights and switches
             config_payload = {
-                "name": f"{self.device_config.get('name', self.device_type)} {self.device_id} {prop_name.upper()}",
-                "unique_id": unique_id,
-                "default_entity_id": default_entity_id,
-                "device_class": "light",
+                "name": disc_config.name,
+                "unique_id": f"scheiber_{self.device_type}_{self.device_id}_{disc_config.output}_v3",
                 "state_topic": state_topic,
+                "command_topic": command_topic,
                 "availability_topic": availability_topic,
                 "payload_available": "online",
                 "payload_not_available": "offline",
-                "command_topic": self.get_property_topic(prop_name, "set"),
                 "optimistic": False,
                 "qos": 1,
                 "retain": True,
                 "device": {
                     "identifiers": [f"scheiber_{self.device_type}_{self.device_id}"],
-                    "name": f"{self.device_config.get('name', self.device_type)} {self.device_id}",
+                    "name": disc_config.device_name,
                     "model": self.device_config.get("name", self.device_type),
                     "manufacturer": "Scheiber",
                 },
             }
 
-            # Add brightness support if _brightness property exists
-            if f"{prop_name}_brightness" in all_properties:
+            # Add brightness support for lights
+            if disc_config.component == "light":
                 config_payload["brightness"] = True
                 config_payload["supported_color_modes"] = ["brightness"]
-                config_payload["brightness_state_topic"] = self.get_property_topic(
-                    prop_name, "brightness"
+                config_payload["brightness_state_topic"] = f"{scheiber_base}/brightness"
+                config_payload["brightness_command_topic"] = (
+                    f"{scheiber_base}/set_brightness"
                 )
-                config_payload["brightness_command_topic"] = self.get_property_topic(
-                    prop_name, "set_brightness"
-                )
-                # Use brightness commands to turn on (no separate ON command)
                 config_payload["on_command_type"] = "brightness"
 
             config_json = json.dumps(config_payload)
             self.logger.debug(
-                f"Publishing HA discovery config to {config_topic}: {config_json}"
+                f"Publishing discovery to {discovery_topic}: {config_json}"
             )
-            self.mqtt_client.publish(config_topic, config_json, qos=1, retain=True)
+            self.mqtt_client.publish(discovery_topic, config_json, qos=1, retain=True)
 
-            # Publish initial offline availability status
+            # Publish initial offline availability
             self.logger.debug(
                 f"Publishing initial availability to {availability_topic}: offline"
             )
             self.mqtt_client.publish(availability_topic, "offline", qos=1, retain=True)
 
-            self.published_properties.add(prop_name)
+            self.published_properties.add(disc_config.output)
 
     def publish_state(self, property_name: str, value: Any):
         """Publish property state to MQTT, handling brightness separately."""
@@ -657,6 +647,7 @@ def create_device(
     mqtt_topic_prefix: str,
     can_bus,
     data_dir: Optional[str] = None,
+    discovery_configs: Optional[List] = None,
 ) -> ScheiberCanDevice:
     """Factory function to create appropriate device instance."""
     device_class = DEVICE_TYPE_CLASSES.get(device_type, ScheiberCanDevice)
@@ -676,4 +667,5 @@ def create_device(
         mqtt_topic_prefix,
         can_bus,
         data_dir,
+        discovery_configs=discovery_configs,
     )

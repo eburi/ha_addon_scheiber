@@ -1,18 +1,23 @@
 # Home Assistant Add-on: Scheiber CAN-MQTT Bridge
 
-**Version 2.1.0** — Experimental bridge for Scheiber CAN devices with MQTT integration.
+**Version 3.0.0** — Experimental bridge for Scheiber CAN devices with MQTT integration.
 
 ⚠️ **EXPERIMENTAL**: This is an ongoing reverse-engineering project. The Scheiber CAN protocol is not fully documented, and functionality may be incomplete or change significantly.
+
+⚠️ **BREAKING CHANGES in v3.0.0**: This version requires explicit configuration in `scheiber.yaml` to expose entities via MQTT Discovery. See [Configuration](#configuration) section for details.
 
 ## Overview
 
 This Home Assistant add-on provides a bridge between Scheiber devices on a CAN bus and MQTT, enabling integration with Home Assistant through MQTT Discovery. It monitors CAN traffic, decodes device messages, and publishes state updates to MQTT.
 
+**v3.0.0 introduces explicit entity configuration for safety and control.** You must now define which outputs to expose via a `scheiber.yaml` configuration file placed in Home Assistant's `/config/` directory.
+
 ### Current Features
 
 - **CAN-MQTT Bridge**: Translates CAN messages to MQTT topics
 - **Bloc9 Switch Support**: ON/OFF control and brightness (0-255) for 6-switch panels
-- **MQTT Discovery**: Automatic Home Assistant entity creation
+- **Explicit Entity Configuration**: Define which outputs to expose as lights or switches (v3.0.0)
+- **MQTT Discovery**: Automatic Home Assistant entity creation for configured outputs
 - **Heartbeat Availability**: Devices marked online/offline based on CAN traffic (60s timeout)
 - **State Persistence**: Device states saved between restarts
 - **Optimistic Updates**: Immediate UI feedback (may not reflect actual device state)
@@ -111,18 +116,37 @@ Publish to these topics to control devices. The bridge:
 - Optimistic mode disabled - state updates come from MQTT feedback
 - Availability tied to device heartbeat (60-second timeout)
 
-### Discovery Configuration
-```
-<prefix>/scheiber/<device-type>/<bus-id>/<property>/config
-```
-Example: `homeassistant/scheiber/bloc9/7/s5/config`
+### MQTT Discovery Configuration (v3.0.0)
 
-Published once per property on startup. Configures Home Assistant entities with:
-- Unique ID (includes `_v2` suffix for config update recognition)
+**Discovery Topic Pattern** (follows standard Home Assistant convention):
+```
+<mqtt_topic_prefix>/{component}/{object_id}/config
+```
+
+Examples:
+- `homeassistant/light/salon_working_light/config` — Light entity discovery
+- `homeassistant/switch/salon_water_pump/config` — Switch entity discovery
+
+**State & Command Topics** (scheiber-specific namespace):
+```
+<mqtt_topic_prefix>/scheiber/<device-type>/<bus-id>/<output>/state
+<mqtt_topic_prefix>/scheiber/<device-type>/<bus-id>/<output>/set
+<mqtt_topic_prefix>/scheiber/<device-type>/<bus-id>/<output>/availability
+```
+
+Examples:
+- `homeassistant/scheiber/bloc9/7/s1/state` — Current state
+- `homeassistant/scheiber/bloc9/7/s1/set` — Command topic
+- `homeassistant/scheiber/bloc9/7/s1/brightness` — Current brightness
+- `homeassistant/scheiber/bloc9/7/s1/set_brightness` — Brightness command
+- `homeassistant/scheiber/bloc9/7/s1/availability` — Online/offline status
+
+Published discovery config includes:
+- Unique ID (includes `_v3` suffix for v3.0 config recognition)
 - Device information (identifiers, name, model, manufacturer)
-- Command and state topics
-- Availability topic with online/offline payloads
-- Brightness configuration with supported color modes
+- State, command, and availability topic references
+- Brightness configuration (for lights only)
+- QoS and retain settings
 - QoS and retain settings
 
 See:
@@ -130,6 +154,118 @@ See:
 - [Home Assistant MQTT Discovery](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery)
 
 ## Configuration
+
+### Entity Configuration (`scheiber.yaml`) — **REQUIRED in v3.0.0**
+
+⚠️ **BREAKING CHANGE**: As of v3.0.0, you must create a `scheiber.yaml` configuration file to expose entities via MQTT Discovery. This adds safety by preventing accidental control of critical systems.
+
+**Location**: Place this file in Home Assistant's `/config/` directory (e.g., `/config/scheiber.yaml`)
+
+**Purpose**: Explicitly define which Bloc9 outputs to expose to Home Assistant, their entity names, and whether they should appear as lights or switches.
+
+#### Configuration Structure
+
+```yaml
+bloc9:
+  - bus_id: 7  # Bloc9 device bus ID (from CAN messages)
+    name: "Salon Bloc9"  # Human-readable device name
+    lights:  # Outputs to expose as dimmable lights
+      - name: "Salon Working Light"
+        entity_id: "light.salon_working_light"
+        output: s1  # Switch output (s1-s6)
+      - name: "Salon Reading Light"
+        entity_id: "light.salon_reading_light"
+        output: s2
+    switches:  # Outputs to expose as simple switches (ON/OFF only)
+      - name: "Salon Fan"
+        entity_id: "switch.salon_fan"
+        output: s3
+```
+
+#### Configuration Fields
+
+**bloc9** (required): List of Bloc9 device configurations
+
+Each Bloc9 device has:
+- **bus_id** (required): Numeric device ID from CAN bus (typically 2-10)
+- **name** (required): Device name shown in Home Assistant device info
+- **lights** (optional): List of outputs to expose as dimmable lights
+- **switches** (optional): List of outputs to expose as switches
+
+Each entity (light or switch) has:
+- **name** (required): Entity display name in Home Assistant
+- **entity_id** (required): Full entity ID including component prefix (e.g., `light.my_light`, `switch.my_switch`)
+- **output** (required): Bloc9 output identifier (`s1`, `s2`, `s3`, `s4`, `s5`, or `s6`)
+
+#### Complete Example
+
+```yaml
+bloc9:
+  - bus_id: 1
+    name: "Electrical Bloc9"
+    switches:
+      - name: "12V Electronics"
+        entity_id: "switch.electronics_12v"
+        output: s1
+      - name: "USB Outlets"
+        entity_id: "switch.usb_outlets"
+        output: s2
+
+  - bus_id: 7
+    name: "Salon Bloc9"
+    lights:
+      - name: "Working Light"
+        entity_id: "light.salon_working_light"
+        output: s1
+      - name: "Reading Light"
+        entity_id: "light.salon_reading_light"
+        output: s2
+      - name: "Ceiling Light"
+        entity_id: "light.salon_ceiling"
+        output: s6
+    switches:
+      - name: "Water Pump"
+        entity_id: "switch.salon_water_pump"
+        output: s3
+
+  - bus_id: 10
+    name: "Navigation Bloc9"
+    lights:
+      - name: "Underwater Light"
+        entity_id: "light.underwater"
+        output: s4
+```
+
+#### Safety Best Practices
+
+1. **Omit Critical Systems**: Don't expose outputs controlling:
+   - Bilge pumps
+   - Navigation lights
+   - Emergency systems
+   - Refrigeration
+   
+2. **Use Descriptive Names**: Make entity names clear to prevent accidental activation
+
+3. **Choose Appropriate Component**:
+   - Use `lights:` for dimmable loads (lighting, fans with dimming)
+   - Use `switches:` for binary loads (pumps, outlets, electronics)
+
+4. **Start Small**: Begin with a few non-critical outputs, then expand after testing
+
+#### Migration from v2.x
+
+**Old behavior (v2.x)**: All 6 outputs on every detected Bloc9 device were automatically exposed as lights.
+
+**New behavior (v3.0.0)**: Only outputs explicitly configured in `scheiber.yaml` are exposed.
+
+**Migration steps**:
+1. Create `/config/scheiber.yaml` in your Home Assistant configuration directory
+2. List all Bloc9 devices you want to integrate (use bus IDs from v2.x discovery)
+3. For each device, list only the outputs you want to control
+4. Choose `lights:` or `switches:` based on the load type
+5. Restart the addon
+
+**Without scheiber.yaml**: The bridge will still monitor CAN traffic and publish to MQTT, but **no entities will appear in Home Assistant** via discovery.
 
 ### Add-on Options
 
@@ -149,7 +285,7 @@ data_dir: "/data"             # Directory for persistent state storage
 - `data_dir` is where device states are persisted (typically `/data` in Docker/HA)
 - State cache files stored at `{data_dir}/state_cache/bloc9_{device_id}.json`
 
-### Device Configuration
+### Device Protocol Configuration
 
 Device types are defined in `scheiber/src/device_types.yaml`. This YAML file controls:
 - Device type recognition from CAN arbitration IDs

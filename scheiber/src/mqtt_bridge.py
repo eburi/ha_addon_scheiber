@@ -61,6 +61,7 @@ class MQTTBridge:
         mqtt_topic_prefix: str = "homeassistant",
         log_level: str = "info",
         data_dir: Optional[str] = None,
+        scheiber_config = None,
     ):
         self.logger = logging.getLogger(__name__)
         self.mqtt_host = mqtt_host
@@ -72,6 +73,7 @@ class MQTTBridge:
         self.mqtt_topic_prefix = mqtt_topic_prefix.rstrip("/")
         self.log_level = log_level
         self.data_dir = data_dir
+        self.scheiber_config = scheiber_config
 
         self.can_bus: Optional[can.BusABC] = None
         self.mqtt_client: Optional[mqtt.Client] = None
@@ -336,6 +338,12 @@ class MQTTBridge:
                     # because we already checked device_config is not None above
                     assert device_key is not None
                     assert bus_id is not None
+
+                    # Get discovery configs for this device from scheiber_config
+                    discovery_configs = []
+                    if self.scheiber_config and device_key == "bloc9":
+                        discovery_configs = self.scheiber_config.get_bloc9_configs(bus_id)
+
                     device = create_device(
                         device_key,
                         bus_id,
@@ -344,6 +352,7 @@ class MQTTBridge:
                         self.mqtt_topic_prefix,
                         self.can_bus,
                         self.data_dir,
+                        discovery_configs=discovery_configs,
                     )
                     self.devices[device_instance_key] = device
 
@@ -436,6 +445,11 @@ def main():
         default=None,
         help="Directory for persistent data (default: .state_cache in src). Use /data in Docker.",
     )
+    parser.add_argument(
+        "--config-file",
+        default="./scheiber.yaml",
+        help="Path to scheiber.yaml configuration file (default: ./scheiber.yaml)",
+    )
 
     args = parser.parse_args()
 
@@ -445,9 +459,26 @@ def main():
         f"Configuration: mqtt_host={args.mqtt_host}:{args.mqtt_port}, mqtt_user={args.mqtt_user}, can_interface={args.can_interface}"
     )
 
+    # Load discovery configuration
+    from config_loader import load_config
+
+    scheiber_config = load_config(args.config_file)
+    if scheiber_config:
+        logger.info(f"Discovery configuration: {scheiber_config.get_summary()}")
+    else:
+        logger.warning("No discovery configuration loaded - no entities will be exposed to Home Assistant")
+
     bridge = MQTTBridge(
         mqtt_host=args.mqtt_host,
         mqtt_port=args.mqtt_port,
+        mqtt_user=args.mqtt_user,
+        mqtt_password=args.mqtt_password,
+        can_interface=args.can_interface,
+        mqtt_topic_prefix=args.mqtt_topic_prefix,
+        log_level=args.log_level,
+        data_dir=args.data_dir,
+        scheiber_config=scheiber_config,
+    )
         mqtt_user=args.mqtt_user,
         mqtt_password=args.mqtt_password,
         can_interface=args.can_interface,

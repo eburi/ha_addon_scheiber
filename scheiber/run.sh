@@ -55,4 +55,5 @@ exec python3 mqtt_bridge.py \
      --mqtt-topic-prefix "${MQTT_TOPIC_PREFIX}" \
      --log-level "${LOG_LEVEL}" \
      --can-interface "${CAN_INTERFACE}" \
-     --data-dir "${DATA_DIR}"
+     --data-dir "${DATA_DIR}" \
+     --config-file /config/scheiber.yaml
