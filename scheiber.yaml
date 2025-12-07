@@ -45,7 +45,7 @@ bloc9:
         entity_id: "switch.anchor_light"
         output: s3
       - name: "Power Fridge"
-        entity_id: "switch.scheiber_bloc9_2_s4"
+        entity_id: "switch.power_fridge"
         output: s4
 
   - bus_id: 3
@@ -99,19 +99,19 @@ bloc9:
     lights: []
     switches:
       - name: "Automatic Bilge Pump Engine Room Stbd"
-        entity_id: "switch.scheiber_bloc9_5_s1"
+        entity_id: "switch.automatic_bilge_pump_engine_room_stbd"
         output: s1
       - name: "Automatic Bilge Pump Stbd"
-        entity_id: "switch.scheiber_bloc9_5_s2"
+        entity_id: "switch.automatic_bilge_pump_stbd"
         output: s2
       - name: "Manual Bilge Pump Stbd"
         entity_id: "switch.manual_bilge_pump_stbd"
         output: s3
       - name: "Automatic Bilge Pump Engine Room Port"
-        entity_id: "switch.scheiber_bloc9_5_s4"
+        entity_id: "switch.automatic_bilge_pump_engine_room_port"
         output: s4
       - name: "Automatic Bilge Pump Port"
-        entity_id: "switch.scheiber_bloc9_5_s5"
+        entity_id: "switch.automatic_bilge_pump_port"
         output: s5
       - name: "Manual Bilge Pump Port"
         entity_id: "switch.manual_bilge_pump_port"
@@ -145,7 +145,7 @@ bloc9:
         entity_id: "light.ambient_light_saloon_sofa"
         output: s4
       - name: "Main Light Cockpit"
-        entity_id: "light.scheiber_bloc9_7_s5"
+        entity_id: "light.main_light_cockpit"
         output: s5
 
   - bus_id: 8
@@ -168,7 +168,7 @@ bloc9:
         entity_id: "light.main_light_hallway_port"
         output: s5
       - name: "Under Stairs Light Hallway Port"
-        entity_id: "light.scheiber_bloc9_8_s6"
+        entity_id: "light.under_stairs_light_hallway_port"
         output: s6
 
   - bus_id: 9

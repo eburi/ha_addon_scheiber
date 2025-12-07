@@ -171,14 +171,12 @@ bloc9:
     name: "Salon Bloc9"  # Human-readable device name
     lights:  # Outputs to expose as dimmable lights
       - name: "Salon Working Light"
-        entity_id: "light.salon_working_light"
         output: s1  # Switch output (s1-s6)
       - name: "Salon Reading Light"
-        entity_id: "light.salon_reading_light"
+        entity_id: "light.salon_reading_light"  # Optional: custom entity_id
         output: s2
     switches:  # Outputs to expose as simple switches (ON/OFF only)
       - name: "Salon Fan"
-        entity_id: "switch.salon_fan"
         output: s3
 ```
 
@@ -194,8 +192,19 @@ Each Bloc9 device has:
 
 Each entity (light or switch) has:
 - **name** (required): Entity display name in Home Assistant
-- **entity_id** (required): Full entity ID including component prefix (e.g., `light.my_light`, `switch.my_switch`)
+- **entity_id** (optional): Full entity ID including component prefix (e.g., `light.my_light`, `switch.my_switch`). If omitted, will be auto-generated from name by removing special characters, converting to lowercase, and replacing spaces with underscores. Examples:
+  - `"Salon Working Light"` → `light.salon_working_light`
+  - `"12V Electronics"` → `switch.12v_electronics`
+  - `"Water Pump #1"` → `switch.water_pump_1`
 - **output** (required): Bloc9 output identifier (`s1`, `s2`, `s3`, `s4`, `s5`, or `s6`)
+
+#### Integrity Checks
+
+The configuration loader performs validation to prevent common errors:
+- **Duplicate outputs**: Each output (s1-s6) can only be assigned to one entity per device
+- **Duplicate entity_ids**: Each entity_id must be unique across all devices
+- **Invalid output format**: Output must be s1, s2, s3, s4, s5, or s6
+- **Missing required fields**: name and output are required for all entities
 
 #### Complete Example
 
@@ -205,35 +214,29 @@ bloc9:
     name: "Electrical Bloc9"
     switches:
       - name: "12V Electronics"
-        entity_id: "switch.electronics_12v"
-        output: s1
+        output: s1  # entity_id auto-generated: switch.12v_electronics
       - name: "USB Outlets"
-        entity_id: "switch.usb_outlets"
-        output: s2
+        output: s2  # entity_id auto-generated: switch.usb_outlets
 
   - bus_id: 7
     name: "Salon Bloc9"
     lights:
       - name: "Working Light"
-        entity_id: "light.salon_working_light"
-        output: s1
+        output: s1  # entity_id auto-generated: light.working_light
       - name: "Reading Light"
-        entity_id: "light.salon_reading_light"
+        entity_id: "light.salon_reading"  # Custom entity_id
         output: s2
       - name: "Ceiling Light"
-        entity_id: "light.salon_ceiling"
-        output: s6
+        output: s6  # entity_id auto-generated: light.ceiling_light
     switches:
       - name: "Water Pump"
-        entity_id: "switch.salon_water_pump"
-        output: s3
+        output: s3  # entity_id auto-generated: switch.water_pump
 
   - bus_id: 10
     name: "Navigation Bloc9"
     lights:
       - name: "Underwater Light"
-        entity_id: "light.underwater"
-        output: s4
+        output: s4  # entity_id auto-generated: light.underwater_light
 ```
 
 #### Safety Best Practices

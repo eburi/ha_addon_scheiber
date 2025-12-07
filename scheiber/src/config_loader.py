@@ -7,13 +7,44 @@ Bloc9 outputs should be exposed to Home Assistant via MQTT Discovery.
 """
 
 import logging
+import re
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Set
 
 import yaml
 
 
 logger = logging.getLogger(__name__)
+
+
+def generate_entity_id_from_name(name: str, component: str) -> str:
+    """
+    Generate entity_id from entity name.
+
+    Removes special characters, converts to lowercase, replaces spaces with underscores.
+
+    Args:
+        name: Entity display name
+        component: Component type ('light' or 'switch')
+
+    Returns:
+        Full entity_id with component prefix (e.g., 'light.my_light')
+    """
+    # Remove special characters (keep only alphanumeric, spaces, and underscores)
+    clean_name = re.sub(r"[^a-zA-Z0-9\s_]", "", name)
+    # Replace spaces with underscores and convert to lowercase
+    object_id = clean_name.replace(" ", "_").lower()
+    # Remove any multiple consecutive underscores
+    object_id = re.sub(r"_+", "_", object_id)
+    # Remove leading/trailing underscores
+    object_id = object_id.strip("_")
+
+    if not object_id:
+        raise ValueError(
+            f"Cannot generate entity_id from name '{name}': no valid characters"
+        )
+
+    return f"{component}.{object_id}"
 
 
 class DiscoveryConfig:
@@ -115,6 +146,9 @@ def load_config(config_path: str) -> Optional[ScheiberConfig]:
         if not isinstance(bloc9_list, list):
             raise ValueError("'bloc9' must be a list")
 
+        # Track all entity_ids and outputs for integrity checks
+        all_entity_ids: Set[str] = set()
+
         for bloc9_device in bloc9_list:
             if not isinstance(bloc9_device, dict):
                 raise ValueError("Each bloc9 entry must be a dictionary")
@@ -124,6 +158,9 @@ def load_config(config_path: str) -> Optional[ScheiberConfig]:
 
             if bus_id is None:
                 raise ValueError("Each bloc9 entry must have a 'bus_id'")
+
+            # Track outputs used on this device for integrity check
+            device_outputs: Set[str] = set()
 
             # Parse lights
             lights = bloc9_device.get("lights", [])
@@ -138,9 +175,16 @@ def load_config(config_path: str) -> Optional[ScheiberConfig]:
                 entity_id = light.get("entity_id")
                 output = light.get("output")
 
-                if not all([name, entity_id, output]):
+                if not name or not output:
                     raise ValueError(
-                        f"Bloc9 {bus_id}: Light must have 'name', 'entity_id', and 'output'"
+                        f"Bloc9 {bus_id}: Light must have 'name' and 'output'"
+                    )
+
+                # Generate entity_id from name if not provided
+                if not entity_id:
+                    entity_id = generate_entity_id_from_name(name, "light")
+                    logger.debug(
+                        f"Generated entity_id '{entity_id}' from name '{name}'"
                     )
 
                 # Validate output format (s1-s6)
@@ -155,10 +199,25 @@ def load_config(config_path: str) -> Optional[ScheiberConfig]:
                         f"Bloc9 {bus_id}: Invalid output '{output}', must be s1-s6"
                     )
 
+                # Integrity check: output already used on this device?
+                if output in device_outputs:
+                    raise ValueError(
+                        f"Bloc9 {bus_id}: Output '{output}' is assigned to multiple entities"
+                    )
+                device_outputs.add(output)
+
                 # Extract object_id from entity_id (remove component prefix if present)
                 object_id = entity_id
                 if "." in entity_id:
                     object_id = entity_id.split(".", 1)[1]
+
+                # Integrity check: entity_id already used?
+                full_entity_id = f"light.{object_id}"
+                if full_entity_id in all_entity_ids:
+                    raise ValueError(
+                        f"Bloc9 {bus_id}: Entity ID '{full_entity_id}' is used multiple times"
+                    )
+                all_entity_ids.add(full_entity_id)
 
                 config.add_bloc9_entity(
                     DiscoveryConfig(
@@ -186,9 +245,16 @@ def load_config(config_path: str) -> Optional[ScheiberConfig]:
                 entity_id = switch.get("entity_id")
                 output = switch.get("output")
 
-                if not all([name, entity_id, output]):
+                if not name or not output:
                     raise ValueError(
-                        f"Bloc9 {bus_id}: Switch must have 'name', 'entity_id', and 'output'"
+                        f"Bloc9 {bus_id}: Switch must have 'name' and 'output'"
+                    )
+
+                # Generate entity_id from name if not provided
+                if not entity_id:
+                    entity_id = generate_entity_id_from_name(name, "switch")
+                    logger.debug(
+                        f"Generated entity_id '{entity_id}' from name '{name}'"
                     )
 
                 # Validate output format (s1-s6)
@@ -203,10 +269,25 @@ def load_config(config_path: str) -> Optional[ScheiberConfig]:
                         f"Bloc9 {bus_id}: Invalid output '{output}', must be s1-s6"
                     )
 
+                # Integrity check: output already used on this device?
+                if output in device_outputs:
+                    raise ValueError(
+                        f"Bloc9 {bus_id}: Output '{output}' is assigned to multiple entities"
+                    )
+                device_outputs.add(output)
+
                 # Extract object_id from entity_id (remove component prefix if present)
                 object_id = entity_id
                 if "." in entity_id:
                     object_id = entity_id.split(".", 1)[1]
+
+                # Integrity check: entity_id already used?
+                full_entity_id = f"switch.{object_id}"
+                if full_entity_id in all_entity_ids:
+                    raise ValueError(
+                        f"Bloc9 {bus_id}: Entity ID '{full_entity_id}' is used multiple times"
+                    )
+                all_entity_ids.add(full_entity_id)
 
                 config.add_bloc9_entity(
                     DiscoveryConfig(
