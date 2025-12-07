@@ -159,6 +159,7 @@ class Bloc9(ScheiberCanDevice):
             mqtt_topic_prefix,
             can_bus,
             data_dir,
+            discovery_configs=discovery_configs,
         )
 
         # Set state cache directory from data_dir or use default

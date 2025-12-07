@@ -21,12 +21,6 @@ bloc9:
     name: "Bloc9 1"
     lights: []
     switches:
-      - name: "Electronic 12V"
-        entity_id: "switch.scheiber_bloc9_1_s1"
-        output: s1
-      - name: "Electronic 24V"
-        entity_id: "switch.scheiber_bloc9_1_s2"
-        output: s2
       - name: "Reading Light & Fan Stbd"
         entity_id: "switch.reading_light_fan_stbd"
         output: s3
