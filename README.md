@@ -1,27 +1,20 @@
 # Home Assistant Add-on: Scheiber CAN-MQTT Bridge
 
-**Version 3.0.3** — Experimental bridge for Scheiber CAN devices with MQTT integration.
+Experimental bridge for Scheiber CAN devices with MQTT integration.
 
 ⚠️ **EXPERIMENTAL**: This is an ongoing reverse-engineering project. The Scheiber CAN protocol is not fully documented, and functionality may be incomplete or change significantly.
-
-⚠️ **BREAKING CHANGES in v3.0.0**: This version requires explicit configuration in `scheiber.yaml` to expose entities via MQTT Discovery. See [Configuration](#configuration) section for details.
-
-**What's New in v3.0.1**:
-- Optional `entity_id` field with automatic generation from name
-- Configuration integrity checks (duplicate outputs, duplicate entity_ids)
-- Bug fixes for MQTT bridge startup
 
 ## Overview
 
 This Home Assistant add-on provides a bridge between Scheiber devices on a CAN bus and MQTT, enabling integration with Home Assistant through MQTT Discovery. It monitors CAN traffic, decodes device messages, and publishes state updates to MQTT.
 
-**v3.0.0 introduces explicit entity configuration for safety and control.** You must now define which outputs to expose via a `scheiber.yaml` configuration file placed in Home Assistant's `/config/` directory.
+**Explicit entity configuration for safety and control:** You must define which outputs to expose via a `scheiber.yaml` configuration file placed in Home Assistant's `/config/` directory.
 
 ### Current Features
 
 - **CAN-MQTT Bridge**: Translates CAN messages to MQTT topics
 - **Bloc9 Switch Support**: ON/OFF control and brightness (0-255) for 6-switch panels
-- **Explicit Entity Configuration**: Define which outputs to expose as lights or switches (v3.0.0)
+- **Explicit Entity Configuration**: Define which outputs to expose as lights or switches
 - **MQTT Discovery**: Automatic Home Assistant entity creation for configured outputs
 - **Heartbeat Availability**: Devices marked online/offline based on CAN traffic (60s timeout)
 - **State Persistence**: Device states saved between restarts
@@ -121,7 +114,7 @@ Publish to these topics to control devices. The bridge:
 - Optimistic mode disabled - state updates come from MQTT feedback
 - Availability tied to device heartbeat (60-second timeout)
 
-### MQTT Discovery Configuration (v3.0.0)
+### MQTT Discovery Configuration
 
 **Discovery Topic Pattern** (follows standard Home Assistant convention):
 ```
@@ -147,7 +140,7 @@ Examples:
 - `homeassistant/scheiber/bloc9/7/s1/availability` — Online/offline status
 
 Published discovery config includes:
-- Unique ID (includes `_v3` suffix for v3.0 config recognition)
+- Unique ID for each entity
 - Device information (identifiers, name, model, manufacturer)
 - State, command, and availability topic references
 - Brightness configuration (for lights only)
@@ -160,9 +153,9 @@ See:
 
 ## Configuration
 
-### Entity Configuration (`scheiber.yaml`) — **REQUIRED in v3.0.0**
+### Entity Configuration (`scheiber.yaml`) — **REQUIRED**
 
-⚠️ **BREAKING CHANGE**: As of v3.0.0, you must create a `scheiber.yaml` configuration file to expose entities via MQTT Discovery. This adds safety by preventing accidental control of critical systems.
+You must create a `scheiber.yaml` configuration file to expose entities via MQTT Discovery. This adds safety by preventing accidental control of critical systems.
 
 **Location**: Place this file in Home Assistant's `/config/` directory (e.g., `/config/scheiber.yaml`)
 

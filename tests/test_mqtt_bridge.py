@@ -10,6 +10,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scheiber", "src"))
 
 import json
+import time
 import unittest
 from unittest.mock import MagicMock, Mock, call, patch
 
@@ -227,12 +228,14 @@ class TestTopicRouting(unittest.TestCase):
         mock_msg = MagicMock()
         mock_msg.topic = topic
         mock_msg.payload.decode.return_value = "ON"
+        mock_msg.timestamp = time.time()
+        mock_msg.retain = False
 
         # Call the message handler
         self.bridge.on_mqtt_message(None, None, mock_msg)
 
         # Verify handler was called with correct arguments
-        mock_handler.assert_called_once_with(topic, "ON")
+        mock_handler.assert_called_once_with(topic, "ON", False)
 
     def test_on_mqtt_message_unknown_topic(self):
         """Test handling of messages on unknown topics."""
@@ -240,6 +243,8 @@ class TestTopicRouting(unittest.TestCase):
         mock_msg = MagicMock()
         mock_msg.topic = "unknown/topic"
         mock_msg.payload.decode.return_value = "test"
+        mock_msg.timestamp = time.time()
+        mock_msg.retain = False
 
         # Should log warning but not crash
         self.bridge.on_mqtt_message(None, None, mock_msg)
@@ -258,6 +263,7 @@ class TestTopicRouting(unittest.TestCase):
         mock_msg = MagicMock()
         mock_msg.topic = topic
         mock_msg.payload.decode.return_value = "ON"
+        mock_msg.timestamp = time.time()
 
         # Should catch exception and log error, not crash
         self.bridge.on_mqtt_message(None, None, mock_msg)
@@ -281,20 +287,24 @@ class TestTopicRouting(unittest.TestCase):
         mock_msg1 = MagicMock()
         mock_msg1.topic = topic1
         mock_msg1.payload.decode.return_value = "ON"
+        mock_msg1.timestamp = time.time()
+        mock_msg1.retain = False
         self.bridge.on_mqtt_message(None, None, mock_msg1)
 
         # Verify only handler1 was called
-        mock_handler1.assert_called_once_with(topic1, "ON")
+        mock_handler1.assert_called_once_with(topic1, "ON", False)
         mock_handler2.assert_not_called()
 
         # Send message to second device
         mock_msg2 = MagicMock()
         mock_msg2.topic = topic2
         mock_msg2.payload.decode.return_value = "OFF"
+        mock_msg2.timestamp = time.time()
+        mock_msg2.retain = False
         self.bridge.on_mqtt_message(None, None, mock_msg2)
 
         # Verify handler2 was called
-        mock_handler2.assert_called_once_with(topic2, "OFF")
+        mock_handler2.assert_called_once_with(topic2, "OFF", False)
 
 
 class TestBusStatistics(unittest.TestCase):

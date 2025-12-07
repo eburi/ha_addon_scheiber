@@ -18,7 +18,7 @@
 
 bloc9:
   - bus_id: 1
-    name: "Bloc9 1"
+    name: "Bloc9 X11 (ID: 1)"
     lights: []
     switches:
       - name: "Reading Light & Fan Stbd"
@@ -26,7 +26,7 @@ bloc9:
         output: s3
 
   - bus_id: 2
-    name: "Bloc9 2"
+    name: "Bloc9 X10 (ID: 2)"
     lights: []
     switches:
       - name: "Navigation Light"
@@ -43,7 +43,7 @@ bloc9:
         output: s4
 
   - bus_id: 3
-    name: "Bloc9 3"
+    name: "Bloc9 X12 (ID: 3)"
     switches: []
     lights:
       - name: "Main Light Crew Cabin Toilette Stbd"
@@ -66,7 +66,7 @@ bloc9:
         output: s6
 
   - bus_id: 4
-    name: "Bloc9 4"
+    name: "Bloc9 X13 (ID: 4)"
     switches: []
     lights:
       - name: "Main Light Door Marc Cabin"
@@ -89,7 +89,7 @@ bloc9:
         output: s6
 
   - bus_id: 5
-    name: "Bloc9 5"
+    name: "Bloc9 X14 (ID: 5)"
     lights: []
     switches:
       - name: "Automatic Bilge Pump Engine Room Stbd"
@@ -112,7 +112,7 @@ bloc9:
         output: s6
 
   - bus_id: 6
-    name: "Bloc9 6"
+    name: "Bloc9 X25 (ID: 6)"
     lights: []
     switches:
       - name: "Decklight Bow"
@@ -120,7 +120,7 @@ bloc9:
         output: s3
 
   - bus_id: 7
-    name: "Bloc9 7"
+    name: "Bloc9 X26 (ID: 7)"
     switches:
       - name: "Reading Light & Fan Port"
         entity_id: "switch.reading_light_fan_port"
@@ -143,7 +143,7 @@ bloc9:
         output: s5
 
   - bus_id: 8
-    name: "Bloc9 8"
+    name: "Bloc9 X27 (ID: 8)"
     switches: []
     lights:
       - name: "Main Light Guest Cabin Toilet Port"
@@ -166,7 +166,7 @@ bloc9:
         output: s6
 
   - bus_id: 9
-    name: "Bloc9 9"
+    name: "Bloc9 X28 (ID: 9)"
     switches: []
     lights:
       - name: "Main Light Dotzi Toilet"
@@ -183,7 +183,7 @@ bloc9:
         output: s6
 
   - bus_id: 10
-    name: "Bloc9 10"
+    name: "Bloc9 X20 (ID: 10)"
     switches: []
     lights:
       - name: "Courtesy Lights"
