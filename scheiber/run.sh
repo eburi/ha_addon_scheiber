@@ -2,7 +2,8 @@
 set -e
 
 bashio::log.info "---------------------------------------------------------------------------"
-bashio::log.info "Starting scheiber CAN 2 MQTT Bridge (version $(bashio::addon.version()))..."
+ADDON_VERSION=$(bashio::addon.version)
+bashio::log.info "Starting scheiber CAN 2 MQTT Bridge (version ${ADDON_VERSION})..."
 
 # Read config values using bashio
 CAN_IFACE=$(bashio::config 'can_interface')
