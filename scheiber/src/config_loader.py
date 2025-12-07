@@ -301,6 +301,17 @@ def load_config(config_path: str) -> Optional[ScheiberConfig]:
                 )
 
         logger.info(f"Loaded configuration from {config_path}: {config.get_summary()}")
+
+        # Debug: Log detailed configuration for each device
+        for bus_id in sorted(config.get_all_bloc9_ids()):
+            device_configs = config.get_bloc9_configs(bus_id)
+            logger.debug(f"Bloc9 {bus_id}: {len(device_configs)} entities configured")
+            for dc in device_configs:
+                logger.debug(
+                    f"  - {dc.component}.{dc.entity_id} "
+                    f"(name='{dc.name}', output={dc.output})"
+                )
+
         return config
 
     except yaml.YAMLError as e:

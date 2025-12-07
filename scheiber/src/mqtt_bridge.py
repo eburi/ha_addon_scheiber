@@ -345,6 +345,15 @@ class MQTTBridge:
                         discovery_configs = self.scheiber_config.get_bloc9_configs(
                             bus_id
                         )
+                        self.logger.debug(
+                            f"Retrieved {len(discovery_configs)} discovery configs for "
+                            f"Bloc9 {bus_id} from scheiber_config"
+                        )
+                    else:
+                        self.logger.debug(
+                            f"No discovery configs for device_key={device_key}, bus_id={bus_id} "
+                            f"(scheiber_config={'present' if self.scheiber_config else 'None'})"
+                        )
 
                     device = create_device(
                         device_key,

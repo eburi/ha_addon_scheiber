@@ -425,6 +425,11 @@ class Bloc9(ScheiberCanDevice):
         """
         import json
 
+        self.logger.debug(
+            f"publish_discovery_config called for Bloc9 {self.device_id}, "
+            f"discovery_configs count: {len(self.discovery_configs)}"
+        )
+
         if not self.discovery_configs:
             self.logger.info(
                 f"No discovery configs for Bloc9 {self.device_id}, skipping discovery"
