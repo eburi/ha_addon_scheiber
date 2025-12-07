@@ -441,11 +441,11 @@ class Bloc9(ScheiberCanDevice):
         """
         import json
 
-        # Get device name from first discovery config, or use default
-        if self.discovery_configs and len(self.discovery_configs) > 0:
-            device_name = self.discovery_configs[0].device_name
-        else:
-            device_name = f"Bloc9 {self.device_id}"
+        # Get device name from first discovery config (guaranteed to exist when called)
+        # This method is only called from publish_discovery_config() after checking
+        # that self.discovery_configs is not empty
+        device_name = self.discovery_configs[0].device_name
+
         # Convert device name to snake_case for sensor entity_id
         sensor_entity_id = name_to_snake_case(device_name)
 
@@ -529,7 +529,7 @@ class Bloc9(ScheiberCanDevice):
             # Each light/switch is its own device with via_device pointing to Bloc9
             config_payload = {
                 "name": disc_config.name,
-                "unique_id": f"scheiber_{self.device_type}_{self.device_id}_{disc_config.output}_v3",
+                "unique_id": f"scheiber_{self.device_type}_{self.device_id}_{disc_config.output}",
                 "state_topic": state_topic,
                 "command_topic": command_topic,
                 "availability_topic": availability_topic,
