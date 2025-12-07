@@ -195,6 +195,11 @@ class Bloc9(ScheiberCanDevice):
             ):
                 # Get state from persisted or current state
                 state_value = self.state.get(prop_name, "unknown")
+                # Normalize state values to ON/OFF
+                if str(state_value) in ("1", "True", "true"):
+                    state_value = "ON"
+                elif str(state_value) in ("0", "False", "false"):
+                    state_value = "OFF"
                 payload["switches"][prop_name] = state_value
 
         payload_json = json.dumps(payload)
@@ -326,7 +331,7 @@ class Bloc9(ScheiberCanDevice):
                 # Optimistically publish new brightness and state for immediate HA feedback
                 brightness_topic = self.get_property_topic(property_name, "brightness")
                 state_topic = self.get_property_topic(property_name, "state")
-                state_value = "1" if brightness > 0 else "0"
+                state_value = "ON" if brightness > 0 else "OFF"
                 self.mqtt_client.publish(
                     brightness_topic, str(brightness), qos=1, retain=True
                 )
@@ -342,8 +347,8 @@ class Bloc9(ScheiberCanDevice):
                 self._persist_state(f"{property_name}_brightness", brightness)
 
             elif command_type == "set":
-                # Handle ON/OFF command
-                state = payload in ("1", "ON", "on", "true", "True")
+                # Handle ON/OFF command (defaults: ON/OFF, also accept 1/0 for compatibility)
+                state = payload.upper() in ("ON", "1", "TRUE")
                 self.logger.info(
                     f"Executing switch command: switch={switch_nr}, state={state}{' (retained)' if is_retained else ''}"
                 )
@@ -351,7 +356,7 @@ class Bloc9(ScheiberCanDevice):
 
                 # Optimistically publish new state for immediate HA feedback
                 state_topic = self.get_property_topic(property_name, "state")
-                state_value = "1" if state else "0"
+                state_value = "ON" if state else "OFF"
                 self.mqtt_client.publish(state_topic, state_value, qos=1, retain=True)
                 self.logger.debug(f"Optimistically published state={state_value}")
 
@@ -458,8 +463,6 @@ class Bloc9(ScheiberCanDevice):
                 "command_topic": self.get_property_topic(prop_name, "set"),
                 "payload_on": "1",
                 "payload_off": "0",
-                "state_on": "1",
-                "state_off": "0",
                 "optimistic": False,
                 "qos": 1,
                 "retain": True,
@@ -526,12 +529,18 @@ class Bloc9(ScheiberCanDevice):
                 return
 
             topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{property_name}/state"
-            payload = str(value)
+            # Convert numeric values to ON/OFF
+            if str(value) in ("1", "True", "true"):
+                payload = "ON"
+            elif str(value) in ("0", "False", "false"):
+                payload = "OFF"
+            else:
+                payload = str(value)
             self.logger.debug(f"Publishing property state to {topic}: {payload}")
             self.mqtt_client.publish(topic, payload, qos=1, retain=True)
 
             # Persist switch state
-            self._persist_state(property_name, value)
+            self._persist_state(property_name, payload)
 
     def _get_state_file_path(self) -> Path:
         """Get the path to the state file for this device."""
@@ -620,7 +629,13 @@ class Bloc9(ScheiberCanDevice):
                         continue
 
                     topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{property_name}/state"
-                    payload = str(value)
+                    # Convert numeric values to ON/OFF for restored states too
+                    if str(value) in ("1", "True", "true", "ON"):
+                        payload = "ON"
+                    elif str(value) in ("0", "False", "false", "OFF"):
+                        payload = "OFF"
+                    else:
+                        payload = str(value)
                     self.logger.debug(f"Restoring switch state to {topic}: {payload}")
                     self.mqtt_client.publish(topic, payload, qos=1, retain=True)
             except Exception as e:

@@ -1,6 +1,6 @@
 # Home Assistant Add-on: Scheiber CAN-MQTT Bridge
 
-**Version 2.0.6** — Experimental bridge for Scheiber CAN devices with MQTT integration.
+**Version 2.1.0** — Experimental bridge for Scheiber CAN devices with MQTT integration.
 
 ⚠️ **EXPERIMENTAL**: This is an ongoing reverse-engineering project. The Scheiber CAN protocol is not fully documented, and functionality may be incomplete or change significantly.
 
