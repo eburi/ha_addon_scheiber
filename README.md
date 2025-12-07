@@ -1,10 +1,15 @@
 # Home Assistant Add-on: Scheiber CAN-MQTT Bridge
 
-**Version 3.0.0** — Experimental bridge for Scheiber CAN devices with MQTT integration.
+**Version 3.0.1** — Experimental bridge for Scheiber CAN devices with MQTT integration.
 
 ⚠️ **EXPERIMENTAL**: This is an ongoing reverse-engineering project. The Scheiber CAN protocol is not fully documented, and functionality may be incomplete or change significantly.
 
 ⚠️ **BREAKING CHANGES in v3.0.0**: This version requires explicit configuration in `scheiber.yaml` to expose entities via MQTT Discovery. See [Configuration](#configuration) section for details.
+
+**What's New in v3.0.1**:
+- Optional `entity_id` field with automatic generation from name
+- Configuration integrity checks (duplicate outputs, duplicate entity_ids)
+- Bug fixes for MQTT bridge startup
 
 ## Overview
 

@@ -61,7 +61,7 @@ class MQTTBridge:
         mqtt_topic_prefix: str = "homeassistant",
         log_level: str = "info",
         data_dir: Optional[str] = None,
-        scheiber_config = None,
+        scheiber_config=None,
     ):
         self.logger = logging.getLogger(__name__)
         self.mqtt_host = mqtt_host
@@ -342,7 +342,9 @@ class MQTTBridge:
                     # Get discovery configs for this device from scheiber_config
                     discovery_configs = []
                     if self.scheiber_config and device_key == "bloc9":
-                        discovery_configs = self.scheiber_config.get_bloc9_configs(bus_id)
+                        discovery_configs = self.scheiber_config.get_bloc9_configs(
+                            bus_id
+                        )
 
                     device = create_device(
                         device_key,
@@ -466,7 +468,9 @@ def main():
     if scheiber_config:
         logger.info(f"Discovery configuration: {scheiber_config.get_summary()}")
     else:
-        logger.warning("No discovery configuration loaded - no entities will be exposed to Home Assistant")
+        logger.warning(
+            "No discovery configuration loaded - no entities will be exposed to Home Assistant"
+        )
 
     bridge = MQTTBridge(
         mqtt_host=args.mqtt_host,
@@ -478,13 +482,6 @@ def main():
         log_level=args.log_level,
         data_dir=args.data_dir,
         scheiber_config=scheiber_config,
-    )
-        mqtt_user=args.mqtt_user,
-        mqtt_password=args.mqtt_password,
-        can_interface=args.can_interface,
-        mqtt_topic_prefix=args.mqtt_topic_prefix,
-        log_level=args.log_level,
-        data_dir=args.data_dir,
     )
     bridge.run()
 

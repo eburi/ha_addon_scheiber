@@ -12,6 +12,7 @@ MQTT_PASSWORD=$(bashio::config 'mqtt_password')
 MQTT_TOPIC_PREFIX=$(bashio::config 'mqtt_topic_prefix')
 LOG_LEVEL=$(bashio::config 'log_level')
 DATA_DIR=$(bashio::config 'data_dir')
+CONFIG_FILE=$(bashio::config 'config_file')
 
 bashio::log.info "Using CAN interface: ${CAN_IFACE}"
 bashio::log.info "MQTT user: ${MQTT_USER}"
@@ -19,6 +20,7 @@ bashio::log.info "MQTT host: ${MQTT_HOST}:${MQTT_PORT}"
 bashio::log.info "MQTT topic prefix: ${MQTT_TOPIC_PREFIX}"
 bashio::log.info "Log level: ${LOG_LEVEL}"
 bashio::log.info "Data directory: ${DATA_DIR}"   
+bashio::log.info "Configuration File: ${CONFIG_FILE}"   
 
 # Export variables for use in the python script
 export CAN_INTERFACE="${CAN_IFACE}"
@@ -28,7 +30,9 @@ export MQTT_TOPIC_PREFIX="${MQTT_TOPIC_PREFIX}"
 export MQTT_USER="${MQTT_USER}"
 export MQTT_PASSWORD="${MQTT_PASSWORD}"
 export LOG_LEVEL="${LOG_LEVEL}"
-
+export LOG_LEVEL="${LOG_LEVEL}"
+export DATA_DIR="${DATA_DIR}"
+export CONFIG_FILE="${CONFIG_FILE}"
 
 ## Setup
 # Use the CAN_IFACE value and configure just that device
@@ -56,4 +60,4 @@ exec python3 mqtt_bridge.py \
      --log-level "${LOG_LEVEL}" \
      --can-interface "${CAN_INTERFACE}" \
      --data-dir "${DATA_DIR}" \
-     --config-file /config/scheiber.yaml
+     --config-file "${CONFIG_FILE}"
