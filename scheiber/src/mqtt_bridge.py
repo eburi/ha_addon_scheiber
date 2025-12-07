@@ -372,6 +372,12 @@ class MQTTBridge:
                 for prop_name, value in decoded.items():
                     device.publish_state(prop_name, value)
 
+                # Check heartbeat for all devices periodically (every 10 messages)
+                if message_count % 10 == 0:
+                    for device_inst in self.devices.values():
+                        if hasattr(device_inst, "check_heartbeat"):
+                            device_inst.check_heartbeat()
+
         except KeyboardInterrupt:
             self.logger.info("Stopping (Ctrl+C received)")
         finally:

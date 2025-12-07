@@ -160,6 +160,11 @@ class Bloc9(ScheiberCanDevice):
             f"Initialized Bloc9 device: {device_type} {device_id}, state_cache={self.state_cache_dir}"
         )
 
+        # Heartbeat tracking for availability
+        self.last_heartbeat = None  # Timestamp of last status message
+        self.heartbeat_timeout = 60  # Seconds before marking offline
+        self.is_online = False  # Current online status
+
         # Load persisted state and publish if available
         self._load_and_publish_persisted_state()
 
@@ -187,6 +192,62 @@ class Bloc9(ScheiberCanDevice):
         payload_json = json.dumps(payload)
         self.logger.debug(f"Publishing device info to {topic}: {payload_json}")
         self.mqtt_client.publish(topic, payload_json, qos=1, retain=True)
+
+    def update_heartbeat(self):
+        """Update heartbeat timestamp and mark device online if needed."""
+        import time
+
+        self.last_heartbeat = time.time()
+
+        # If device was offline, mark it online now
+        if not self.is_online:
+            self.is_online = True
+            self._mark_all_properties_online()
+            self.logger.info(f"Bloc9 device {self.device_id} is now ONLINE")
+
+    def check_heartbeat(self):
+        """Check if device should be marked offline due to missing heartbeats."""
+        import time
+
+        if self.last_heartbeat is None:
+            return  # No heartbeat received yet
+
+        time_since_heartbeat = time.time() - self.last_heartbeat
+
+        if self.is_online and time_since_heartbeat > self.heartbeat_timeout:
+            self.is_online = False
+            self._mark_all_properties_offline()
+            self.logger.warning(
+                f"Bloc9 device {self.device_id} is now OFFLINE (no status for {time_since_heartbeat:.1f}s)"
+            )
+
+    def _mark_all_properties_online(self):
+        """Mark all switch properties as online (available)."""
+        all_properties = self.get_all_properties()
+        for prop_name in all_properties:
+            # Only mark switch properties (not brightness/stat properties)
+            if not prop_name.endswith("_brightness") and not prop_name.startswith(
+                "stat"
+            ):
+                availability_topic = self.get_property_topic(prop_name, "availability")
+                self.mqtt_client.publish(
+                    availability_topic, "online", qos=1, retain=True
+                )
+                self.logger.debug(f"Marked {prop_name} as online")
+
+    def _mark_all_properties_offline(self):
+        """Mark all switch properties as offline (unavailable)."""
+        all_properties = self.get_all_properties()
+        for prop_name in all_properties:
+            # Only mark switch properties (not brightness/stat properties)
+            if not prop_name.endswith("_brightness") and not prop_name.startswith(
+                "stat"
+            ):
+                availability_topic = self.get_property_topic(prop_name, "availability")
+                self.mqtt_client.publish(
+                    availability_topic, "offline", qos=1, retain=True
+                )
+                self.logger.debug(f"Marked {prop_name} as offline")
 
     def register_command_topics(self) -> List[Tuple[str, Callable[[str, str], None]]]:
         """Register command topics for all switch properties."""
@@ -403,12 +464,14 @@ class Bloc9(ScheiberCanDevice):
 
     def publish_state(self, property_name: str, value: Any):
         """Publish property state to MQTT, handling brightness separately."""
+        # Update heartbeat on any state message (status messages indicate device is alive)
+        if property_name.startswith("stat"):
+            self.update_heartbeat()
+            return  # Don't publish stat properties
+
         # Handle brightness properties
         if property_name.endswith("_brightness"):
             base_prop = property_name.replace("_brightness", "")
-
-            # Mark base property as available when we get brightness data
-            self.mark_property_available(base_prop)
 
             brightness_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{base_prop}/brightness"
             payload = str(value) if value is not None else "?"
@@ -417,14 +480,8 @@ class Bloc9(ScheiberCanDevice):
 
             # Persist brightness state
             self._persist_state(property_name, value)
-        # Skip stat properties
-        elif property_name.startswith("stat"):
-            return
         # Handle regular switch state
         else:
-            # Mark property as available when we publish state
-            self.mark_property_available(property_name)
-
             topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{property_name}/state"
             payload = str(value) if value is not None else "?"
             self.logger.debug(f"Publishing property state to {topic}: {payload}")
