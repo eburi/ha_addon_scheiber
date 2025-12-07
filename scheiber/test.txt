@@ -1,40 +1,215 @@
-X27, BUS_ID:8
-X27, BUS_ID:8
-X27, BUS_ID:8
-X27, BUS_ID:8
-X28, BUS_ID:9 
-X28, BUS_ID:9
-X28, BUS_ID:9
-X28, BUS_ID:9
-X26, BUS_ID:7
-X26, BUS_ID:7
-X26, BUS_ID:7
-X26, BUS_ID:7
-X10, BUS_ID:2
-X10, BUS_ID:2
-X10, BUS_ID:2
-X10, BUS_ID:2
-X14, BUS_ID:5
-X14, BUS_ID:5
-X14, BUS_ID:5
-X14, BUS_ID:5
-X20, BUS_ID:10
-X20, BUS_ID:10
-X20, BUS_ID:10
-X20, BUS_ID:10
-X25, BUS_ID:6
-X25, BUS_ID:6
-X25, BUS_ID:6
-X25, BUS_ID:6
-X13, BUS_ID:4
-X13, BUS_ID:4
-X13, BUS_ID:4
-X13, BUS_ID:4
-X12, BUS_ID:3
-X12, BUS_ID:3
-X12, BUS_ID:3
-X12, BUS_ID:3
-X11, BUS_ID:1
-X11, BUS_ID:1
-X11, BUS_ID:1
-X11, BUS_ID:1
+[02:48:45] INFO: Starting scheiber CAN 2 MQTT Gateway...
+[02:48:45] INFO: Using CAN interface: can1
+[02:48:45] INFO: MQTT user: mqtt_user
+[02:48:45] INFO: MQTT host: localhost:1883
+[02:48:45] INFO: MQTT topic prefix: homeassistant
+[02:48:45] INFO: Log level: info
+[02:48:45] INFO: Data directory: /data
+[INFO] 2025-12-07 02:48:45 - __main__: Starting Scheiber MQTT Bridge
+[INFO] 2025-12-07 02:48:45 - __main__: Configuration: mqtt_host=localhost:1883, mqtt_user=mqtt_user, can_interface=can1
+[INFO] 2025-12-07 02:48:45 - __main__: Initialized MQTTBridge with mqtt_host=localhost:1883, can_interface=can1, topic_prefix=homeassistant
+[INFO] 2025-12-07 02:48:45 - __main__: MQTT client started (user=mqtt_user)
+[INFO] 2025-12-07 02:48:45 - can.interfaces.socketcan.socketcan: Created a socket
+[INFO] 2025-12-07 02:48:45 - __main__: CAN bus opened on can1
+[INFO] 2025-12-07 02:48:45 - __main__: Starting CAN listener loop (Ctrl+C to stop)
+[INFO] 2025-12-07 02:48:45 - __main__: Ignoring unknown arbitration ID 0x00000580
+[INFO] 2025-12-07 02:48:45 - __main__: First message from bloc9 ID:5, creating device instance
+[INFO] 2025-12-07 02:48:45 - devices.Bloc9.bloc9_5: Initialized Bloc9 device: bloc9 5, state_cache=/data/state_cache
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/5/s4/set
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/5/s4/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/5/s3/set
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/5/s3/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/5/s6/set
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/5/s6/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/5/s5/set
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/5/s5/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/5/s2/set
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/5/s2/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/5/s1/set
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/5/s1/set_brightness
+[INFO] 2025-12-07 02:48:45 - devices.Bloc9.bloc9_5: Bloc9 device 5 is now ONLINE
+[INFO] 2025-12-07 02:48:45 - __main__: Ignoring unknown arbitration ID 0x00002380
+[INFO] 2025-12-07 02:48:45 - __main__: First message from bloc9 ID:2, creating device instance
+[INFO] 2025-12-07 02:48:45 - devices.Bloc9.bloc9_2: Initialized Bloc9 device: bloc9 2, state_cache=/data/state_cache
+[INFO] 2025-12-07 02:48:45 - devices.Bloc9.bloc9_2: Loaded persisted state with 8 properties
+[INFO] 2025-12-07 02:48:45 - devices.Bloc9.bloc9_2: Publishing 8 persisted properties to MQTT
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/2/s4/set
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/2/s4/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/2/s3/set
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/2/s3/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/2/s6/set
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/2/s6/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/2/s5/set
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/2/s5/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/2/s2/set
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/2/s2/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/2/s1/set
+[INFO] 2025-12-07 02:48:45 - __main__: Registered command topic: homeassistant/scheiber/bloc9/2/s1/set_brightness
+[INFO] 2025-12-07 02:48:45 - devices.Bloc9.bloc9_2: Bloc9 device 2 is now ONLINE
+[INFO] 2025-12-07 02:48:45 - __main__: Ignoring unknown arbitration ID 0x00000B88
+[INFO] 2025-12-07 02:48:45 - __main__: Ignoring unknown arbitration ID 0x02040580
+[INFO] 2025-12-07 02:48:45 - __main__: Connected to MQTT broker
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/5/s4/set
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/5/s4/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/5/s3/set
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/5/s3/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/5/s6/set
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/5/s6/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/5/s5/set
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/5/s5/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/5/s2/set
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/5/s2/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/5/s1/set
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/5/s1/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/2/s4/set
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/2/s4/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/2/s3/set
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/2/s3/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/2/s6/set
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/2/s6/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/2/s5/set
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/2/s5/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/2/s2/set
+[INFO] 2025-12-07 02:48:45 - __main__: Ignoring unknown arbitration ID 0x02060588
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/2/s2/set_brightness
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/2/s1/set
+[INFO] 2025-12-07 02:48:45 - __main__: Re-subscribed to: homeassistant/scheiber/bloc9/2/s1/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Ignoring unknown arbitration ID 0x02040B88
+[INFO] 2025-12-07 02:48:46 - __main__: Ignoring unknown arbitration ID 0x00001788
+[INFO] 2025-12-07 02:48:46 - __main__: Ignoring unknown arbitration ID 0x02060B88
+[INFO] 2025-12-07 02:48:46 - __main__: Ignoring unknown arbitration ID 0x00000588
+[INFO] 2025-12-07 02:48:46 - __main__: First message from bloc9 ID:4, creating device instance
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_4: Initialized Bloc9 device: bloc9 4, state_cache=/data/state_cache
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_4: Loaded persisted state with 12 properties
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_4: Publishing 12 persisted properties to MQTT
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/4/s4/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/4/s4/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/4/s3/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/4/s3/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/4/s6/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/4/s6/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/4/s5/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/4/s5/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/4/s2/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/4/s2/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/4/s1/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/4/s1/set_brightness
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_4: Bloc9 device 4 is now ONLINE
+[INFO] 2025-12-07 02:48:46 - __main__: Ignoring unknown arbitration ID 0x02040588
+[INFO] 2025-12-07 02:48:46 - __main__: First message from bloc9 ID:8, creating device instance
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_8: Initialized Bloc9 device: bloc9 8, state_cache=/data/state_cache
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_8: Loaded persisted state with 12 properties
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_8: Publishing 12 persisted properties to MQTT
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/8/s4/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/8/s4/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/8/s3/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/8/s3/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/8/s6/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/8/s6/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/8/s5/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/8/s5/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/8/s2/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/8/s2/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/8/s1/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/8/s1/set_brightness
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_8: Bloc9 device 8 is now ONLINE
+[INFO] 2025-12-07 02:48:46 - __main__: Ignoring unknown arbitration ID 0x00001FC0
+[INFO] 2025-12-07 02:48:46 - __main__: First message from bloc9 ID:6, creating device instance
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_6: Initialized Bloc9 device: bloc9 6, state_cache=/data/state_cache
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_6: Loaded persisted state with 4 properties
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_6: Publishing 4 persisted properties to MQTT
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/6/s4/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/6/s4/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/6/s3/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/6/s3/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/6/s6/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/6/s6/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/6/s5/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/6/s5/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/6/s2/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/6/s2/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/6/s1/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/6/s1/set_brightness
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_6: Bloc9 device 6 is now ONLINE
+[INFO] 2025-12-07 02:48:46 - __main__: Ignoring unknown arbitration ID 0x00001808
+[INFO] 2025-12-07 02:48:46 - __main__: Ignoring unknown arbitration ID 0x00001A80
+[INFO] 2025-12-07 02:48:46 - __main__: First message from bloc9 ID:10, creating device instance
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_10: Initialized Bloc9 device: bloc9 10, state_cache=/data/state_cache
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_10: Loaded persisted state with 4 properties
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_10: Publishing 4 persisted properties to MQTT
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/10/s4/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/10/s4/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/10/s3/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/10/s3/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/10/s6/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/10/s6/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/10/s5/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/10/s5/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/10/s2/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/10/s2/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/10/s1/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/10/s1/set_brightness
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_10: Bloc9 device 10 is now ONLINE
+[INFO] 2025-12-07 02:48:46 - __main__: Ignoring unknown arbitration ID 0x0E602380
+[INFO] 2025-12-07 02:48:46 - __main__: Ignoring unknown arbitration ID 0x0E622380
+[INFO] 2025-12-07 02:48:46 - __main__: Ignoring unknown arbitration ID 0x0E642380
+[INFO] 2025-12-07 02:48:46 - __main__: Ignoring unknown arbitration ID 0x0E662380
+[INFO] 2025-12-07 02:48:46 - __main__: Ignoring unknown arbitration ID 0x02060580
+[INFO] 2025-12-07 02:48:46 - __main__: Ignoring unknown arbitration ID 0x00001C00
+[INFO] 2025-12-07 02:48:46 - __main__: First message from bloc9 ID:3, creating device instance
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_3: Initialized Bloc9 device: bloc9 3, state_cache=/data/state_cache
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_3: Loaded persisted state with 12 properties
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_3: Publishing 12 persisted properties to MQTT
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/3/s4/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/3/s4/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/3/s3/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/3/s3/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/3/s6/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/3/s6/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/3/s5/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/3/s5/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/3/s2/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/3/s2/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/3/s1/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/3/s1/set_brightness
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_3: Bloc9 device 3 is now ONLINE
+[INFO] 2025-12-07 02:48:46 - __main__: First message from bloc9 ID:9, creating device instance
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_9: Initialized Bloc9 device: bloc9 9, state_cache=/data/state_cache
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/9/s4/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/9/s4/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/9/s3/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/9/s3/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/9/s6/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/9/s6/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/9/s5/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/9/s5/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/9/s2/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/9/s2/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/9/s1/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/9/s1/set_brightness
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_9: Bloc9 device 9 is now ONLINE
+[INFO] 2025-12-07 02:48:46 - __main__: First message from bloc9 ID:7, creating device instance
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_7: Initialized Bloc9 device: bloc9 7, state_cache=/data/state_cache
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_7: Loaded persisted state with 12 properties
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_7: Publishing 12 persisted properties to MQTT
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/7/s4/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/7/s4/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/7/s3/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/7/s3/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/7/s6/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/7/s6/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/7/s5/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/7/s5/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/7/s2/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/7/s2/set_brightness
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/7/s1/set
+[INFO] 2025-12-07 02:48:46 - __main__: Registered command topic: homeassistant/scheiber/bloc9/7/s1/set_brightness
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_7: Bloc9 device 7 is now ONLINE
+[INFO] 2025-12-07 02:48:46 - __main__: Ignoring retained message on homeassistant/scheiber/bloc9/7/s5/set (age: 1765090251.2s > 300s): 1
+[INFO] 2025-12-07 02:48:46 - __main__: Ignoring retained message on homeassistant/scheiber/bloc9/7/s5/set_brightness (age: 1765090251.2s > 300s): 148
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_7: Executing switch command: switch=4, state=False
+[INFO] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_7: CAN TX: ID=0x023606B8 Data=04 00 00 00
+[ERROR] 2025-12-07 02:48:46 - devices.Bloc9.bloc9_7: Invalid command payload:  - invalid literal for int() with base 10: ''
+[INFO] 2025-12-07 02:48:46 - __main__: Ignoring unknown arbitration ID 0x04021C00
+[INFO] 2025-12-07 02:48:46 - __main__: Ignoring unknown arbitration ID 0x04021FC0
+[INFO] 2025-12-07 02:48:53 - __main__: Ignoring unknown arbitration ID 0x097A2380

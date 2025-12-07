@@ -280,6 +280,11 @@ class Bloc9(ScheiberCanDevice):
 
     def handle_command(self, topic: str, payload: str, is_retained: bool = False):
         """Handle ON/OFF and brightness commands for Bloc9 switches."""
+        # Ignore empty payloads (used for clearing retained messages)
+        if not payload or payload.strip() == "":
+            self.logger.debug(f"Ignoring empty payload on {topic}")
+            return
+
         # Parse the topic to extract property name and command type
         # Topic format: <prefix>/scheiber/<device_type>/<device_id>/<property>/set[_brightness]
         topic_parts = topic.split("/")
