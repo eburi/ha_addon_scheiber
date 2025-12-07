@@ -440,6 +440,8 @@ class Bloc9(ScheiberCanDevice):
                 config_payload["brightness_command_topic"] = self.get_property_topic(
                     prop_name, "set_brightness"
                 )
+                # Use brightness commands to turn on (no separate ON command)
+                config_payload["on_command_type"] = "brightness"
 
                 # Publish initial brightness value
                 brightness_topic = self.get_property_topic(prop_name, "brightness")
