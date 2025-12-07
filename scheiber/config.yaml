@@ -2,7 +2,7 @@ name: scheiber
 slug: scheiber
 version: "2.1.0"
 description: >
-  Interface to scheiber
+  MQTT Bridge to connect Scheiber CAN devices to Home Assistant via MQTT.
 
 arch:
   - amd64
@@ -18,9 +18,7 @@ privileged:
   - SYS_RAWIO
 
 map:
-  - type: homeassistant_config
-    read_only: False
-    path: /custom/config/path
+  - addon_config:rw
 
 options:
   can_interface: can1
