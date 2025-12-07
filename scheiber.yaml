@@ -184,7 +184,13 @@ bloc9:
 
   - bus_id: 10
     name: "Bloc9 X20 (ID: 10)"
-    switches: []
+    switches:
+      - name: "Aft Beam Light"
+        entity_id: "switch.aft_beam_light"
+        output: s3
+      - name: "Under Water Light"
+        entity_id: "switch.under_water_light"
+        output: s4
     lights:
       - name: "Courtesy Lights"
         entity_id: "light.courtesy_lights"
@@ -192,9 +198,3 @@ bloc9:
       - name: "Secret Light"
         entity_id: "light.secret_light"
         output: s2
-      - name: "Aft Beam Light"
-        entity_id: "light.aft_beam_light"
-        output: s3
-      - name: "Under Water Light"
-        entity_id: "light.under_water_light"
-        output: s4
