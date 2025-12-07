@@ -461,8 +461,6 @@ class Bloc9(ScheiberCanDevice):
                 "payload_available": "online",
                 "payload_not_available": "offline",
                 "command_topic": self.get_property_topic(prop_name, "set"),
-                "payload_on": "1",
-                "payload_off": "0",
                 "optimistic": False,
                 "qos": 1,
                 "retain": True,
