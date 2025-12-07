@@ -1,45 +1,42 @@
 # Home Assistant Add-on: Scheiber CAN-MQTT Bridge
 
-**Version 2.0.4** — Production-ready bridge with optimistic updates, heartbeat-based availability, and brightness control.
+**Version 2.0.6** — Experimental bridge for Scheiber CAN devices with MQTT integration.
+
+⚠️ **EXPERIMENTAL**: This is an ongoing reverse-engineering project. The Scheiber CAN protocol is not fully documented, and functionality may be incomplete or change significantly.
 
 ## Overview
 
-This Home Assistant add-on provides a bridge between Scheiber devices on a CAN bus and MQTT, enabling seamless integration with Home Assistant through MQTT Discovery. It monitors CAN traffic, decodes device messages, publishes state updates to MQTT, and handles commands from Home Assistant with optimistic feedback for responsive UI.
+This Home Assistant add-on provides a bridge between Scheiber devices on a CAN bus and MQTT, enabling integration with Home Assistant through MQTT Discovery. It monitors CAN traffic, decodes device messages, and publishes state updates to MQTT.
 
-### Key Features
+### Current Features
 
-- **CAN Bus Monitoring**: Listens to SocketCAN interface and decodes Scheiber device messages in real-time
-- **MQTT Integration**: Full bidirectional communication with Home Assistant via MQTT Discovery
-- **Optimistic Updates**: Immediate feedback to Home Assistant for responsive UI without waiting for device confirmation
-- **Heartbeat-based Availability**: Devices automatically marked online/offline based on CAN message activity (60s timeout)
-- **Brightness Control**: Full dimming support with Home Assistant-native brightness slider (0-255 levels)
-- **State Persistence**: Device states saved to disk and restored on restart
-- **Device Type System**: Extensible YAML-based configuration for different device types (currently supports Bloc9)
-- **Retained Message Handling**: Automatic cleanup of old retained MQTT commands (5-minute age limit)
-- **Bus Statistics**: Real-time monitoring of CAN bus load, message rates, and sender activity
-- **Configurable Logging**: Support for debug/info/warning/error log levels
+- **CAN-MQTT Bridge**: Translates CAN messages to MQTT topics
+- **Bloc9 Switch Support**: ON/OFF control and brightness (0-255) for 6-switch panels
+- **MQTT Discovery**: Automatic Home Assistant entity creation
+- **Heartbeat Availability**: Devices marked online/offline based on CAN traffic (60s timeout)
+- **State Persistence**: Device states saved between restarts
+- **Optimistic Updates**: Immediate UI feedback (may not reflect actual device state)
+- **Extensible Architecture**: YAML-based device configuration for future expansion
+- **Retained Message Handling**: Automatic cleanup of old MQTT commands (5-minute age limit)
 
 ## Supported Devices
 
 ### Bloc9
 
-Scheiber Bloc9 switch panels with up to 6 switches (S1-S6). Each switch is exposed as a fully dimmable light in Home Assistant.
+Scheiber Bloc9 switch panels with up to 6 switches (S1-S6). Each switch appears as a dimmable light in Home Assistant.
 
-**Features:**
+**Capabilities:**
 - ON/OFF control
-- 254 brightness levels (1-254, plus 0=OFF and 255=full ON)
-- Optimistic state updates for instant UI feedback
-- Automatic availability detection via heartbeat
-- State persistence across restarts
+- Brightness control (0-255 range, protocol partially understood)
+- Automatic online/offline detection
+- State persistence
 
-**CAN Protocol:**
+**Known CAN Protocol Details:**
 - Command ID: `0x02360600 | ((bloc9_id << 3) | 0x80)`
-- Command payload: `[switch_nr, state_byte, 0x00, brightness_byte]`
-  - `switch_nr`: 0-5 for S1-S6
-  - `state_byte`: `0x00` (OFF), `0x01` (ON), `0x11` (dimming)
-  - `brightness_byte`: 0-255 when `state_byte=0x11`
 - Status prefixes: `0x00000600`, `0x02160600`, `0x02180600`, `0x021A0600`
-- Status messages include switch states and current brightness levels
+- Bus IDs: Typically 2-10 (extracted from arbitration ID)
+
+⚠️ Protocol details are based on reverse-engineering and may be incomplete.
 
 ## MQTT Topic Structure
 
@@ -664,12 +661,15 @@ When reporting issues, include:
 5. MQTT messages (`mosquitto_sub -v -t 'homeassistant/scheiber/#'`)
 6. Home Assistant version and MQTT broker version
 
-## Known Limitations
+## Known Limitations & Warnings
 
-- Dimming protocol not yet fully decoded (infrastructure ready, byte patterns unknown)
-- Only Bloc9 devices currently supported
-- Requires SocketCAN interface (Linux only)
-- No automated tests (hardware-dependent)
+- **Incomplete Protocol**: The Scheiber CAN protocol is reverse-engineered and not fully understood
+- **Limited Device Support**: Only Bloc9 switch panels currently implemented
+- **No Dimming Protocol**: Brightness control works but underlying protocol not fully decoded
+- **Linux Only**: Requires SocketCAN interface (not available on Windows/macOS)
+- **No Automated Tests**: Testing requires physical hardware
+- **Breaking Changes Expected**: Protocol understanding may change, requiring config updates
+- **Experimental Status**: Use at your own risk, functionality may be incomplete or incorrect
 
 ## References
 
@@ -685,4 +685,11 @@ See repository license file.
 
 ## Contributing
 
-This is an experimental project. Contributions welcome, but expect significant changes as the protocol is reverse-engineered.
+This is an **active reverse-engineering project**. The CAN protocol is not officially documented, and much of the functionality is based on observation and experimentation. Contributions are welcome, especially:
+
+- CAN message captures from different Scheiber devices
+- Protocol analysis and documentation
+- Bug reports with detailed logs and CAN dumps
+- Testing on different hardware configurations
+
+**Expect significant changes** as our understanding of the protocol evolves. This project may have bugs, incomplete features, or incorrect protocol interpretations.

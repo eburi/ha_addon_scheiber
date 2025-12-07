@@ -484,13 +484,6 @@ class Bloc9(ScheiberCanDevice):
                 # Use brightness commands to turn on (no separate ON command)
                 config_payload["on_command_type"] = "brightness"
 
-                # Publish initial brightness value
-                brightness_topic = self.get_property_topic(prop_name, "brightness")
-                self.logger.debug(
-                    f"Publishing initial brightness to {brightness_topic}: ?"
-                )
-                self.mqtt_client.publish(brightness_topic, "?", qos=1, retain=True)
-
             config_json = json.dumps(config_payload)
             self.logger.debug(
                 f"Publishing HA discovery config to {config_topic}: {config_json}"
@@ -515,8 +508,12 @@ class Bloc9(ScheiberCanDevice):
         if property_name.endswith("_brightness"):
             base_prop = property_name.replace("_brightness", "")
 
+            # Skip publishing if value is None
+            if value is None:
+                return
+
             brightness_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{base_prop}/brightness"
-            payload = str(value) if value is not None else "?"
+            payload = str(value)
             self.logger.debug(f"Publishing brightness to {brightness_topic}: {payload}")
             self.mqtt_client.publish(brightness_topic, payload, qos=1, retain=True)
 
@@ -524,8 +521,12 @@ class Bloc9(ScheiberCanDevice):
             self._persist_state(property_name, value)
         # Handle regular switch state
         else:
+            # Skip publishing if value is None
+            if value is None:
+                return
+
             topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{property_name}/state"
-            payload = str(value) if value is not None else "?"
+            payload = str(value)
             self.logger.debug(f"Publishing property state to {topic}: {payload}")
             self.mqtt_client.publish(topic, payload, qos=1, retain=True)
 
@@ -596,9 +597,13 @@ class Bloc9(ScheiberCanDevice):
             try:
                 # Handle brightness properties
                 if property_name.endswith("_brightness"):
+                    # Skip if value is None
+                    if value is None:
+                        continue
+
                     base_prop = property_name.replace("_brightness", "")
                     brightness_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{base_prop}/brightness"
-                    payload = str(value) if value is not None else "?"
+                    payload = str(value)
                     self.logger.debug(
                         f"Restoring brightness to {brightness_topic}: {payload}"
                     )
@@ -610,8 +615,12 @@ class Bloc9(ScheiberCanDevice):
                     continue
                 # Handle regular switch state
                 else:
+                    # Skip if value is None
+                    if value is None:
+                        continue
+
                     topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{property_name}/state"
-                    payload = str(value) if value is not None else "?"
+                    payload = str(value)
                     self.logger.debug(f"Restoring switch state to {topic}: {payload}")
                     self.mqtt_client.publish(topic, payload, qos=1, retain=True)
             except Exception as e:
