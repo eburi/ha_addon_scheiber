@@ -127,17 +127,37 @@ class MQTTBridge:
 
     def on_mqtt_message(self, client, userdata, msg):
         """Callback for received MQTT messages - route to device handlers."""
+        import time
+
         topic = msg.topic
         payload = msg.payload.decode().strip()
 
-        self.logger.debug(f"Received MQTT message on {topic}: {payload}")
+        # Check if message is retained and its age
+        if msg.retain:
+            # Message timestamp is available in msg.timestamp (seconds since epoch)
+            # If timestamp is 0 or None, the broker doesn't provide it - allow the message
+            if hasattr(msg, "timestamp") and msg.timestamp and msg.timestamp > 0:
+                message_age = time.time() - msg.timestamp
+                max_age_seconds = 300  # 5 minutes
+
+                if message_age > max_age_seconds:
+                    self.logger.info(
+                        f"Ignoring retained message on {topic} (age: {message_age:.1f}s > {max_age_seconds}s): {payload}"
+                    )
+                    # Clear the retained message
+                    client.publish(topic, None, qos=1, retain=True)
+                    return
+
+            self.logger.debug(f"Processing retained message on {topic}: {payload}")
+        else:
+            self.logger.debug(f"Received MQTT message on {topic}: {payload}")
 
         # Look up the device handler for this topic
         handler_info = self.topic_handlers.get(topic)
         if handler_info:
             device, handler_func = handler_info
             try:
-                handler_func(topic, payload)
+                handler_func(topic, payload, msg.retain)
             except Exception as e:
                 self.logger.error(f"Error handling message on {topic}: {e}")
         else:

@@ -91,13 +91,14 @@ class ScheiberCanDevice(ABC):
         """
         return []
 
-    def handle_command(self, topic: str, payload: str):
+    def handle_command(self, topic: str, payload: str, is_retained: bool = False):
         """
         Handle a command received on an MQTT topic.
 
         Args:
             topic: Full MQTT topic where command was received
             payload: Command payload string
+            is_retained: Whether this message was retained by the broker
         """
         self.logger.warning(f"Unhandled command on {topic}: {payload}")
 
@@ -183,7 +184,7 @@ class Bloc9(ScheiberCanDevice):
 
         return topics
 
-    def handle_command(self, topic: str, payload: str):
+    def handle_command(self, topic: str, payload: str, is_retained: bool = False):
         """Handle ON/OFF and brightness commands for Bloc9 switches."""
         # Parse the topic to extract property name and command type
         # Topic format: <prefix>/scheiber/<device_type>/<device_id>/<property>/set[_brightness]
@@ -219,7 +220,7 @@ class Bloc9(ScheiberCanDevice):
                     return
 
                 self.logger.info(
-                    f"Executing brightness command: switch={switch_nr}, brightness={brightness}"
+                    f"Executing brightness command: switch={switch_nr}, brightness={brightness}{' (retained)' if is_retained else ''}"
                 )
                 self._send_switch_command(switch_nr, True, brightness=brightness)
 
@@ -227,11 +228,17 @@ class Bloc9(ScheiberCanDevice):
                 # Handle ON/OFF command
                 state = payload in ("1", "ON", "on", "true", "True")
                 self.logger.info(
-                    f"Executing switch command: switch={switch_nr}, state={state}"
+                    f"Executing switch command: switch={switch_nr}, state={state}{' (retained)' if is_retained else ''}"
                 )
                 self._send_switch_command(switch_nr, state)
             else:
                 self.logger.warning(f"Unknown command type: {command_type}")
+                return
+
+            # Clear retained command after successful execution
+            if is_retained:
+                self.logger.info(f"Clearing retained command on {topic}")
+                self.mqtt_client.publish(topic, None, qos=1, retain=True)
 
         except ValueError as e:
             self.logger.error(f"Invalid command payload: {payload} - {e}")
