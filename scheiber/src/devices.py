@@ -163,6 +163,31 @@ class Bloc9(ScheiberCanDevice):
         # Load persisted state and publish if available
         self._load_and_publish_persisted_state()
 
+    def publish_device_info(self):
+        """Publish device information including switch states to MQTT."""
+        topic = self.get_base_topic()
+        payload = {
+            "name": self.device_config.get("name", self.device_type),
+            "device_type": self.device_type,
+            "bus_id": self.device_id,
+            "switches": {},
+        }
+
+        # Add current state of each switch
+        all_properties = self.get_all_properties()
+        for prop_name in all_properties:
+            # Only include switch properties (not brightness/stat properties)
+            if not prop_name.endswith("_brightness") and not prop_name.startswith(
+                "stat"
+            ):
+                # Get state from persisted or current state
+                state_value = self.state.get(prop_name, "unknown")
+                payload["switches"][prop_name] = state_value
+
+        payload_json = json.dumps(payload)
+        self.logger.debug(f"Publishing device info to {topic}: {payload_json}")
+        self.mqtt_client.publish(topic, payload_json, qos=1, retain=True)
+
     def register_command_topics(self) -> List[Tuple[str, Callable[[str, str], None]]]:
         """Register command topics for all switch properties."""
         topics = []
