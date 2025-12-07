@@ -147,3 +147,5 @@ scheiber/src/.venv/
 scheiber/src/.state_cache/
 # State cache anywhere (Docker uses /data/state_cache)
 **/state_cache/
+
+scratch*.txt

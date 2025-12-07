@@ -17,11 +17,31 @@ import yaml
 logger = logging.getLogger(__name__)
 
 
+def name_to_snake_case(name: str) -> str:
+    """
+    Convert a name to snake_case for use in entity IDs.
+
+    Removes special characters, converts to lowercase, replaces spaces with underscores.
+
+    Args:
+        name: Name to convert
+
+    Returns:
+        snake_case string suitable for entity IDs
+    """
+    # Remove special characters (keep only alphanumeric, spaces, and underscores)
+    clean_name = re.sub(r"[^a-zA-Z0-9\s_]", "", name)
+    # Replace spaces with underscores and convert to lowercase
+    snake = clean_name.replace(" ", "_").lower()
+    # Remove any multiple consecutive underscores
+    snake = re.sub(r"_+", "_", snake)
+    # Remove leading/trailing underscores
+    return snake.strip("_")
+
+
 def generate_entity_id_from_name(name: str, component: str) -> str:
     """
     Generate entity_id from entity name.
-
-    Removes special characters, converts to lowercase, replaces spaces with underscores.
 
     Args:
         name: Entity display name
@@ -30,14 +50,7 @@ def generate_entity_id_from_name(name: str, component: str) -> str:
     Returns:
         Full entity_id with component prefix (e.g., 'light.my_light')
     """
-    # Remove special characters (keep only alphanumeric, spaces, and underscores)
-    clean_name = re.sub(r"[^a-zA-Z0-9\s_]", "", name)
-    # Replace spaces with underscores and convert to lowercase
-    object_id = clean_name.replace(" ", "_").lower()
-    # Remove any multiple consecutive underscores
-    object_id = re.sub(r"_+", "_", object_id)
-    # Remove leading/trailing underscores
-    object_id = object_id.strip("_")
+    object_id = name_to_snake_case(name)
 
     if not object_id:
         raise ValueError(

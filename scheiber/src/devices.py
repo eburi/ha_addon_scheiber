@@ -15,6 +15,9 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import can
 
+# Import the shared snake_case converter from config_loader
+from config_loader import name_to_snake_case
+
 
 class ScheiberCanDevice(ABC):
     """Base class for all Scheiber CAN devices."""
@@ -241,14 +244,28 @@ class Bloc9(ScheiberCanDevice):
             )
 
     def _mark_all_properties_online(self):
-        """Mark all configured outputs as online (available)."""
+        """Mark all configured outputs and the Bloc9 sensor device as online (available)."""
+        # Mark the Bloc9 sensor device as online
+        bloc9_availability_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/availability"
+        self.mqtt_client.publish(bloc9_availability_topic, "online", qos=1, retain=True)
+        self.logger.debug(f"Marked Bloc9 sensor device as online")
+
+        # Mark all configured outputs as online
         for disc_config in self.discovery_configs:
             availability_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{disc_config.output}/availability"
             self.mqtt_client.publish(availability_topic, "online", qos=1, retain=True)
             self.logger.debug(f"Marked {disc_config.output} as online")
 
     def _mark_all_properties_offline(self):
-        """Mark all configured outputs as offline (unavailable)."""
+        """Mark all configured outputs and the Bloc9 sensor device as offline (unavailable)."""
+        # Mark the Bloc9 sensor device as offline
+        bloc9_availability_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/availability"
+        self.mqtt_client.publish(
+            bloc9_availability_topic, "offline", qos=1, retain=True
+        )
+        self.logger.debug(f"Marked Bloc9 sensor device as offline")
+
+        # Mark all configured outputs as offline
         for disc_config in self.discovery_configs:
             availability_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{disc_config.output}/availability"
             self.mqtt_client.publish(availability_topic, "offline", qos=1, retain=True)
@@ -417,12 +434,67 @@ class Bloc9(ScheiberCanDevice):
             self.logger.error(f"Failed to send CAN message: {e}")
             raise
 
+    def _publish_bloc9_sensor_device(self):
+        """
+        Publish Bloc9 as a sensor device showing bus statistics.
+        This creates the main Bloc9 device that lights/switches will reference via via_device.
+        """
+        import json
+
+        # Get device name from first discovery config, or use default
+        if self.discovery_configs and len(self.discovery_configs) > 0:
+            device_name = self.discovery_configs[0].device_name
+        else:
+            device_name = f"Bloc9 {self.device_id}"
+        # Convert device name to snake_case for sensor entity_id
+        sensor_entity_id = name_to_snake_case(device_name)
+
+        # Discovery topic for the Bloc9 sensor
+        discovery_topic = f"{self.mqtt_topic_prefix}/sensor/{sensor_entity_id}/config"
+
+        # State topic uses the base Bloc9 topic (JSON payload with bus stats)
+        state_topic = (
+            f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}"
+        )
+        availability_topic = f"{state_topic}/availability"
+
+        config_payload = {
+            "name": device_name,
+            "unique_id": f"scheiber_{self.device_type}_{self.device_id}_sensor",
+            "state_topic": state_topic,
+            "availability_topic": availability_topic,
+            "payload_available": "online",
+            "payload_not_available": "offline",
+            "value_template": "{{ value_json.bus_id }}",
+            "json_attributes_topic": state_topic,
+            "qos": 1,
+            "device": {
+                "identifiers": [f"scheiber_{self.device_type}_{self.device_id}"],
+                "name": device_name,
+                "model": self.device_config.get("name", self.device_type),
+                "manufacturer": "Scheiber",
+            },
+        }
+
+        config_json = json.dumps(config_payload)
+        self.logger.debug(
+            f"Publishing Bloc9 sensor discovery to {discovery_topic}: {config_json}"
+        )
+        self.mqtt_client.publish(discovery_topic, config_json, qos=1, retain=True)
+
+        # Publish initial offline availability for the Bloc9 device
+        self.mqtt_client.publish(availability_topic, "offline", qos=1, retain=True)
+
     def publish_discovery_config(self):
         """
         Publish Home Assistant MQTT Discovery config for explicitly configured entities.
 
         Uses standard HA discovery pattern: <discovery_prefix>/{component}/{object_id}/config
         Only publishes discovery for outputs that are explicitly configured in scheiber.yaml.
+
+        Device structure:
+        - Bloc9 itself becomes a sensor device showing bus statistics
+        - Each light/switch becomes its own device with via_device pointing to Bloc9
         """
         import json
 
@@ -436,6 +508,9 @@ class Bloc9(ScheiberCanDevice):
                 f"No discovery configs for Bloc9 {self.device_id}, skipping discovery"
             )
             return
+
+        # First, publish the Bloc9 itself as a sensor device
+        self._publish_bloc9_sensor_device()
 
         self.logger.info(
             f"Publishing discovery for {len(self.discovery_configs)} entities on Bloc9 {self.device_id}"
@@ -451,7 +526,7 @@ class Bloc9(ScheiberCanDevice):
             command_topic = f"{scheiber_base}/set"
             availability_topic = f"{scheiber_base}/availability"
 
-            # Base payload for both lights and switches
+            # Each light/switch is its own device with via_device pointing to Bloc9
             config_payload = {
                 "name": disc_config.name,
                 "unique_id": f"scheiber_{self.device_type}_{self.device_id}_{disc_config.output}_v3",
@@ -464,10 +539,13 @@ class Bloc9(ScheiberCanDevice):
                 "qos": 1,
                 "retain": True,
                 "device": {
-                    "identifiers": [f"scheiber_{self.device_type}_{self.device_id}"],
-                    "name": disc_config.device_name,
-                    "model": self.device_config.get("name", self.device_type),
+                    "identifiers": [
+                        f"scheiber_{self.device_type}_{self.device_id}_{disc_config.output}"
+                    ],
+                    "name": disc_config.name,
+                    "model": f"{disc_config.device_name} - {disc_config.output.upper()}",
                     "manufacturer": "Scheiber",
+                    "via_device": f"scheiber_{self.device_type}_{self.device_id}",
                 },
             }
 

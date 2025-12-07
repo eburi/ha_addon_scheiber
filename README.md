@@ -10,6 +10,12 @@ This Home Assistant add-on provides a bridge between Scheiber devices on a CAN b
 
 **Explicit entity configuration for safety and control:** You must define which outputs to expose via a `scheiber.yaml` configuration file placed in Home Assistant's `/config/` directory.
 
+**Device Hierarchy:** Each Bloc9 creates a clear device hierarchy in Home Assistant:
+- Bloc9 sensor device showing bus statistics and switch states
+- Individual light devices (each with its own device entry)
+- Individual switch devices (each with its own device entry)
+- All lights and switches link back to their parent Bloc9 via `via_device`
+
 ### Current Features
 
 - **CAN-MQTT Bridge**: Translates CAN messages to MQTT topics
@@ -116,14 +122,29 @@ Publish to these topics to control devices. The bridge:
 
 ### MQTT Discovery Configuration
 
+**Device Hierarchy:**
+
+Each Bloc9 panel is represented in Home Assistant as a hierarchical device structure:
+
+1. **Bloc9 Sensor Device** — Main device showing bus statistics
+   - Discovery: `<mqtt_topic_prefix>/sensor/<bloc9_name_snake_case>/config`
+   - State: `<mqtt_topic_prefix>/scheiber/bloc9/<bus_id>` (JSON with bus_id and switches)
+   - Shows the current state of all switches as JSON attributes
+
+2. **Individual Light/Switch Devices** — Each output as a separate device
+   - Discovery: `<mqtt_topic_prefix>/{component}/{entity_id}/config`
+   - Each has its own device entry with `via_device` linking back to the Bloc9 sensor
+   - Creates a clear parent-child relationship visible in Home Assistant's device page
+
 **Discovery Topic Pattern** (follows standard Home Assistant convention):
 ```
 <mqtt_topic_prefix>/{component}/{object_id}/config
 ```
 
 Examples:
-- `homeassistant/light/salon_working_light/config` — Light entity discovery
-- `homeassistant/switch/salon_water_pump/config` — Switch entity discovery
+- `homeassistant/sensor/bloc9_x26_id_7/config` — Bloc9 sensor device
+- `homeassistant/light/salon_working_light/config` — Individual light device
+- `homeassistant/switch/salon_water_pump/config` — Individual switch device
 
 **State & Command Topics** (scheiber-specific namespace):
 ```
@@ -139,12 +160,12 @@ Examples:
 - `homeassistant/scheiber/bloc9/7/s1/set_brightness` — Brightness command
 - `homeassistant/scheiber/bloc9/7/s1/availability` — Online/offline status
 
-Published discovery config includes:
+**Published discovery config includes:**
 - Unique ID for each entity
-- Device information (identifiers, name, model, manufacturer)
+- Individual device information for each light/switch
+- Parent Bloc9 device referenced via `via_device`
 - State, command, and availability topic references
 - Brightness configuration (for lights only)
-- QoS and retain settings
 - QoS and retain settings
 
 See:
