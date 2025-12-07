@@ -318,6 +318,24 @@ class Bloc9(ScheiberCanDevice):
                 )
                 self._send_switch_command(switch_nr, True, brightness=brightness)
 
+                # Optimistically publish new brightness and state for immediate HA feedback
+                brightness_topic = self.get_property_topic(property_name, "brightness")
+                state_topic = self.get_property_topic(property_name, "state")
+                state_value = "1" if brightness > 0 else "0"
+                self.mqtt_client.publish(
+                    brightness_topic, str(brightness), qos=1, retain=True
+                )
+                self.mqtt_client.publish(state_topic, state_value, qos=1, retain=True)
+                self.logger.debug(
+                    f"Optimistically published brightness={brightness}, state={state_value}"
+                )
+
+                # Update internal state
+                self.state[property_name] = state_value
+                self.state[f"{property_name}_brightness"] = brightness
+                self._persist_state(property_name, state_value)
+                self._persist_state(f"{property_name}_brightness", brightness)
+
             elif command_type == "set":
                 # Handle ON/OFF command
                 state = payload in ("1", "ON", "on", "true", "True")
@@ -325,6 +343,16 @@ class Bloc9(ScheiberCanDevice):
                     f"Executing switch command: switch={switch_nr}, state={state}{' (retained)' if is_retained else ''}"
                 )
                 self._send_switch_command(switch_nr, state)
+
+                # Optimistically publish new state for immediate HA feedback
+                state_topic = self.get_property_topic(property_name, "state")
+                state_value = "1" if state else "0"
+                self.mqtt_client.publish(state_topic, state_value, qos=1, retain=True)
+                self.logger.debug(f"Optimistically published state={state_value}")
+
+                # Update internal state
+                self.state[property_name] = state_value
+                self._persist_state(property_name, state_value)
             else:
                 self.logger.warning(f"Unknown command type: {command_type}")
                 return
