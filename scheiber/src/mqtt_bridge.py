@@ -308,24 +308,7 @@ class MQTTBridge:
 
                 raw = bytes(msg.data)
 
-                # Track per-matcher to detect raw message changes
-                id_triple = (device_key, bus_id, matcher["name"])
-                prev = self.last_seen.get(id_triple)
-                if prev == raw:
-                    self.logger.debug(
-                        f"Skipping unchanged message for {device_key} ID:{bus_id} [{matcher['name']}]"
-                    )
-                    continue
-
-                self.last_seen[id_triple] = raw
-                self.logger.debug(
-                    f"New message from {device_config['name']} ID:{bus_id} [{matcher['name']}]"
-                )
-
-                # Decode properties from this matcher
-                decoded = self.decode_message(matcher, raw)
-
-                # Get or create device instance
+                # Get or create device instance early so we can update heartbeat
                 device_instance_key = (device_key, bus_id)
 
                 if device_instance_key not in self.devices:
@@ -385,8 +368,26 @@ class MQTTBridge:
                 else:
                     device = self.devices[device_instance_key]
 
-                # Update heartbeat on any successful message match
+                # Update heartbeat on ANY message from device (even if unchanged)
+                # This ensures devices with static state don't get marked offline
                 device.update_heartbeat()
+
+                # Track per-matcher to detect raw message changes
+                id_triple = (device_key, bus_id, matcher["name"])
+                prev = self.last_seen.get(id_triple)
+                if prev == raw:
+                    self.logger.debug(
+                        f"Skipping unchanged message for {device_key} ID:{bus_id} [{matcher['name']}]"
+                    )
+                    continue
+
+                self.last_seen[id_triple] = raw
+                self.logger.debug(
+                    f"New message from {device_config['name']} ID:{bus_id} [{matcher['name']}]"
+                )
+
+                # Decode properties from this matcher
+                decoded = self.decode_message(matcher, raw)
 
                 # Update device state with new properties
                 device.update_state(decoded)
