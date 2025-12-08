@@ -59,8 +59,14 @@ Agent coding rules for this repo
 - **Version management**: After making any code changes, update the `version` field in `scheiber/config.yaml` following semantic versioning (semver):
   - **PATCH** (0.0.X): Bug fixes, small tweaks, no API changes
   - **MINOR** (0.X.0): New features, backward-compatible changes (new parameters with defaults, new optional functionality)
-  - **MAJOR** (X.0.0): Breaking changes (API changes, removed functionality, changed behavior)
+  - **MAJOR** (X.0.0): Breaking changes (API changes, removed functionality, changed behavior, Home Assistant device structure changes)
   - Example: `0.5.8` → `0.5.9` for bug fix, `0.5.8` → `0.6.0` for new feature, `0.5.8` → `1.0.0` for breaking change
+
+**Home Assistant Device Structure (v4.0.0+)**:
+- All entities (lights, switches, sensors) belong to a single unified "Scheiber" device in Home Assistant
+- Device identifier: `scheiber_system`
+- This simplifies entity naming: entities become `light.scheiber_<name>` instead of `light.<name>_<name>`
+- The unified device appears as "Scheiber - Marine Lighting Control System" in Home Assistant
 
 Common developer workflows (how to run things locally)
 - Install runtime deps (if not present): `pip install python-can paho-mqtt PyYAML`

@@ -244,12 +244,7 @@ class Bloc9(ScheiberCanDevice):
             )
 
     def _mark_all_properties_online(self):
-        """Mark all configured outputs and the Bloc9 sensor device as online (available)."""
-        # Mark the Bloc9 sensor device as online
-        bloc9_availability_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/availability"
-        self.mqtt_client.publish(bloc9_availability_topic, "online", qos=1, retain=True)
-        self.logger.debug(f"Marked Bloc9 sensor device as online")
-
+        """Mark all configured outputs as online (available)."""
         # Mark all configured outputs as online
         for disc_config in self.discovery_configs:
             availability_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{disc_config.output}/availability"
@@ -257,14 +252,7 @@ class Bloc9(ScheiberCanDevice):
             self.logger.debug(f"Marked {disc_config.output} as online")
 
     def _mark_all_properties_offline(self):
-        """Mark all configured outputs and the Bloc9 sensor device as offline (unavailable)."""
-        # Mark the Bloc9 sensor device as offline
-        bloc9_availability_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/availability"
-        self.mqtt_client.publish(
-            bloc9_availability_topic, "offline", qos=1, retain=True
-        )
-        self.logger.debug(f"Marked Bloc9 sensor device as offline")
-
+        """Mark all configured outputs as offline (unavailable)."""
         # Mark all configured outputs as offline
         for disc_config in self.discovery_configs:
             availability_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{disc_config.output}/availability"
@@ -434,75 +422,17 @@ class Bloc9(ScheiberCanDevice):
             self.logger.error(f"Failed to send CAN message: {e}")
             raise
 
-    def _publish_bloc9_sensor_device(self):
+    def _get_scheiber_device_info(self) -> dict:
         """
-        Publish Bloc9 as a sensor device showing bus statistics.
-        This creates the main Bloc9 device that lights/switches will reference via via_device.
+        Get the unified Scheiber device info that all entities belong to.
+        This creates a single "Scheiber" device in Home Assistant.
         """
-        import json
-
-        self.logger.debug(
-            f"_publish_bloc9_sensor_device: discovery_configs count={len(self.discovery_configs)}"
-        )
-        if self.discovery_configs:
-            self.logger.debug(
-                f"_publish_bloc9_sensor_device: first config = {self.discovery_configs[0]}"
-            )
-
-        # Get device name from first discovery config (guaranteed to exist when called)
-        # This method is only called from publish_discovery_config() after checking
-        # that self.discovery_configs is not empty
-        device_name = self.discovery_configs[0].device_name
-
-        self.logger.debug(
-            f"_publish_bloc9_sensor_device: device_name from discovery_config = '{device_name}'"
-        )
-
-        # Convert device name to snake_case for sensor entity_id
-        sensor_entity_id = name_to_snake_case(device_name)
-
-        self.logger.debug(
-            f"_publish_bloc9_sensor_device: sensor_entity_id (snake_case) = '{sensor_entity_id}'"
-        )  # Discovery topic for the Bloc9 sensor
-        discovery_topic = f"{self.mqtt_topic_prefix}/sensor/{sensor_entity_id}/config"
-
-        # State topic uses the base Bloc9 topic (JSON payload with bus stats)
-        state_topic = (
-            f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}"
-        )
-        availability_topic = f"{state_topic}/availability"
-
-        config_payload = {
-            "name": device_name,
-            "unique_id": f"scheiber_{self.device_type}_{self.device_id}_sensor",
-            "state_topic": state_topic,
-            "availability_topic": availability_topic,
-            "payload_available": "online",
-            "payload_not_available": "offline",
-            "value_template": "{{ value_json.bus_id }}",
-            "json_attributes_topic": state_topic,
-            "qos": 1,
-            "device": {
-                "identifiers": [f"scheiber_{self.device_type}_{self.device_id}"],
-                "name": device_name,
-                "model": self.device_config.get("name", self.device_type),
-                "manufacturer": "Scheiber",
-            },
+        return {
+            "identifiers": ["scheiber_system"],
+            "name": "Scheiber",
+            "model": "Marine Lighting Control System",
+            "manufacturer": "Scheiber",
         }
-
-        config_json = json.dumps(config_payload)
-        self.logger.info(f"Publishing Bloc9 sensor discovery:")
-        self.logger.info(f"  Topic: {discovery_topic}")
-        self.logger.info(f"  Device name: {device_name}")
-        self.logger.info(f"  Sensor entity_id: {sensor_entity_id}")
-        self.logger.info(
-            f"  Via_device ID: scheiber_{self.device_type}_{self.device_id}"
-        )
-        self.logger.debug(f"  Full config: {config_json}")
-        self.mqtt_client.publish(discovery_topic, config_json, qos=1, retain=True)
-
-        # Publish initial offline availability for the Bloc9 device
-        self.mqtt_client.publish(availability_topic, "offline", qos=1, retain=True)
 
     def publish_discovery_config(self):
         """
@@ -511,9 +441,9 @@ class Bloc9(ScheiberCanDevice):
         Uses standard HA discovery pattern: <discovery_prefix>/{component}/{object_id}/config
         Only publishes discovery for outputs that are explicitly configured in scheiber.yaml.
 
-        Device structure:
-        - Bloc9 itself becomes a sensor device showing bus statistics
-        - Each light/switch becomes its own device with via_device pointing to Bloc9
+        Device structure (v4.0.0):
+        - All entities belong to a single unified "Scheiber" device
+        - This simplifies entity naming in Home Assistant
         """
         import json
 
@@ -528,12 +458,12 @@ class Bloc9(ScheiberCanDevice):
             )
             return
 
-        # First, publish the Bloc9 itself as a sensor device
-        self._publish_bloc9_sensor_device()
-
         self.logger.info(
             f"Publishing discovery for {len(self.discovery_configs)} entities on Bloc9 {self.device_id}"
         )
+
+        # Get unified Scheiber device info
+        scheiber_device = self._get_scheiber_device_info()
 
         for disc_config in self.discovery_configs:
             # Build discovery topic: <discovery_prefix>/{component}/{object_id}/config
@@ -545,15 +475,12 @@ class Bloc9(ScheiberCanDevice):
             command_topic = f"{scheiber_base}/set"
             availability_topic = f"{scheiber_base}/availability"
 
-            # Calculate via_device ID that links to parent Bloc9
-            via_device_id = f"scheiber_{self.device_type}_{self.device_id}"
-
             self.logger.debug(
                 f"Publishing {disc_config.component}.{disc_config.entity_id}: "
-                f"device_name='{disc_config.device_name}', via_device='{via_device_id}'"
+                f"name='{disc_config.name}', device='Scheiber'"
             )
 
-            # Each light/switch is its own device with via_device pointing to Bloc9
+            # All entities belong to the unified Scheiber device
             config_payload = {
                 "name": disc_config.name,
                 "unique_id": f"scheiber_{self.device_type}_{self.device_id}_{disc_config.output}",
@@ -565,15 +492,7 @@ class Bloc9(ScheiberCanDevice):
                 "optimistic": False,
                 "qos": 1,
                 "retain": True,
-                "device": {
-                    "identifiers": [
-                        f"scheiber_{self.device_type}_{self.device_id}_{disc_config.output}"
-                    ],
-                    "name": disc_config.name,
-                    "model": f"{disc_config.device_name} - {disc_config.output.upper()}",
-                    "manufacturer": "Scheiber",
-                    "via_device": via_device_id,
-                },
+                "device": scheiber_device,
             }
 
             # Add brightness support for lights

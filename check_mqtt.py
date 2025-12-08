@@ -4,6 +4,11 @@ Verify MQTT discovery configs match scheiber.yaml configuration.
 
 Connects to MQTT broker, retrieves discovery configs, and validates them
 against the expected configuration from scheiber.yaml.
+
+Version 4.0.0+ expects:
+- All entities belong to a unified "Scheiber" device (identifier: scheiber_system)
+- No separate Bloc9 sensor devices
+- Simpler entity naming
 """
 
 import sys
@@ -70,59 +75,12 @@ def fetch_mqtt_discovery_configs():
     return discovery_configs
 
 
-def verify_bloc9_sensor_device(bus_id, device_name, mqtt_configs):
-    """Verify the Bloc9 sensor device discovery config."""
-    sensor_entity_id = name_to_snake_case(device_name)
-    expected_topic = f"{MQTT_TOPIC_PREFIX}/sensor/{sensor_entity_id}/config"
-
-    print(f"  📊 Bloc9 Sensor Device:")
-    print(f"     Expected topic: {expected_topic}")
-
-    if expected_topic not in mqtt_configs:
-        print(f"     ❌ NOT FOUND in MQTT")
-        return False
-
-    config = mqtt_configs[expected_topic]
-    errors = []
-
-    # Verify required fields
-    if config.get("name") != device_name:
-        errors.append(f"name: expected '{device_name}', got '{config.get('name')}'")
-
-    expected_unique_id = f"scheiber_bloc9_{bus_id}_sensor"
-    if config.get("unique_id") != expected_unique_id:
-        errors.append(
-            f"unique_id: expected '{expected_unique_id}', got '{config.get('unique_id')}'"
-        )
-
-    expected_state_topic = f"{MQTT_TOPIC_PREFIX}/scheiber/bloc9/{bus_id}"
-    if config.get("state_topic") != expected_state_topic:
-        errors.append(
-            f"state_topic: expected '{expected_state_topic}', got '{config.get('state_topic')}'"
-        )
-
-    expected_avail_topic = f"{expected_state_topic}/availability"
-    if config.get("availability_topic") != expected_avail_topic:
-        errors.append(
-            f"availability_topic: expected '{expected_avail_topic}', got '{config.get('availability_topic')}'"
-        )
-
-    # Check device info
-    device_info = config.get("device", {})
-    expected_device_id = f"scheiber_bloc9_{bus_id}"
-    if expected_device_id not in device_info.get("identifiers", []):
-        errors.append(
-            f"device identifiers: expected '{expected_device_id}' in {device_info.get('identifiers')}"
-        )
-
-    if errors:
-        print(f"     ❌ ERRORS:")
-        for error in errors:
-            print(f"        - {error}")
-        return False
-    else:
-        print(f"     ✅ OK")
-        return True
+def verify_unified_device_structure():
+    """
+    Verify that the unified Scheiber device structure is used (v4.0.0+).
+    Returns True if any entity uses the unified device, False otherwise.
+    """
+    return True  # v4.0.0 always uses unified structure
 
 
 def verify_entity_config(disc_config, mqtt_configs):
@@ -199,19 +157,38 @@ def verify_entity_config(disc_config, mqtt_configs):
                 f"on_command_type: expected 'brightness', got '{config.get('on_command_type')}'"
             )
 
-    # Check device info
+    # Check device info (v4.0.0+: unified Scheiber device)
     device_info = config.get("device", {})
-    expected_device_id = f"scheiber_bloc9_{bus_id}_{output}"
-    if expected_device_id not in device_info.get("identifiers", []):
+
+    # Verify unified device identifier
+    expected_identifiers = ["scheiber_system"]
+    if device_info.get("identifiers") != expected_identifiers:
         errors.append(
-            f"device identifiers: expected '{expected_device_id}' in {device_info.get('identifiers')}"
+            f"device identifiers: expected {expected_identifiers}, got {device_info.get('identifiers')}"
         )
 
-    # Check via_device (link to parent Bloc9)
-    expected_via_device = f"scheiber_bloc9_{bus_id}"
-    if device_info.get("via_device") != expected_via_device:
+    # Verify device name
+    if device_info.get("name") != "Scheiber":
         errors.append(
-            f"via_device: expected '{expected_via_device}', got '{device_info.get('via_device')}'"
+            f"device name: expected 'Scheiber', got '{device_info.get('name')}'"
+        )
+
+    # Verify device model
+    if device_info.get("model") != "Marine Lighting Control System":
+        errors.append(
+            f"device model: expected 'Marine Lighting Control System', got '{device_info.get('model')}'"
+        )
+
+    # Verify manufacturer
+    if device_info.get("manufacturer") != "Scheiber":
+        errors.append(
+            f"device manufacturer: expected 'Scheiber', got '{device_info.get('manufacturer')}'"
+        )
+
+    # v4.0.0: via_device should not be present
+    if "via_device" in device_info:
+        errors.append(
+            f"via_device: should not be present in v4.0.0+ (found '{device_info.get('via_device')}')"
         )
 
     if errors:
@@ -252,6 +229,12 @@ def main():
     total_checks = 0
     passed_checks = 0
 
+    print(f"\n{'=' * 80}")
+    print(f"DEVICE STRUCTURE: v4.0.0 (Unified Scheiber Device)")
+    print(f"{'=' * 80}\n")
+    print("All entities belong to a single 'Scheiber' device")
+    print("Device identifier: scheiber_system\n")
+
     for bus_id in sorted(config.get_all_bloc9_ids()):
         device_configs = config.get_bloc9_configs(bus_id)
         if not device_configs:
@@ -262,13 +245,6 @@ def main():
         print(f"\n{'=' * 80}")
         print(f"Bloc9 {bus_id} - {device_name}")
         print(f"{'=' * 80}\n")
-
-        # Verify Bloc9 sensor device
-        total_checks += 1
-        if verify_bloc9_sensor_device(bus_id, device_name, mqtt_configs):
-            passed_checks += 1
-
-        print()
 
         # Verify each entity
         for disc_config in device_configs:

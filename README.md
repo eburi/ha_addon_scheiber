@@ -10,11 +10,11 @@ This Home Assistant add-on provides a bridge between Scheiber devices on a CAN b
 
 **Explicit entity configuration for safety and control:** You must define which outputs to expose via a `scheiber.yaml` configuration file placed in Home Assistant's `/config/` directory.
 
-**Device Hierarchy:** Each Bloc9 creates a clear device hierarchy in Home Assistant:
-- Bloc9 sensor device showing bus statistics and switch states
-- Individual light devices (each with its own device entry)
-- Individual switch devices (each with its own device entry)
-- All lights and switches link back to their parent Bloc9 via `via_device`
+**Device Structure (v4.0.0+):** All entities belong to a single unified "Scheiber" device:
+- Single "Scheiber - Marine Lighting Control System" device in Home Assistant
+- All lights and switches appear as entities under this one device
+- Cleaner entity naming: `light.scheiber_<name>` instead of repetitive names
+- Simplified device management with all Scheiber entities in one place
 
 ### Current Features
 
@@ -122,19 +122,20 @@ Publish to these topics to control devices. The bridge:
 
 ### MQTT Discovery Configuration
 
-**Device Hierarchy:**
+**Device Structure (v4.0.0+):**
 
-Each Bloc9 panel is represented in Home Assistant as a hierarchical device structure:
+All Scheiber entities belong to a single unified device in Home Assistant:
 
-1. **Bloc9 Sensor Device** — Main device showing bus statistics
-   - Discovery: `<mqtt_topic_prefix>/sensor/<bloc9_name_snake_case>/config`
-   - State: `<mqtt_topic_prefix>/scheiber/bloc9/<bus_id>` (JSON with bus_id and switches)
-   - Shows the current state of all switches as JSON attributes
+1. **Unified Scheiber Device** — Single device for all entities
+   - Device identifier: `scheiber_system`
+   - Device name: "Scheiber"
+   - Device model: "Marine Lighting Control System"
+   - All lights and switches appear as entities under this device
 
-2. **Individual Light/Switch Devices** — Each output as a separate device
+2. **Entity Discovery** — Standard Home Assistant pattern
    - Discovery: `<mqtt_topic_prefix>/{component}/{entity_id}/config`
-   - Each has its own device entry with `via_device` linking back to the Bloc9 sensor
-   - Creates a clear parent-child relationship visible in Home Assistant's device page
+   - Each entity references the unified Scheiber device
+   - No `via_device` hierarchy - flat structure under one device
 
 **Discovery Topic Pattern** (follows standard Home Assistant convention):
 ```
@@ -142,9 +143,10 @@ Each Bloc9 panel is represented in Home Assistant as a hierarchical device struc
 ```
 
 Examples:
-- `homeassistant/sensor/bloc9_x26_id_7/config` — Bloc9 sensor device
-- `homeassistant/light/salon_working_light/config` — Individual light device
-- `homeassistant/switch/salon_water_pump/config` — Individual switch device
+- `homeassistant/light/scheiber_salon_working_light/config` — Light entity
+- `homeassistant/switch/scheiber_salon_water_pump/config` — Switch entity
+
+Note: Entity names now include "scheiber_" prefix for clarity when multiple devices exist
 
 **State & Command Topics** (scheiber-specific namespace):
 ```
@@ -162,11 +164,11 @@ Examples:
 
 **Published discovery config includes:**
 - Unique ID for each entity
-- Individual device information for each light/switch
-- Parent Bloc9 device referenced via `via_device`
+- Unified Scheiber device information (identifier: `scheiber_system`)
 - State, command, and availability topic references
 - Brightness configuration (for lights only)
 - QoS and retain settings
+- No `via_device` - all entities directly belong to the Scheiber device
 
 See:
 - [Home Assistant MQTT Light](https://www.home-assistant.io/integrations/light.mqtt/)
@@ -274,11 +276,33 @@ bloc9:
 
 4. **Start Small**: Begin with a few non-critical outputs, then expand after testing
 
-#### Migration from v2.x
+#### Migration from Previous Versions
+
+**v4.0.0 - Unified Device Structure (BREAKING CHANGE)**
+
+**What changed**: All entities now belong to a single "Scheiber" device instead of individual devices per output.
+
+**Benefits**:
+- Cleaner entity naming: `light.scheiber_<name>` instead of `light.<name>_<name>`
+- Simplified device management in Home Assistant
+- All Scheiber entities grouped under one device
+
+**Migration steps from v3.x**:
+1. **Before upgrading**: Note your current entity IDs and automations
+2. **Upgrade** to v4.0.0
+3. **In Home Assistant**:
+   - Go to Settings → Devices & Services → MQTT
+   - Delete old Scheiber device entries (one per Bloc9, one per entity)
+4. **Restart the addon** - new unified device will be created
+5. **Update automations/scripts** with new entity IDs:
+   - Old: `light.main_light_saloon_aft_main_light_saloon_aft`
+   - New: `light.scheiber_main_light_saloon_aft`
+
+**Migration from v2.x**
 
 **Old behavior (v2.x)**: All 6 outputs on every detected Bloc9 device were automatically exposed as lights.
 
-**New behavior (v3.0.0)**: Only outputs explicitly configured in `scheiber.yaml` are exposed.
+**New behavior (v3.0.0+)**: Only outputs explicitly configured in `scheiber.yaml` are exposed.
 
 **Migration steps**:
 1. Create `/config/scheiber.yaml` in your Home Assistant configuration directory
@@ -632,6 +656,8 @@ python analyze_dimming.py can1
 
 After making code changes, update `version` in `scheiber/config.yaml` following semantic versioning:
 
+**Current Version**: 4.0.0
+
 - **PATCH** (X.Y.Z): Bug fixes, small tweaks, no API changes
   - Example: Empty payload handling, log message fixes
   - Increment: `2.0.3` → `2.0.4`
@@ -676,27 +702,27 @@ After making code changes, update `version` in `scheiber/config.yaml` following 
 
 **"Invalid command payload: - invalid literal for int()" Error**
 - **Cause**: Empty retained MQTT messages left from previous runs
-- **Solution**: The bridge now handles this automatically (v2.0.4+). Empty payloads are detected early and logged but don't cause errors.
+- **Solution**: The bridge handles this automatically. Empty payloads are detected early and logged but don't cause errors.
 - **Prevention**: Bridge clears retained command messages after execution
 
 **Devices Not Recovering After Timeout**
 - **Cause**: Heartbeat updates not triggered on all message types
-- **Solution**: Fixed in v2.0.2 - heartbeat updates on ANY matching CAN message
+- **Solution**: Heartbeat updates on ANY matching CAN message (including unchanged status)
 - **Check**: Verify CAN bus traffic with `candump can1`
 
 **Brightness Changes Followed by Full Brightness**
 - **Cause**: Home Assistant sending ON command after brightness
-- **Solution**: Fixed in v2.0.1 with `on_command_type: "brightness"`
+- **Solution**: Uses `on_command_type: "brightness"` to prevent duplicate commands
 - **Verify**: Check discovery config includes correct on_command_type
 
 **Lights Unavailable in Home Assistant UI**
 - **Cause**: Old per-property availability system
-- **Solution**: v2.0.0+ uses heartbeat-based availability (60s timeout)
+- **Solution**: Uses heartbeat-based availability (60s timeout)
 - **Check**: Look for status messages (0x00000600 prefix) in CAN traffic
 
 **Spinning Loading Indicator After Brightness Change**
 - **Cause**: Waiting for state confirmation from bridge
-- **Solution**: v2.0.3+ implements optimistic state updates
+- **Solution**: Implements optimistic state updates for immediate UI feedback
 - **Verify**: State should update immediately in HA, not after CAN confirmation
 
 **Old Configs Not Updating in Home Assistant**
@@ -825,6 +851,45 @@ When reporting issues, include:
 - **Limited Device Support**: Only Bloc9 switch panels currently implemented
 - **No Dimming Protocol**: Brightness control works but underlying protocol not fully decoded
 - **Linux Only**: Requires SocketCAN interface (not available on Windows/macOS)
+
+## Version History
+
+### v4.0.0 (December 2025) - BREAKING CHANGE
+**Unified Device Structure**
+- All entities now belong to single "Scheiber" device in Home Assistant
+- Simplified entity naming: `light.scheiber_<name>` instead of repetitive names
+- Removed individual device entries per output
+- Removed Bloc9 sensor devices
+- Device identifier: `scheiber_system`
+- Breaking: Requires manual cleanup of old devices and automation updates
+
+### v3.1.6 (December 2025)
+- Fixed: Devices going offline when state unchanged for >60s
+- Heartbeat now updates on ANY CAN message, even if data unchanged
+
+### v3.x Series (December 2025)
+- Explicit entity configuration via `scheiber.yaml`
+- Safety controls: only expose configured outputs
+- Config integrity checks (duplicate detection)
+- Choice of lights vs switches per output
+- Hierarchical device structure (removed in v4.0.0)
+
+### v2.x Series (December 2025)
+- Heartbeat-based availability tracking
+- Optimistic state updates
+- Retained message handling
+- State persistence between restarts
+
+### v1.x Series (December 2025)
+- Initial MQTT Discovery implementation
+- Basic Bloc9 ON/OFF control
+- Brightness control (partially working)
+
+### v0.x Series (November-December 2025)
+- Reverse engineering phase
+- Protocol discovery
+- CAN message analysis tools
+- Initial bridge architecture
 - **No Automated Tests**: Testing requires physical hardware
 - **Breaking Changes Expected**: Protocol understanding may change, requiring config updates
 - **Experimental Status**: Use at your own risk, functionality may be incomplete or incorrect
