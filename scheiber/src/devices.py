@@ -606,8 +606,8 @@ class Bloc9(ScheiberCanDevice):
         self.heartbeat_timeout = 60  # Seconds before marking offline
         self.is_online = False  # Current online status
 
-        # Transition controller for smooth brightness changes
-        self.transition_controller = TransitionController(self, step_delay=0.1)
+        # Transition controller for smooth brightness changes (50Hz = 20ms steps)
+        self.transition_controller = TransitionController(self, step_delay=0.02)
 
         # Flash controller for attention-getting effects
         self.flash_controller = FlashController(self, flash_transition_length=0.25)
