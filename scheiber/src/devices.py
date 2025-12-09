@@ -606,6 +606,10 @@ class Bloc9(ScheiberCanDevice):
         self.heartbeat_timeout = 60  # Seconds before marking offline
         self.is_online = False  # Current online status
 
+        # Dimming threshold: values 0-threshold = OFF, (255-threshold)-255 = full ON
+        # This prevents LEDs from flickering at extreme brightness values
+        self.dimming_threshold = 2  # Configurable threshold (0-2 = OFF, 253-255 = ON)
+
         # Transition controller for smooth brightness changes (50Hz = 20ms steps)
         self.transition_controller = TransitionController(self, step_delay=0.02)
 
@@ -1002,6 +1006,14 @@ class Bloc9(ScheiberCanDevice):
         """
         Send a switch command to the Bloc9 device via CAN bus.
 
+        Handles Bloc9 output specialty:
+        - Brightness 0-threshold: OFF (no PWM, switch off)
+        - Brightness (255-threshold)-255: Full ON (no PWM, switch on)
+        - Brightness threshold+1 to 254-threshold: PWM dimming mode
+
+        This prevents LED flickering at extreme brightness values and ensures
+        smooth transitions between OFF, PWM dimming, and full ON states.
+
         Args:
             switch_nr: Switch number (0-5 for S1-S6)
             state: Boolean state (True for ON, False for OFF)
@@ -1018,23 +1030,29 @@ class Bloc9(ScheiberCanDevice):
 
             # Construct 4-byte body based on brightness parameter
             if brightness is not None:
-                if brightness == 0:
-                    # Brightness 0 = turn off
+                # Apply dimming threshold for edge cases
+                if brightness <= self.dimming_threshold:
+                    # Low brightness = OFF (no PWM, switch off)
                     data = bytes([switch_nr, 0x00, 0x00, 0x00])
-                    self.logger.debug(f"Switch {switch_nr} -> OFF (brightness=0)")
-                elif brightness == 255:
-                    # Brightness 255 = turn on (without brightness control)
+                    self.logger.debug(
+                        f"Switch {switch_nr} -> OFF (brightness={brightness} <= threshold={self.dimming_threshold})"
+                    )
+                elif brightness >= (255 - self.dimming_threshold):
+                    # High brightness = full ON (no PWM, switch on)
                     data = bytes([switch_nr, 0x01, 0x00, 0x00])
-                    self.logger.debug(f"Switch {switch_nr} -> ON (brightness=255)")
+                    self.logger.debug(
+                        f"Switch {switch_nr} -> ON (brightness={brightness} >= {255 - self.dimming_threshold})"
+                    )
                 else:
-                    # Set brightness level (byte 1 = 0x11, byte 3 = brightness)
+                    # Middle range = PWM dimming mode
+                    # Brightness byte range: threshold+1 to 254-threshold
                     brightness_byte = max(1, min(254, brightness))
                     data = bytes([switch_nr, 0x11, 0x00, brightness_byte])
                     self.logger.debug(
-                        f"Switch {switch_nr} -> brightness={brightness_byte}"
+                        f"Switch {switch_nr} -> PWM brightness={brightness_byte}"
                     )
             else:
-                # Simple ON/OFF mode
+                # Simple ON/OFF mode (no brightness specified)
                 state_byte = 0x01 if state else 0x00
                 data = bytes([switch_nr, state_byte, 0x00, 0x00])
                 self.logger.debug(f"Switch {switch_nr} -> {'ON' if state else 'OFF'}")
@@ -1205,6 +1223,7 @@ class Bloc9(ScheiberCanDevice):
             # There's an active operation - check if this state change is unexpected
             # Compare the incoming state with our internal state expectation
             current_internal_state = self.state.get(property_name, "OFF")
+            current_internal_brightness = self.state.get(brightness_key, 0)
 
             # Normalize internal state for comparison (handle numeric/string variations)
             if str(current_internal_state) in ("1", "True", "true", "ON"):
@@ -1214,22 +1233,33 @@ class Bloc9(ScheiberCanDevice):
             else:
                 normalized_internal = str(current_internal_state)
 
-            # If the CAN bus reports a different state than what we're tracking internally,
+            # Determine expected state based on brightness and dimming threshold
+            # This accounts for the Bloc9 behavior where:
+            # - brightness <= threshold -> state=OFF
+            # - brightness >= (255 - threshold) -> state=ON (full)
+            # - middle range -> state=ON (PWM)
+            if current_internal_brightness <= self.dimming_threshold:
+                expected_state = "OFF"
+            else:
+                expected_state = "ON"
+
+            # If the CAN bus reports a different state than what we expect based on brightness,
             # this indicates an external command (hardware button override)
-            if state_value != normalized_internal:
+            # Use expected_state (brightness-aware) instead of normalized_internal (simple state)
+            if state_value != expected_state:
                 self.logger.warning(
                     f"Unexpected CAN bus state change for {property_name}: "
-                    f"received {state_value} but expected {normalized_internal} "
-                    f"(raw internal: {current_internal_state}, "
+                    f"received {state_value} but expected {expected_state} "
+                    f"(brightness={current_internal_brightness}, state={normalized_internal}, "
                     f"active: transition={has_active_transition}, flash={has_active_flash}). "
                     f"External override detected - cancelling operation."
                 )
                 self.transition_controller.cancel_transition(property_name)
                 self.flash_controller.cancel_flash(property_name)
             else:
-                # State matches - this is echo from our own command
+                # State matches expected - this is echo from our own command
                 self.logger.debug(
-                    f"State change for {property_name} matches internal state, "
+                    f"State change for {property_name} matches expected state, "
                     f"assuming echo from our command during "
                     f"{'transition' if has_active_transition else 'flash'}"
                 )
