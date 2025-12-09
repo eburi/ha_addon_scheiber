@@ -182,8 +182,9 @@ class TransitionController:
             for step in range(num_steps + 1):
                 # Check if we should stop
                 if stop_event.is_set():
-                    self.logger.debug(
-                        f"Transition cancelled for {property_name} at step {step}"
+                    self.logger.warning(
+                        f"Transition interrupted for {property_name} at step {step}/{num_steps} "
+                        f"({step/num_steps*100:.0f}% complete)"
                     )
                     return
 
@@ -242,6 +243,202 @@ class TransitionController:
             with self.lock:
                 if property_name in self.active_transitions:
                     del self.active_transitions[property_name]
+                if property_name in self.stop_events:
+                    del self.stop_events[property_name]
+
+
+class FlashController:
+    """
+    Manages flash effects for lights.
+
+    Flash briefly turns the light ON (or to a specific brightness) then returns to
+    the previous state. This is useful for attention-getting notifications.
+    """
+
+    def __init__(self, device, flash_transition_length: float = 0.25):
+        """
+        Initialize the flash controller.
+
+        Args:
+            device: The device instance (must have _send_switch_command method)
+            flash_transition_length: Transition time for flash ON/OFF in seconds (default 250ms)
+        """
+        self.device = device
+        self.flash_transition_length = flash_transition_length
+        self.logger = logging.getLogger(f"{__name__}.FlashController")
+
+        # Track active flashes: {property_name: thread}
+        self.active_flashes = {}
+
+        # Lock for thread-safe access
+        self.lock = threading.Lock()
+
+        # Stop events for cancelling flashes: {property_name: Event}
+        self.stop_events = {}
+
+    def start_flash(
+        self,
+        property_name: str,
+        switch_nr: int,
+        duration: float,
+        previous_state: bool,
+        previous_brightness: int,
+        on_complete: Optional[Callable[[], None]] = None,
+    ):
+        """
+        Start a flash effect.
+
+        Args:
+            property_name: Name of the property (e.g., 's1')
+            switch_nr: Switch number (0-5)
+            duration: Flash duration in seconds
+            previous_state: State to restore after flash
+            previous_brightness: Brightness to restore after flash
+            on_complete: Optional callback to invoke when flash completes
+        """
+        # Cancel any existing flash for this property
+        self.cancel_flash(property_name)
+
+        # Create a new stop event
+        stop_event = threading.Event()
+        with self.lock:
+            self.stop_events[property_name] = stop_event
+
+        # Start flash in a new thread
+        thread = threading.Thread(
+            target=self._execute_flash,
+            args=(
+                property_name,
+                switch_nr,
+                duration,
+                previous_state,
+                previous_brightness,
+                stop_event,
+                on_complete,
+            ),
+            daemon=True,
+            name=f"Flash-{property_name}",
+        )
+
+        with self.lock:
+            self.active_flashes[property_name] = thread
+
+        thread.start()
+        self.logger.info(
+            f"Started flash for {property_name}: duration={duration}s, "
+            f"restore to state={previous_state}, brightness={previous_brightness}"
+        )
+
+    def cancel_flash(self, property_name: str):
+        """
+        Cancel an active flash.
+
+        Args:
+            property_name: Name of the property to cancel flash for
+        """
+        with self.lock:
+            # Signal the thread to stop
+            if property_name in self.stop_events:
+                self.stop_events[property_name].set()
+
+            # Wait for thread to finish
+            if property_name in self.active_flashes:
+                thread = self.active_flashes[property_name]
+                # Don't wait if we're on the same thread
+                if threading.current_thread() != thread:
+                    thread.join(timeout=1.0)
+                    if thread.is_alive():
+                        self.logger.warning(
+                            f"Flash thread for {property_name} did not stop cleanly"
+                        )
+
+                del self.active_flashes[property_name]
+
+            # Clean up stop event
+            if property_name in self.stop_events:
+                del self.stop_events[property_name]
+
+    def cancel_all(self):
+        """Cancel all active flashes."""
+        with self.lock:
+            property_names = list(self.active_flashes.keys())
+
+        for property_name in property_names:
+            self.cancel_flash(property_name)
+
+    def _execute_flash(
+        self,
+        property_name: str,
+        switch_nr: int,
+        duration: float,
+        previous_state: bool,
+        previous_brightness: int,
+        stop_event: threading.Event,
+        on_complete: Optional[Callable[[], None]],
+    ):
+        """
+        Execute a flash effect in the current thread.
+
+        This method runs in a background thread and should not be called directly.
+        """
+        try:
+            # Phase 1: Transition to ON (full brightness)
+            if stop_event.is_set():
+                self.logger.warning(
+                    f"Flash interrupted for {property_name} before starting"
+                )
+                return
+
+            self.device._send_switch_command(switch_nr, True, brightness=255)
+            self.logger.debug(f"Flash {property_name}: ON at full brightness")
+
+            # Wait for the flash duration
+            # Split into small intervals to check stop_event frequently
+            check_interval = 0.1  # Check every 100ms
+            elapsed = 0.0
+
+            while elapsed < duration:
+                if stop_event.is_set():
+                    self.logger.warning(
+                        f"Flash interrupted for {property_name} after {elapsed:.1f}s "
+                        f"({elapsed/duration*100:.0f}% complete)"
+                    )
+                    return
+
+                sleep_time = min(check_interval, duration - elapsed)
+                time.sleep(sleep_time)
+                elapsed += sleep_time
+
+            # Phase 2: Restore to previous state
+            if stop_event.is_set():
+                self.logger.warning(
+                    f"Flash interrupted for {property_name} before restore phase"
+                )
+                return
+
+            self.device._send_switch_command(
+                switch_nr, previous_state, brightness=previous_brightness
+            )
+            self.logger.debug(
+                f"Flash {property_name}: restored to state={previous_state}, brightness={previous_brightness}"
+            )
+
+            # Invoke completion callback
+            if on_complete:
+                on_complete()
+
+            self.logger.info(f"Completed flash for {property_name}")
+
+        except Exception as e:
+            self.logger.error(
+                f"Error during flash for {property_name}: {e}", exc_info=True
+            )
+
+        finally:
+            # Clean up
+            with self.lock:
+                if property_name in self.active_flashes:
+                    del self.active_flashes[property_name]
                 if property_name in self.stop_events:
                     del self.stop_events[property_name]
 
@@ -412,6 +609,9 @@ class Bloc9(ScheiberCanDevice):
         # Transition controller for smooth brightness changes
         self.transition_controller = TransitionController(self, step_delay=0.1)
 
+        # Flash controller for attention-getting effects
+        self.flash_controller = FlashController(self, flash_transition_length=0.25)
+
         # Load persisted state and publish if available
         self._load_and_publish_persisted_state()
 
@@ -551,11 +751,88 @@ class Bloc9(ScheiberCanDevice):
                     transition = cmd_data.get(
                         "transition", 0
                     )  # seconds, not yet implemented
+                    flash_duration = cmd_data.get(
+                        "flash", None
+                    )  # Flash duration in seconds
 
                     if brightness < 0 or brightness > 255:
                         self.logger.error(
                             f"Brightness value out of range (0-255): {brightness}"
                         )
+                        return
+
+                    # Handle flash command
+                    if flash_duration is not None:
+                        try:
+                            flash_duration = float(flash_duration)
+                            if flash_duration <= 0:
+                                self.logger.error(
+                                    f"Flash duration must be positive: {flash_duration}"
+                                )
+                                return
+                        except (ValueError, TypeError):
+                            self.logger.error(
+                                f"Invalid flash duration value: {flash_duration}"
+                            )
+                            return
+
+                        self.logger.info(
+                            f"Executing flash command: switch={switch_nr}, duration={flash_duration}s{' (retained)' if is_retained else ''}"
+                        )
+
+                        # Cancel any existing transitions/flashes
+                        self.transition_controller.cancel_transition(property_name)
+                        self.flash_controller.cancel_flash(property_name)
+
+                        # Get current state to restore after flash
+                        current_state = self.state.get(property_name, "OFF") == "ON"
+                        current_brightness_key = f"{property_name}_brightness"
+                        current_brightness = self.state.get(current_brightness_key, 0)
+
+                        # Define callback to restore state in MQTT when flash completes
+                        def on_flash_complete():
+                            state_topic = self.get_property_topic(
+                                property_name, "state"
+                            )
+                            restore_state = "ON" if current_state else "OFF"
+                            restore_payload = json.dumps(
+                                {
+                                    "state": restore_state,
+                                    "brightness": current_brightness,
+                                }
+                            )
+                            self.mqtt_client.publish(
+                                state_topic, restore_payload, qos=1, retain=True
+                            )
+                            # Update internal state
+                            self.state[property_name] = restore_state
+                            self.state[current_brightness_key] = current_brightness
+                            self.logger.debug(
+                                f"Flash complete, restored to {restore_state} @ {current_brightness}"
+                            )
+
+                        # Start the flash
+                        self.flash_controller.start_flash(
+                            property_name=property_name,
+                            switch_nr=switch_nr,
+                            duration=flash_duration,
+                            previous_state=current_state,
+                            previous_brightness=current_brightness,
+                            on_complete=on_flash_complete,
+                        )
+
+                        # Publish flashing state immediately for HA feedback
+                        state_topic = self.get_property_topic(property_name, "state")
+                        flash_payload = json.dumps({"state": "ON", "brightness": 255})
+                        self.mqtt_client.publish(
+                            state_topic, flash_payload, qos=1, retain=True
+                        )
+
+                        # Don't persist flashing state - we'll restore after flash
+                        # Return early as flash handling is complete
+                        if is_retained:
+                            self.logger.info(f"Clearing retained command on {topic}")
+                            self.mqtt_client.publish(topic, None, qos=1, retain=True)
                         return
 
                     self.logger.info(
@@ -566,6 +843,8 @@ class Bloc9(ScheiberCanDevice):
                     # CRITICAL: Always cancel any existing transition first
                     # This ensures that turning off a light stops any running transition
                     self.transition_controller.cancel_transition(property_name)
+                    # Also cancel any active flash
+                    self.flash_controller.cancel_flash(property_name)
 
                     # Get current brightness for transition start point
                     current_brightness_key = f"{property_name}_brightness"
@@ -655,8 +934,9 @@ class Bloc9(ScheiberCanDevice):
                     self.logger.warning(
                         f"Invalid JSON payload, treating as legacy command: {payload}"
                     )
-                    # Cancel any running transition
+                    # Cancel any running transition or flash
                     self.transition_controller.cancel_transition(property_name)
+                    self.flash_controller.cancel_flash(property_name)
                     state = payload.upper() in ("ON", "1", "TRUE")
                     self._send_switch_command(switch_nr, state)
 
@@ -676,8 +956,9 @@ class Bloc9(ScheiberCanDevice):
                     self._persist_state(f"{property_name}_brightness", brightness)
             else:
                 # Non-light entities: simple ON/OFF command
-                # Cancel any running transition (safety measure)
+                # Cancel any running transition or flash (safety measure)
                 self.transition_controller.cancel_transition(property_name)
+                self.flash_controller.cancel_flash(property_name)
                 state = payload.upper() in ("ON", "1", "TRUE")
                 self.logger.info(
                     f"Executing switch command: switch={switch_nr}, state={state}{' (retained)' if is_retained else ''}"
@@ -836,6 +1117,10 @@ class Bloc9(ScheiberCanDevice):
                 config_payload["brightness"] = True
                 config_payload["supported_color_modes"] = ["brightness"]
                 config_payload["brightness_scale"] = 255
+                # Add flash support
+                config_payload["flash"] = True
+                config_payload["flash_time_short"] = 2
+                config_payload["flash_time_long"] = 10
 
             config_json = json.dumps(config_payload)
             self.logger.debug(
@@ -881,6 +1166,42 @@ class Bloc9(ScheiberCanDevice):
         # Get brightness value if available
         brightness_key = f"{property_name}_brightness"
         brightness = self.state.get(brightness_key, 255 if state_value == "ON" else 0)
+
+        # CRITICAL: Detect unexpected state changes from CAN bus (e.g., hardware button press)
+        # Strategy: Check if there's an active transition or flash for this property
+        # - If NO active operation: This could be external (hardware button) - but we can't
+        #   cancel what doesn't exist, so no action needed
+        # - If active operation exists: Check if the new state differs significantly from
+        #   what we expect. If it does, it's an external override - cancel the operation
+
+        has_active_transition = (
+            property_name in self.transition_controller.active_transitions
+        )
+        has_active_flash = property_name in self.flash_controller.active_flashes
+
+        if has_active_transition or has_active_flash:
+            # There's an active operation - check if this state change is unexpected
+            # Compare the incoming state with our internal state expectation
+            current_internal_state = self.state.get(property_name, "OFF")
+
+            # If the CAN bus reports a different state than what we're tracking internally,
+            # this indicates an external command (hardware button override)
+            if state_value != current_internal_state:
+                self.logger.warning(
+                    f"Unexpected CAN bus state change for {property_name}: "
+                    f"received {state_value} but expected {current_internal_state} "
+                    f"(active: transition={has_active_transition}, flash={has_active_flash}). "
+                    f"External override detected - cancelling operation."
+                )
+                self.transition_controller.cancel_transition(property_name)
+                self.flash_controller.cancel_flash(property_name)
+            else:
+                # State matches - this is echo from our own command
+                self.logger.debug(
+                    f"State change for {property_name} matches internal state, "
+                    f"assuming echo from our command during "
+                    f"{'transition' if has_active_transition else 'flash'}"
+                )
 
         # Publish as JSON for lights (entities configured via discovery_configs)
         is_light = any(

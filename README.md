@@ -180,6 +180,43 @@ The bridge intelligently selects easing based on context:
 - Legacy v4 ON/OFF commands still accepted for lights
 - Automatically converted to JSON state internally
 
+**Flash Support (v5.2.0+):**
+
+Lights support flash effects for attention-getting notifications (like doorbell alerts).
+
+**Flash Command:**
+```json
+{"flash": 2}
+```
+
+**Parameters:**
+- `flash`: Duration in seconds (float)
+- Default short: 2 seconds
+- Default long: 10 seconds
+- Any positive duration supported
+
+**Example commands:**
+- Short flash (2s): `{"flash": 2}`
+- Long flash (10s): `{"flash": 10}`
+- Custom duration: `{"flash": 0.5}` (500ms)
+
+**Behavior:**
+1. Saves current state and brightness
+2. Turns light ON at full brightness (255)
+3. Waits for flash duration
+4. Restores previous state and brightness
+
+**Thread Safety:**
+- Multiple lights can flash concurrently
+- New commands cancel running flashes immediately
+- Flash preserves previous state even if light was off
+
+**Use Cases:**
+- Doorbell notifications
+- Alert indicators
+- Status signaling
+- Temporary lighting
+
 ### MQTT Discovery Configuration
 
 **Device Structure (v4.0.0+):**
@@ -1075,6 +1112,24 @@ When reporting issues, include:
 - **Linux Only**: Requires SocketCAN interface (not available on Windows/macOS)
 
 ## Version History
+
+### v5.2.0 (December 2025)
+**Flash Support**
+- Flash effects for lights: `{"flash": 2}` (duration in seconds)
+- Configurable flash_time_short (2s) and flash_time_long (10s) in discovery
+- Thread-safe concurrent flashes across multiple lights
+- Preserves previous state and brightness after flash
+- Ideal for doorbell notifications and alerts
+
+### v5.1.0 (December 2025)
+**Transition Support with Easing Functions**
+- Smooth brightness transitions: `{"state": "ON", "brightness": 200, "transition": 2}`
+- 13 easing functions: linear, sine, quad, cubic, quart variants (in/out/in-out)
+- Automatic easing selection: ease-out-cubic for fade-up, ease-in-cubic for fade-down
+- 10 Hz update rate (100ms per frame) for hardware-friendly operation
+- ~10 msg/s per transitioning light, <6% CAN bus capacity for 6 simultaneous transitions
+- Thread-safe TransitionController with concurrent transition support
+- Critical safety: always cancels transitions on new commands (guaranteed OFF)
 
 ### v5.0.0 (December 2025) - BREAKING CHANGE
 **JSON Schema + Dict-Based Configuration**
