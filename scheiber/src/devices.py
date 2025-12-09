@@ -1349,12 +1349,16 @@ class Bloc9(ScheiberCanDevice):
                     f"assuming echo from our command during "
                     f"{'transition' if has_active_transition else 'flash'}"
                 )
-                
+
                 # CRITICAL FIX: When echoing threshold-crossing commands (simple ON/OFF),
                 # the hardware reports brightness=0 in status messages even though we commanded
                 # a specific brightness (e.g., 255). Preserve our internal brightness state
                 # instead of overwriting with the CAN message brightness.
-                if brightness == 0 and state_value == "ON" and current_internal_brightness > self.dimming_threshold:
+                if (
+                    brightness == 0
+                    and state_value == "ON"
+                    and current_internal_brightness > self.dimming_threshold
+                ):
                     # This is an echo of a threshold-crossing command
                     # Use our internal brightness instead of the 0 from the CAN message
                     brightness = current_internal_brightness
@@ -1381,7 +1385,7 @@ class Bloc9(ScheiberCanDevice):
 
         # Persist switch state and brightness
         self._persist_state(property_name, state_value)
-        
+
         # For lights, also persist brightness separately
         if is_light:
             self._persist_state(brightness_key, brightness)
