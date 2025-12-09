@@ -1366,6 +1366,20 @@ class Bloc9(ScheiberCanDevice):
                         f"Preserving internal brightness {brightness} for {property_name} "
                         f"(CAN echo reported 0 for threshold-crossing ON command)"
                     )
+        else:
+            # No active transition/flash - but still check for threshold-crossing echo
+            # After a transition completes and crosses threshold, the echo may arrive
+            # after the transition is already removed from active_transitions
+            if brightness == 0 and state_value == "ON":
+                # Check if we have a recent high brightness in state
+                current_internal_brightness = self.state.get(brightness_key, 0)
+                if current_internal_brightness > self.dimming_threshold:
+                    # Likely an echo from a threshold-crossing command
+                    brightness = current_internal_brightness
+                    self.logger.debug(
+                        f"Preserving internal brightness {brightness} for {property_name} "
+                        f"(CAN echo reported 0, no active transition)"
+                    )
 
         # Publish as JSON for lights (entities configured via discovery_configs)
         is_light = any(

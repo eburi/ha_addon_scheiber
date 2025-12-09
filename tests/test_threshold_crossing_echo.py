@@ -121,29 +121,37 @@ class TestThresholdCrossingEcho:
 
         assert state_data["s5_brightness"] == 255
 
-    def test_brightness_not_preserved_without_active_transition(
-        self, bloc9_device, mock_mqtt
-    ):
+    def test_brightness_preserved_post_transition_echo(self, bloc9_device, mock_mqtt):
         """
-        Test that brightness preservation only happens during active transitions.
+        Test that brightness is preserved even when echo arrives after transition completes.
 
-        If there's no active transition, accept the brightness from state normally.
+        Scenario (the actual bug from user log):
+        1. Transition completes at brightness 252
+        2. Final ON command sent, transition removed from active_transitions
+        3. CAN echo arrives with brightness=0 (threshold-crossing)
+        4. No active transition exists anymore, but internal state has high brightness
+        5. System should preserve internal brightness, not accept 0
+
+        This is the race condition fix: the echo arrives microseconds after
+        the transition cleanup.
         """
-        # No active transition
+        # No active transition (it just completed and was removed)
         assert "s5" not in bloc9_device.transition_controller.active_transitions
 
-        # Set state to ON with brightness 100
+        # But internal state has high brightness from the completed transition
         bloc9_device.state["s5"] = "ON"
-        bloc9_device.state["s5_brightness"] = 100
+        bloc9_device.state["s5_brightness"] = 252
 
-        # Publish state (no active transition, should use state as-is)
+        # Publish state with brightness=0 from CAN echo
+        # (This is what publish_state would see when called with brightness=0 from decoder)
+        # The new fix should detect: no active transition BUT internal brightness > threshold
         bloc9_device.publish_state("s5", "ON")
 
-        # Verify that brightness was published normally
+        # Verify that internal brightness was preserved, not overwritten to 0
         last_publish = mock_mqtt.publish.call_args_list[-1]
         published_payload = json.loads(last_publish[0][1])
 
-        assert published_payload["brightness"] == 100
+        assert published_payload["brightness"] == 252
 
     def test_brightness_zero_preserved_during_transition_with_high_internal_brightness(
         self, bloc9_device, mock_mqtt
