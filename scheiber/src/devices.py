@@ -1349,6 +1349,19 @@ class Bloc9(ScheiberCanDevice):
                     f"assuming echo from our command during "
                     f"{'transition' if has_active_transition else 'flash'}"
                 )
+                
+                # CRITICAL FIX: When echoing threshold-crossing commands (simple ON/OFF),
+                # the hardware reports brightness=0 in status messages even though we commanded
+                # a specific brightness (e.g., 255). Preserve our internal brightness state
+                # instead of overwriting with the CAN message brightness.
+                if brightness == 0 and state_value == "ON" and current_internal_brightness > self.dimming_threshold:
+                    # This is an echo of a threshold-crossing command
+                    # Use our internal brightness instead of the 0 from the CAN message
+                    brightness = current_internal_brightness
+                    self.logger.debug(
+                        f"Preserving internal brightness {brightness} for {property_name} "
+                        f"(CAN echo reported 0 for threshold-crossing ON command)"
+                    )
 
         # Publish as JSON for lights (entities configured via discovery_configs)
         is_light = any(
@@ -1366,8 +1379,12 @@ class Bloc9(ScheiberCanDevice):
 
         self.mqtt_client.publish(topic, payload, qos=1, retain=True)
 
-        # Persist switch state
+        # Persist switch state and brightness
         self._persist_state(property_name, state_value)
+        
+        # For lights, also persist brightness separately
+        if is_light:
+            self._persist_state(brightness_key, brightness)
 
     def _get_state_file_path(self) -> Path:
         """Get the path to the state file for this device."""
