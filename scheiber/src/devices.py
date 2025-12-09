@@ -892,6 +892,28 @@ class Bloc9(ScheiberCanDevice):
                     if should_transition:
                         # Use transition controller for smooth dimming
 
+                        # Adjust transition endpoints to avoid threshold zones
+                        # This prevents sending duplicate commands when multiple brightness
+                        # values map to the same CAN command (OFF/ON)
+                        transition_start = current_brightness
+                        transition_end = brightness
+
+                        # If transitioning to extreme values, clamp to visible PWM range
+                        if brightness <= self.dimming_threshold:
+                            # Fading to OFF: fade to threshold+1, then send final OFF
+                            transition_end = max(self.dimming_threshold + 1, brightness)
+                        elif brightness >= (255 - self.dimming_threshold):
+                            # Fading to full ON: fade to (255-threshold-1), then send final ON
+                            transition_end = min(
+                                255 - self.dimming_threshold - 1, brightness
+                            )
+
+                        # Similarly adjust start point if needed
+                        if current_brightness <= self.dimming_threshold:
+                            transition_start = self.dimming_threshold + 1
+                        elif current_brightness >= (255 - self.dimming_threshold):
+                            transition_start = 255 - self.dimming_threshold - 1
+
                         # Determine easing function based on transition context
                         if current_brightness == 0 and brightness > 0:
                             # Fading up from off - use ease_out_cubic for snappy start
@@ -905,6 +927,7 @@ class Bloc9(ScheiberCanDevice):
 
                         self.logger.info(
                             f"Starting transition: {current_brightness} -> {brightness} "
+                            f"(adjusted: {transition_start} -> {transition_end}) "
                             f"over {transition}s using {easing}"
                         )
 
@@ -924,19 +947,54 @@ class Bloc9(ScheiberCanDevice):
                             self.state[property_name] = step_state
                             self.state[current_brightness_key] = step_brightness
 
+                        # Update internal state to target brightness BEFORE starting transition
+                        # This ensures expected_state calculation sees correct value when CAN echoes arrive
+                        final_state = "ON" if brightness > 0 else "OFF"
+                        self.state[property_name] = final_state
+                        self.state[current_brightness_key] = brightness
+
                         # Start the transition
                         self.transition_controller.start_transition(
                             property_name=property_name,
                             switch_nr=switch_nr,
-                            start_brightness=current_brightness,
-                            end_brightness=brightness,
+                            start_brightness=transition_start,
+                            end_brightness=transition_end,
                             duration=transition,
                             easing_name=easing,
                             on_step=on_step,
                         )
 
+                        # After transition completes, send final command if needed
+                        # (e.g., if we clamped to threshold+1 but want brightness=0)
+                        if brightness != transition_end:
+                            # Schedule final command after transition
+                            def send_final_command():
+                                import time
+
+                                time.sleep(
+                                    transition + 0.1
+                                )  # Wait for transition + small buffer
+                                self._send_switch_command(
+                                    switch_nr, state, brightness=brightness
+                                )
+                                # Publish final state
+                                state_topic = self.get_property_topic(
+                                    property_name, "state"
+                                )
+                                final_payload = json.dumps(
+                                    {"state": final_state, "brightness": brightness}
+                                )
+                                self.mqtt_client.publish(
+                                    state_topic, final_payload, qos=1, retain=True
+                                )
+
+                            import threading
+
+                            threading.Thread(
+                                target=send_final_command, daemon=True
+                            ).start()
+
                         # Persist final state (will be reached after transition completes)
-                        final_state = "ON" if brightness > 0 else "OFF"
                         self._persist_state(property_name, final_state)
                         self._persist_state(current_brightness_key, brightness)
 
