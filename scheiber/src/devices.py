@@ -943,15 +943,10 @@ class Bloc9(ScheiberCanDevice):
                             self.mqtt_client.publish(
                                 state_topic, step_payload, qos=1, retain=True
                             )
-                            # Update internal state
+                            # Update internal state to current transition step
+                            # This allows expected_state calculation to track transition progress
                             self.state[property_name] = step_state
                             self.state[current_brightness_key] = step_brightness
-
-                        # Update internal state to target brightness BEFORE starting transition
-                        # This ensures expected_state calculation sees correct value when CAN echoes arrive
-                        final_state = "ON" if brightness > 0 else "OFF"
-                        self.state[property_name] = final_state
-                        self.state[current_brightness_key] = brightness
 
                         # Start the transition
                         self.transition_controller.start_transition(
@@ -964,6 +959,9 @@ class Bloc9(ScheiberCanDevice):
                             on_step=on_step,
                         )
 
+                        # Calculate final state
+                        final_state = "ON" if brightness > 0 else "OFF"
+
                         # After transition completes, send final command if needed
                         # (e.g., if we clamped to threshold+1 but want brightness=0)
                         if brightness != transition_end:
@@ -974,6 +972,11 @@ class Bloc9(ScheiberCanDevice):
                                 time.sleep(
                                     transition + 0.1
                                 )  # Wait for transition + small buffer
+
+                                # Update internal state to final values
+                                self.state[property_name] = final_state
+                                self.state[current_brightness_key] = brightness
+
                                 self._send_switch_command(
                                     switch_nr, state, brightness=brightness
                                 )
@@ -993,6 +996,10 @@ class Bloc9(ScheiberCanDevice):
                             threading.Thread(
                                 target=send_final_command, daemon=True
                             ).start()
+                        else:
+                            # No final command needed, update state to final values now
+                            self.state[property_name] = final_state
+                            self.state[current_brightness_key] = brightness
 
                         # Persist final state (will be reached after transition completes)
                         self._persist_state(property_name, final_state)
