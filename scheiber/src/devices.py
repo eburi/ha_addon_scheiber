@@ -1236,17 +1236,29 @@ class Bloc9(ScheiberCanDevice):
 
             # Load existing state or create new
             if state_file.exists():
-                with open(state_file, "r") as f:
-                    state_data = json.load(f)
+                try:
+                    with open(state_file, "r") as f:
+                        state_data = json.load(f)
+                except json.JSONDecodeError as e:
+                    # Corrupted state file - log warning and start fresh
+                    self.logger.warning(
+                        f"Corrupted state file detected for Bloc9 {self.device_id}: {e}. "
+                        f"Creating new state file."
+                    )
+                    state_data = {}
             else:
                 state_data = {}
 
             # Update state
             state_data[property_name] = value
 
-            # Write back to file
-            with open(state_file, "w") as f:
+            # Write back to file atomically (write to temp, then rename)
+            temp_file = state_file.with_suffix(".tmp")
+            with open(temp_file, "w") as f:
                 json.dump(state_data, f, indent=2)
+
+            # Atomic rename (overwrites existing file)
+            temp_file.replace(state_file)
 
             self.logger.debug(f"Persisted state: {property_name}={value}")
         except Exception as e:
@@ -1267,6 +1279,12 @@ class Bloc9(ScheiberCanDevice):
                 f"Loaded persisted state with {len(state_data)} properties"
             )
             return state_data
+        except json.JSONDecodeError as e:
+            self.logger.error(
+                f"Failed to load persisted state (corrupted JSON): {e}. "
+                f"Starting with empty state - file will be recreated."
+            )
+            return {}
         except Exception as e:
             self.logger.error(f"Failed to load persisted state: {e}")
             return {}
