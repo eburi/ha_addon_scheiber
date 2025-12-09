@@ -126,6 +126,8 @@ def load_config(config_path: str) -> Optional[ScheiberConfig]:
     """
     Load and parse scheiber.yaml configuration file.
 
+    Supports both v4.x (list-based) and v5.x (dict-based) formats.
+
     Args:
         config_path: Path to configuration file
 
@@ -175,15 +177,11 @@ def load_config(config_path: str) -> Optional[ScheiberConfig]:
             # Track outputs used on this device for integrity check
             device_outputs: Set[str] = set()
 
-            # Parse lights
-            lights = bloc9_device.get("lights", [])
-            if not isinstance(lights, list):
-                raise ValueError(f"Bloc9 {bus_id}: 'lights' must be a list")
+            # Parse lights (supports both v4 list format and v5 dict format)
+            lights_raw = bloc9_device.get("lights", [])
+            lights_list = _normalize_entities_to_list(lights_raw, "lights", bus_id)
 
-            for light in lights:
-                if not isinstance(light, dict):
-                    raise ValueError(f"Bloc9 {bus_id}: Each light must be a dictionary")
-
+            for light in lights_list:
                 name = light.get("name")
                 entity_id = light.get("entity_id")
                 output = light.get("output")
@@ -243,17 +241,13 @@ def load_config(config_path: str) -> Optional[ScheiberConfig]:
                     )
                 )
 
-            # Parse switches
-            switches = bloc9_device.get("switches", [])
-            if not isinstance(switches, list):
-                raise ValueError(f"Bloc9 {bus_id}: 'switches' must be a list")
+            # Parse switches (supports both v4 list format and v5 dict format)
+            switches_raw = bloc9_device.get("switches", [])
+            switches_list = _normalize_entities_to_list(
+                switches_raw, "switches", bus_id
+            )
 
-            for switch in switches:
-                if not isinstance(switch, dict):
-                    raise ValueError(
-                        f"Bloc9 {bus_id}: Each switch must be a dictionary"
-                    )
-
+            for switch in switches_list:
                 name = switch.get("name")
                 entity_id = switch.get("entity_id")
                 output = switch.get("output")
@@ -331,3 +325,65 @@ def load_config(config_path: str) -> Optional[ScheiberConfig]:
         raise ValueError(f"Failed to parse YAML configuration: {e}")
     except Exception as e:
         raise ValueError(f"Error loading configuration: {e}")
+
+
+def _normalize_entities_to_list(
+    entities_raw: Any, entity_type: str, bus_id: int
+) -> List[Dict[str, Any]]:
+    """
+    Normalize entities from either v4 list format or v5 dict format to list format.
+
+    v4 format (list):
+      lights:
+        - name: "Light 1"
+          entity_id: "light.light1"
+          output: s1
+
+    v5 format (dict with output as key):
+      lights:
+        s1:
+          name: "Light 1"
+          entity_id: "light.light1"
+
+    Args:
+        entities_raw: Raw entities data (list or dict)
+        entity_type: 'lights' or 'switches' (for error messages)
+        bus_id: Bloc9 bus ID (for error messages)
+
+    Returns:
+        List of entity dictionaries with 'name', 'entity_id', and 'output' keys
+
+    Raises:
+        ValueError: If format is invalid
+    """
+    # v4 format: list of dicts
+    if isinstance(entities_raw, list):
+        logger.debug(f"Bloc9 {bus_id}: Using v4 list format for {entity_type}")
+        for entity in entities_raw:
+            if not isinstance(entity, dict):
+                raise ValueError(
+                    f"Bloc9 {bus_id}: Each {entity_type[:-1]} must be a dictionary"
+                )
+        return entities_raw
+
+    # v5 format: dict with output as key
+    elif isinstance(entities_raw, dict):
+        logger.debug(f"Bloc9 {bus_id}: Using v5 dict format for {entity_type}")
+        entities_list = []
+        for output, entity_data in entities_raw.items():
+            if not isinstance(entity_data, dict):
+                raise ValueError(
+                    f"Bloc9 {bus_id}: {entity_type} entry for '{output}' must be a dictionary"
+                )
+
+            # Add output to the entity data
+            entity = dict(entity_data)
+            entity["output"] = output
+            entities_list.append(entity)
+
+        return entities_list
+
+    else:
+        raise ValueError(
+            f"Bloc9 {bus_id}: '{entity_type}' must be a list or dictionary"
+        )

@@ -5,10 +5,10 @@ Verify MQTT discovery configs match scheiber.yaml configuration.
 Connects to MQTT broker, retrieves discovery configs, and validates them
 against the expected configuration from scheiber.yaml.
 
-Version 4.0.0+ expects:
+Version 5.0.0+ expects:
 - All entities belong to a unified "Scheiber" device (identifier: scheiber_system)
-- No separate Bloc9 sensor devices
-- Simpler entity naming
+- Lights use JSON schema with state/brightness in single topic
+- No separate brightness topics (brightness_state_topic, brightness_command_topic)
 """
 
 import sys
@@ -134,27 +134,32 @@ def verify_entity_config(disc_config, mqtt_configs):
             f"availability_topic: expected '{expected_avail_topic}', got '{config.get('availability_topic')}'"
         )
 
-    # Verify brightness topics for lights
+    # Verify brightness support for lights (v5.0.0: JSON schema)
     if component == "light":
-        expected_brightness_state = (
-            f"{MQTT_TOPIC_PREFIX}/scheiber/bloc9/{bus_id}/{output}/brightness"
-        )
-        if config.get("brightness_state_topic") != expected_brightness_state:
+        # v5.0.0: schema should be "json"
+        if config.get("schema") != "json":
+            errors.append(f"schema: expected 'json', got '{config.get('schema')}'")
+
+        # v5.0.0: brightness_scale should be 255
+        if config.get("brightness_scale") != 255:
             errors.append(
-                f"brightness_state_topic: expected '{expected_brightness_state}', got '{config.get('brightness_state_topic')}'"
+                f"brightness_scale: expected 255, got '{config.get('brightness_scale')}'"
             )
 
-        expected_brightness_command = (
-            f"{MQTT_TOPIC_PREFIX}/scheiber/bloc9/{bus_id}/{output}/set_brightness"
-        )
-        if config.get("brightness_command_topic") != expected_brightness_command:
+        # v5.0.0: should NOT have separate brightness topics
+        if "brightness_state_topic" in config:
             errors.append(
-                f"brightness_command_topic: expected '{expected_brightness_command}', got '{config.get('brightness_command_topic')}'"
+                f"brightness_state_topic: should not be present in v5.0.0 (use JSON schema instead)"
             )
 
-        if config.get("on_command_type") != "brightness":
+        if "brightness_command_topic" in config:
             errors.append(
-                f"on_command_type: expected 'brightness', got '{config.get('on_command_type')}'"
+                f"brightness_command_topic: should not be present in v5.0.0 (use JSON schema instead)"
+            )
+
+        if "on_command_type" in config:
+            errors.append(
+                f"on_command_type: should not be present in v5.0.0 (use JSON schema instead)"
             )
 
     # Check device info (v4.0.0+: unified Scheiber device)
@@ -230,10 +235,11 @@ def main():
     passed_checks = 0
 
     print(f"\n{'=' * 80}")
-    print(f"DEVICE STRUCTURE: v4.0.0 (Unified Scheiber Device)")
+    print(f"DEVICE STRUCTURE: v5.0.0 (JSON Schema + Unified Device)")
     print(f"{'=' * 80}\n")
     print("All entities belong to a single 'Scheiber' device")
-    print("Device identifier: scheiber_system\n")
+    print("Device identifier: scheiber_system")
+    print("Lights use JSON schema: {state: ON/OFF, brightness: 0-255}\n")
 
     for bus_id in sorted(config.get_all_bloc9_ids()):
         device_configs = config.get_bloc9_configs(bus_id)

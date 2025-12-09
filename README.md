@@ -16,6 +16,12 @@ This Home Assistant add-on provides a bridge between Scheiber devices on a CAN b
 - Cleaner entity naming: `light.scheiber_<name>` instead of repetitive names
 - Simplified device management with all Scheiber entities in one place
 
+**JSON Schema (v5.0.0+):** Lights use JSON MQTT payloads for better Home Assistant integration:
+- Combined state and brightness in single topic: `{"state": "ON", "brightness": 255}`
+- Supports transitions (logged but not yet implemented in CAN protocol)
+- Backwards compatible: v4 list-based configs still work
+- New dict-based config format prevents duplicate output assignments
+
 ### Current Features
 
 - **CAN-MQTT Bridge**: Translates CAN messages to MQTT topics
@@ -83,42 +89,62 @@ JSON payload with device metadata and current switch states:
 ```
 
 ### Device State Topics
+
+**v5.0.0+ (JSON Schema for Lights):**
 ```
 <prefix>/scheiber/<device-type>/<bus-id>/<property>/state
-<prefix>/scheiber/<device-type>/<bus-id>/<property>/brightness
 <prefix>/scheiber/<device-type>/<bus-id>/<property>/availability
 ```
+
+Lights publish JSON state:
+```json
+{"state": "ON", "brightness": 255}
+```
+
 Example: 
-- `homeassistant/scheiber/bloc9/7/s5/state` → `1` (ON) or `0` (OFF)
-- `homeassistant/scheiber/bloc9/7/s5/brightness` → `0-255` (raw brightness value)
+- `homeassistant/scheiber/bloc9/7/s5/state` → `{"state": "ON", "brightness": 128}` (light at 50%)
+- `homeassistant/scheiber/bloc9/7/s5/state` → `{"state": "OFF", "brightness": 0}` (light off)
 - `homeassistant/scheiber/bloc9/7/s5/availability` → `online` or `offline`
 
-**Note:** Brightness value 0 means OFF, 255 means full ON without dimming control, 1-254 are actual dimming levels.
+Non-light entities (switches) use simple payloads:
+- `homeassistant/scheiber/bloc9/7/s5/state` → `ON` or `OFF`
+
+**Note:** Brightness 0 means OFF, 255 means full ON, 1-254 are dimming levels.
 
 ### Device Command Topics
+
+**v5.0.0+ (JSON Schema for Lights):**
 ```
 <prefix>/scheiber/<device-type>/<bus-id>/<property>/set
-<prefix>/scheiber/<device-type>/<bus-id>/<property>/set_brightness
 ```
-Example: 
-- `homeassistant/scheiber/bloc9/7/s5/set` → `1` (ON) or `0` (OFF)
-- `homeassistant/scheiber/bloc9/7/s5/set_brightness` → `0-255` (brightness level)
 
-Publish to these topics to control devices. The bridge:
+Lights accept JSON commands:
+```json
+{"state": "ON", "brightness": 200, "transition": 2}
+```
+
+Example commands:
+- Turn on at 50%: `{"state": "ON", "brightness": 128}`
+- Turn off: `{"state": "OFF"}`
+- Turn on with 2s transition: `{"state": "ON", "brightness": 255, "transition": 2}`
+
+Non-light entities (switches) accept simple ON/OFF:
+- `ON`, `1`, `true` → Turn on
+- `OFF`, `0`, `false` → Turn off
+
+**Bridge Behavior:**
 1. Sends the CAN command immediately
 2. Publishes optimistic state update to MQTT (instant HA feedback)
 3. Clears any retained command messages
 4. Updates internal state cache and persists to disk
 
-**Supported payloads:**
-- ON/OFF: `1`, `ON`, `on`, `true`, `True` / `0`, `OFF`, `off`, `false`, `False`
-- Brightness: `0-255` (0 = OFF, 1-254 = dimming levels, 255 = full ON)
-- Empty payloads are silently ignored (used for clearing retained messages)
+**Transition Support:**
+- Logged but not yet implemented in CAN protocol
+- Future enhancement pending protocol understanding
 
-**Home Assistant Integration:**
-- Uses `on_command_type: "brightness"` to prevent duplicate ON commands after brightness changes
-- Optimistic mode disabled - state updates come from MQTT feedback
-- Availability tied to device heartbeat (60-second timeout)
+**Backwards Compatibility:**
+- Legacy v4 ON/OFF commands still accepted for lights
+- Automatically converted to JSON state internally
 
 ### MQTT Discovery Configuration
 
@@ -186,20 +212,43 @@ You must create a `scheiber.yaml` configuration file to expose entities via MQTT
 
 #### Configuration Structure
 
+**v5.0.0+ Dict Format (Recommended):**
+
 ```yaml
 bloc9:
-  - bus_id: 7  # Bloc9 device bus ID (from CAN messages)
-    name: "Salon Bloc9"  # Human-readable device name
-    lights:  # Outputs to expose as dimmable lights
+  - bus_id: 7
+    name: "Salon Bloc9"
+    lights:
+      s1:  # Output as dict key prevents duplicates
+        name: "Salon Working Light"
+      s2:
+        name: "Salon Reading Light"
+        entity_id: "light.salon_reading_light"  # Optional custom ID
+    switches:
+      s3:
+        name: "Salon Fan"
+```
+
+**v4.0.0 List Format (Still Supported):**
+
+```yaml
+bloc9:
+  - bus_id: 7
+    name: "Salon Bloc9"
+    lights:  # Output specified in list items
       - name: "Salon Working Light"
-        output: s1  # Switch output (s1-s6)
+        output: s1
       - name: "Salon Reading Light"
-        entity_id: "light.salon_reading_light"  # Optional: custom entity_id
+        entity_id: "light.salon_reading_light"
         output: s2
-    switches:  # Outputs to expose as simple switches (ON/OFF only)
+    switches:
       - name: "Salon Fan"
         output: s3
 ```
+
+**Key Difference:**
+- **v5 dict format**: Output is the dict key (`s1:`, `s2:`) - YAML enforces uniqueness
+- **v4 list format**: Output is a property (`output: s1`) - duplicates only caught at runtime
 
 #### Configuration Fields
 
@@ -208,26 +257,70 @@ bloc9:
 Each Bloc9 device has:
 - **bus_id** (required): Numeric device ID from CAN bus (typically 2-10)
 - **name** (required): Device name shown in Home Assistant device info
-- **lights** (optional): List of outputs to expose as dimmable lights
-- **switches** (optional): List of outputs to expose as switches
+- **lights** (optional): Dict (v5) or list (v4) of outputs to expose as dimmable lights
+- **switches** (optional): Dict (v5) or list (v4) of outputs to expose as switches
 
-Each entity (light or switch) has:
+**v5.0.0 Dict Format:** Each entity uses output as key:
+- **s1/s2/s3/s4/s5/s6** (key): Bloc9 output identifier
+  - **name** (required): Entity display name in Home Assistant
+  - **entity_id** (optional): Custom entity ID (e.g., `light.my_custom_name`)
+
+**v4.0.0 List Format:** Each entity is a list item with properties:
 - **name** (required): Entity display name in Home Assistant
-- **entity_id** (optional): Full entity ID including component prefix (e.g., `light.my_light`, `switch.my_switch`). If omitted, will be auto-generated from name by removing special characters, converting to lowercase, and replacing spaces with underscores. Examples:
-  - `"Salon Working Light"` → `light.salon_working_light`
-  - `"12V Electronics"` → `switch.12v_electronics`
-  - `"Water Pump #1"` → `switch.water_pump_1`
 - **output** (required): Bloc9 output identifier (`s1`, `s2`, `s3`, `s4`, `s5`, or `s6`)
+- **entity_id** (optional): Custom entity ID
+
+**Entity ID Generation:**
+If entity_id is omitted, it's auto-generated from name by removing special characters, converting to lowercase, and replacing spaces with underscores:
+- `"Salon Working Light"` → `light.salon_working_light`
+- `"12V Electronics"` → `switch.12v_electronics`
+- `"Water Pump #1"` → `switch.water_pump_1`
 
 #### Integrity Checks
 
 The configuration loader performs validation to prevent common errors:
-- **Duplicate outputs**: Each output (s1-s6) can only be assigned to one entity per device
+- **Duplicate outputs** (v5): YAML dict keys enforce uniqueness at parse time
+- **Duplicate outputs** (v4): Runtime check prevents multiple assignments per device
 - **Duplicate entity_ids**: Each entity_id must be unique across all devices
 - **Invalid output format**: Output must be s1, s2, s3, s4, s5, or s6
-- **Missing required fields**: name and output are required for all entities
+- **Missing required fields**: name is required for all entities (output required in v4 list format)
 
 #### Complete Example
+
+**v5.0.0 Dict Format:**
+
+```yaml
+bloc9:
+  - bus_id: 1
+    name: "Electrical Bloc9"
+    switches:
+      s1:
+        name: "12V Electronics"  # entity_id: switch.12v_electronics
+      s2:
+        name: "USB Outlets"  # entity_id: switch.usb_outlets
+
+  - bus_id: 7
+    name: "Salon Bloc9"
+    lights:
+      s1:
+        name: "Working Light"  # entity_id: light.working_light
+      s2:
+        name: "Reading Light"
+        entity_id: "light.salon_reading"  # Custom entity_id
+      s6:
+        name: "Ceiling Light"  # entity_id: light.ceiling_light
+    switches:
+      s3:
+        name: "Water Pump"  # entity_id: switch.water_pump
+
+  - bus_id: 10
+    name: "Navigation Bloc9"
+    lights:
+      s4:
+        name: "Underwater Light"  # entity_id: light.underwater_light
+```
+
+**v4.0.0 List Format (still supported):**
 
 ```yaml
 bloc9:
@@ -235,29 +328,29 @@ bloc9:
     name: "Electrical Bloc9"
     switches:
       - name: "12V Electronics"
-        output: s1  # entity_id auto-generated: switch.12v_electronics
+        output: s1
       - name: "USB Outlets"
-        output: s2  # entity_id auto-generated: switch.usb_outlets
+        output: s2
 
   - bus_id: 7
     name: "Salon Bloc9"
     lights:
       - name: "Working Light"
-        output: s1  # entity_id auto-generated: light.working_light
+        output: s1
       - name: "Reading Light"
-        entity_id: "light.salon_reading"  # Custom entity_id
+        entity_id: "light.salon_reading"
         output: s2
       - name: "Ceiling Light"
-        output: s6  # entity_id auto-generated: light.ceiling_light
+        output: s6
     switches:
       - name: "Water Pump"
-        output: s3  # entity_id auto-generated: switch.water_pump
+        output: s3
 
   - bus_id: 10
     name: "Navigation Bloc9"
     lights:
       - name: "Underwater Light"
-        output: s4  # entity_id auto-generated: light.underwater_light
+        output: s4
 ```
 
 #### Safety Best Practices
@@ -853,6 +946,20 @@ When reporting issues, include:
 - **Linux Only**: Requires SocketCAN interface (not available on Windows/macOS)
 
 ## Version History
+
+### v5.0.0 (December 2025) - BREAKING CHANGE
+**JSON Schema + Dict-Based Configuration**
+- Lights now use JSON schema for state/command topics: `{"state": "ON", "brightness": 255}`
+- New dict-based config format: `lights: s1: name: "Light"` (recommended, prevents duplicates)
+- v4 list format still supported: `lights: - name: "Light" output: s1`
+- Transition support logged but not yet implemented in CAN protocol
+- Removed separate brightness topics (brightness_state_topic, brightness_command_topic)
+- Breaking: MQTT topic structure changed - requires Home Assistant entity reconfiguration
+
+**Migration from v4.0.0 to v5.0.0:**
+1. **Optional**: Update `scheiber.yaml` to dict format for better duplicate prevention
+2. **Required**: Restart addon to publish new JSON schema discovery configs
+3. Home Assistant will auto-discover updated entities (may require clearing old configs)
 
 ### v4.0.0 (December 2025) - BREAKING CHANGE
 **Unified Device Structure**

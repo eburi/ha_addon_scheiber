@@ -276,21 +276,21 @@ class Bloc9(ScheiberCanDevice):
         return topics
 
     def handle_command(self, topic: str, payload: str, is_retained: bool = False):
-        """Handle ON/OFF and brightness commands for Bloc9 switches."""
+        """Handle JSON and legacy commands for Bloc9 switches."""
         # Ignore empty payloads (used for clearing retained messages)
         if not payload or payload.strip() == "":
             self.logger.debug(f"Ignoring empty payload on {topic}")
             return
 
         # Parse the topic to extract property name and command type
-        # Topic format: <prefix>/scheiber/<device_type>/<device_id>/<property>/set[_brightness]
+        # Topic format: <prefix>/scheiber/<device_type>/<device_id>/<property>/set
         topic_parts = topic.split("/")
 
         if len(topic_parts) < 2:
             self.logger.error(f"Invalid topic format: {topic}")
             return
 
-        command_type = topic_parts[-1]  # 'set' or 'set_brightness'
+        command_type = topic_parts[-1]  # 'set'
         property_name = topic_parts[-2]  # e.g., 's1', 's2'
 
         # Validate property starts with 's' and has a digit
@@ -306,40 +306,85 @@ class Bloc9(ScheiberCanDevice):
         switch_nr = int(property_name[1:]) - 1
 
         try:
-            if command_type == "set_brightness":
-                # Handle brightness command
-                brightness = int(payload)
-                if brightness < 0 or brightness > 255:
-                    self.logger.error(
-                        f"Brightness value out of range (0-255): {brightness}"
+            # Check if this is a light entity (uses JSON schema)
+            is_light = any(
+                dc.output == property_name and dc.component == "light"
+                for dc in self.discovery_configs
+            )
+
+            if is_light:
+                # Parse JSON command for lights
+                try:
+                    cmd_data = json.loads(payload)
+                    state = cmd_data.get("state", "ON").upper() == "ON"
+                    brightness = cmd_data.get("brightness", 255 if state else 0)
+                    transition = cmd_data.get(
+                        "transition", 0
+                    )  # seconds, not yet implemented
+
+                    if brightness < 0 or brightness > 255:
+                        self.logger.error(
+                            f"Brightness value out of range (0-255): {brightness}"
+                        )
+                        return
+
+                    self.logger.info(
+                        f"Executing JSON light command: switch={switch_nr}, state={state}, "
+                        f"brightness={brightness}, transition={transition}s{' (retained)' if is_retained else ''}"
                     )
-                    return
 
-                self.logger.info(
-                    f"Executing brightness command: switch={switch_nr}, brightness={brightness}{' (retained)' if is_retained else ''}"
-                )
-                self._send_switch_command(switch_nr, True, brightness=brightness)
+                    # For now, ignore transition (TODO: implement gradual dimming)
+                    if transition > 0:
+                        self.logger.warning(
+                            f"Transition support not yet implemented, ignoring {transition}s"
+                        )
 
-                # Optimistically publish new brightness and state for immediate HA feedback
-                brightness_topic = self.get_property_topic(property_name, "brightness")
-                state_topic = self.get_property_topic(property_name, "state")
-                state_value = "ON" if brightness > 0 else "OFF"
-                self.mqtt_client.publish(
-                    brightness_topic, str(brightness), qos=1, retain=True
-                )
-                self.mqtt_client.publish(state_topic, state_value, qos=1, retain=True)
-                self.logger.debug(
-                    f"Optimistically published brightness={brightness}, state={state_value}"
-                )
+                    # Send command with brightness
+                    self._send_switch_command(switch_nr, state, brightness=brightness)
 
-                # Update internal state
-                self.state[property_name] = state_value
-                self.state[f"{property_name}_brightness"] = brightness
-                self._persist_state(property_name, state_value)
-                self._persist_state(f"{property_name}_brightness", brightness)
+                    # Optimistically publish new state as JSON
+                    state_topic = self.get_property_topic(property_name, "state")
+                    state_value = "ON" if state and brightness > 0 else "OFF"
+                    json_payload = json.dumps(
+                        {"state": state_value, "brightness": brightness}
+                    )
+                    self.mqtt_client.publish(
+                        state_topic, json_payload, qos=1, retain=True
+                    )
+                    self.logger.debug(
+                        f"Optimistically published JSON state: {json_payload}"
+                    )
 
-            elif command_type == "set":
-                # Handle ON/OFF command (defaults: ON/OFF, also accept 1/0 for compatibility)
+                    # Update internal state
+                    self.state[property_name] = state_value
+                    self.state[f"{property_name}_brightness"] = brightness
+                    self._persist_state(property_name, state_value)
+                    self._persist_state(f"{property_name}_brightness", brightness)
+
+                except json.JSONDecodeError:
+                    # Fall back to legacy ON/OFF command
+                    self.logger.warning(
+                        f"Invalid JSON payload, treating as legacy command: {payload}"
+                    )
+                    state = payload.upper() in ("ON", "1", "TRUE")
+                    self._send_switch_command(switch_nr, state)
+
+                    state_value = "ON" if state else "OFF"
+                    brightness = 255 if state else 0
+                    state_topic = self.get_property_topic(property_name, "state")
+                    json_payload = json.dumps(
+                        {"state": state_value, "brightness": brightness}
+                    )
+                    self.mqtt_client.publish(
+                        state_topic, json_payload, qos=1, retain=True
+                    )
+
+                    self.state[property_name] = state_value
+                    self.state[f"{property_name}_brightness"] = brightness
+                    self._persist_state(property_name, state_value)
+                    self._persist_state(f"{property_name}_brightness", brightness)
+            else:
+                # Non-light entities: simple ON/OFF command
                 state = payload.upper() in ("ON", "1", "TRUE")
                 self.logger.info(
                     f"Executing switch command: switch={switch_nr}, state={state}{' (retained)' if is_retained else ''}"
@@ -355,9 +400,6 @@ class Bloc9(ScheiberCanDevice):
                 # Update internal state
                 self.state[property_name] = state_value
                 self._persist_state(property_name, state_value)
-            else:
-                self.logger.warning(f"Unknown command type: {command_type}")
-                return
 
             # Clear retained command after successful execution
             if is_retained:
@@ -495,15 +537,12 @@ class Bloc9(ScheiberCanDevice):
                 "device": scheiber_device,
             }
 
-            # Add brightness support for lights
+            # Add brightness support for lights with JSON schema
             if disc_config.component == "light":
+                config_payload["schema"] = "json"
                 config_payload["brightness"] = True
                 config_payload["supported_color_modes"] = ["brightness"]
-                config_payload["brightness_state_topic"] = f"{scheiber_base}/brightness"
-                config_payload["brightness_command_topic"] = (
-                    f"{scheiber_base}/set_brightness"
-                )
-                config_payload["on_command_type"] = "brightness"
+                config_payload["brightness_scale"] = 255
 
             config_json = json.dumps(config_payload)
             self.logger.debug(
@@ -520,45 +559,54 @@ class Bloc9(ScheiberCanDevice):
             self.published_properties.add(disc_config.output)
 
     def publish_state(self, property_name: str, value: Any):
-        """Publish property state to MQTT, handling brightness separately."""
+        """Publish property state to MQTT using JSON schema for lights."""
         # Skip publishing stat properties (used only for heartbeat)
         if property_name.startswith("stat"):
             return
 
-        # Handle brightness properties
+        # Skip publishing if value is None
+        if value is None:
+            return
+
+        # Handle brightness properties - update internal state but don't publish separately
         if property_name.endswith("_brightness"):
-            base_prop = property_name.replace("_brightness", "")
-
-            # Skip publishing if value is None
-            if value is None:
-                return
-
-            brightness_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{base_prop}/brightness"
-            payload = str(value)
-            self.logger.debug(f"Publishing brightness to {brightness_topic}: {payload}")
-            self.mqtt_client.publish(brightness_topic, payload, qos=1, retain=True)
-
             # Persist brightness state
             self._persist_state(property_name, value)
-        # Handle regular switch state
+            return
+
+        # Handle switch state with JSON schema
+        topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{property_name}/state"
+
+        # Convert numeric values to ON/OFF
+        if str(value) in ("1", "True", "true"):
+            state_value = "ON"
+        elif str(value) in ("0", "False", "false"):
+            state_value = "OFF"
         else:
-            # Skip publishing if value is None
-            if value is None:
-                return
+            state_value = str(value)
 
-            topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{property_name}/state"
-            # Convert numeric values to ON/OFF
-            if str(value) in ("1", "True", "true"):
-                payload = "ON"
-            elif str(value) in ("0", "False", "false"):
-                payload = "OFF"
-            else:
-                payload = str(value)
+        # Get brightness value if available
+        brightness_key = f"{property_name}_brightness"
+        brightness = self.state.get(brightness_key, 255 if state_value == "ON" else 0)
+
+        # Publish as JSON for lights (entities configured via discovery_configs)
+        is_light = any(
+            dc.output == property_name and dc.component == "light"
+            for dc in self.discovery_configs
+        )
+
+        if is_light:
+            payload = json.dumps({"state": state_value, "brightness": brightness})
+            self.logger.debug(f"Publishing light state (JSON) to {topic}: {payload}")
+        else:
+            # Non-light entities use simple ON/OFF
+            payload = state_value
             self.logger.debug(f"Publishing property state to {topic}: {payload}")
-            self.mqtt_client.publish(topic, payload, qos=1, retain=True)
 
-            # Persist switch state
-            self._persist_state(property_name, payload)
+        self.mqtt_client.publish(topic, payload, qos=1, retain=True)
+
+        # Persist switch state
+        self._persist_state(property_name, state_value)
 
     def _get_state_file_path(self) -> Path:
         """Get the path to the state file for this device."""
