@@ -735,6 +735,17 @@ class Bloc9(ScheiberCanDevice):
         # Extract switch number (s1=0, s2=1, etc.)
         switch_nr = int(property_name[1:]) - 1
 
+        # CRITICAL: Only accept commands for explicitly configured entities
+        # Verify this property is in discovery_configs
+        is_configured = any(dc.output == property_name for dc in self.discovery_configs)
+
+        if not is_configured:
+            self.logger.warning(
+                f"Received command for unconfigured property {property_name} on {topic}. "
+                f"Ignoring - property not in scheiber.yaml discovery configs."
+            )
+            return
+
         try:
             # Check if this is a light entity (uses JSON schema)
             is_light = any(
@@ -1150,6 +1161,17 @@ class Bloc9(ScheiberCanDevice):
         if property_name.endswith("_brightness"):
             # Persist brightness state
             self._persist_state(property_name, value)
+            return
+
+        # CRITICAL: Only publish state for explicitly configured entities
+        # Check if this property is in discovery_configs
+        is_configured = any(dc.output == property_name for dc in self.discovery_configs)
+
+        if not is_configured:
+            # Property not configured in scheiber.yaml - don't publish
+            self.logger.debug(
+                f"Skipping state publish for unconfigured property {property_name}"
+            )
             return
 
         # Handle switch state with JSON schema
