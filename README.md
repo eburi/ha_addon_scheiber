@@ -406,6 +406,101 @@ bloc9:
 
 **Without scheiber.yaml**: The bridge will still monitor CAN traffic and publish to MQTT, but **no entities will appear in Home Assistant** via discovery.
 
+## Troubleshooting MQTT Discovery Updates
+
+### Issue: Home Assistant Not Applying Discovery Config Changes
+
+**Symptom**: After upgrading to a new version with changed MQTT discovery attributes (like v5.0.0's JSON schema), Home Assistant continues controlling devices successfully but doesn't adopt the new discovery configuration.
+
+**Root Cause**: Home Assistant caches MQTT discovery configurations. When an entity already exists with a `unique_id`, Home Assistant will **not update** certain discovery attributes even when new discovery messages are published. This is by design to prevent accidental overwrites of user customizations.
+
+**Attributes that DO update**: 
+- `state_topic`, `command_topic`, `availability_topic` (topic references)
+- `payload_on`, `payload_off` (payload values)
+
+**Attributes that DO NOT update after initial discovery**:
+- `schema` (e.g., changing from default to "json")
+- `brightness`, `supported_color_modes` (capability flags)
+- `brightness_state_topic`, `brightness_command_topic` (removed in v5.0.0)
+- `device` structure changes
+
+### Solution: Clean MQTT Integration Before Upgrading
+
+When upgrading between major versions (especially v3.x → v4.0.0 → v5.0.0), follow these steps:
+
+**Method 1: Delete MQTT Devices (Recommended)**
+
+1. **Before upgrading**:
+   - Note your current entity IDs and automations
+   - Export/backup any important dashboard configurations
+   
+2. **In Home Assistant**:
+   - Go to **Settings** → **Devices & Services** → **MQTT**
+   - Delete all Scheiber-related devices
+   - This preserves entity history but allows fresh discovery
+
+3. **Upgrade** the Scheiber addon to new version
+
+4. **Restart** the addon to trigger new discovery messages
+
+5. **Verify** in Home Assistant that entities reappear with new attributes
+
+6. **Update automations/scripts** if entity IDs changed
+
+**Method 2: Deep Clean (If Method 1 Fails)**
+
+If deleting devices through the UI doesn't work:
+
+1. **Stop Home Assistant**
+
+2. **Edit registry files** (⚠️ **Backup first!**):
+   - `/homeassistant/.storage/core.entity_registry`
+   - `/homeassistant/.storage/core.device_registry`
+   
+3. **Remove Scheiber entries**:
+   - Search for `"platform": "mqtt"` with `"identifiers"` containing `"scheiber"` or `"bloc9"`
+   - Delete the entire entity/device JSON objects
+   - Ensure JSON remains valid (check commas, brackets)
+
+4. **Clear MQTT retained messages** (optional but recommended):
+   ```bash
+   # Connect to MQTT broker and clear retained discovery configs
+   mosquitto_sub -h <broker> -u <user> -P <pass> -t "homeassistant/#" -v --retained-only | \
+     grep "scheiber" | awk '{print $1}' | \
+     xargs -I {} mosquitto_pub -h <broker> -u <user> -P <pass> -t {} -r -n
+   ```
+
+5. **Start Home Assistant**
+
+6. **Restart Scheiber addon** to publish fresh discovery
+
+**Method 3: Change unique_id (Not Recommended)**
+
+As a last resort, you can modify the addon code to use new `unique_id` values:
+- Edit `scheiber/src/devices.py` 
+- Change the `unique_id` format in `publish_discovery_config()`
+- This creates new entities, leaving old ones orphaned
+
+### Why This Happens
+
+Home Assistant's MQTT Discovery is designed with these principles:
+
+1. **Preserve User Customizations**: Once discovered, entity attributes can be customized in the UI (names, icons, areas). Discovery updates could override these.
+
+2. **Stability Over Freshness**: Frequent re-discovery could cause entities to flicker or lose state during MQTT broker reconnections.
+
+3. **Retained Messages**: MQTT discovery configs are retained at the broker, ensuring devices survive Home Assistant restarts.
+
+This design is generally beneficial but requires manual cleanup during major version upgrades that change entity capabilities.
+
+### References
+
+- [Home Assistant MQTT Discovery Documentation](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery)
+- [MQTT Discovery Payload Updates](https://www.home-assistant.io/integrations/mqtt/#discovery-payload)
+- Home Assistant Community discussions on discovery updates
+
+**Without scheiber.yaml**: The bridge will still monitor CAN traffic and publish to MQTT, but **no entities will appear in Home Assistant** via discovery.
+
 ### Add-on Options
 
 ```yaml
