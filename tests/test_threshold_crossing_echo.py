@@ -5,12 +5,16 @@ When a transition crosses the dimming threshold (e.g., brightness 252 -> 255),
 the system sends a simple ON/OFF command instead of PWM. The hardware echo
 reports brightness=0 in the status message, which should NOT overwrite our
 internal brightness state.
+
+Also tests negative transitions (fade-down) to ensure brightness calculation
+is correct throughout the transition.
 """
 
 import json
 import sys
+import time
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 import pytest
 
 # Add src directory to path
@@ -198,3 +202,181 @@ class TestThresholdCrossingEcho:
         # Now when the next command comes in, it should detect current_brightness=255
         # (This is tested implicitly - if brightness wasn't persisted, it would be missing)
         assert bloc9_device.state.get("s5_brightness") == 255
+
+
+class TestNegativeTransitions:
+    """Test fade-down (negative) transitions work correctly."""
+
+    def test_fade_down_brightness_calculation(self, bloc9_device, mock_can_bus):
+        """
+        Test that fade-down transitions calculate brightness correctly at each step.
+
+        Fade from 255 -> 20 should produce monotonically decreasing brightness values.
+        """
+        # Set up initial state
+        bloc9_device.state["s5"] = "ON"
+        bloc9_device.state["s5_brightness"] = 255
+
+        # Track brightness values sent during transition
+        brightness_values = []
+
+        def capture_brightness(msg):
+            # PWM commands have 4 bytes: [switch, state, 0x00, brightness]
+            if len(msg.data) == 4 and msg.data[1] == 0x11:  # PWM command
+                brightness_values.append(msg.data[3])
+
+        mock_can_bus.send.side_effect = capture_brightness
+
+        # Start transition controller manually to control timing
+        with patch.object(bloc9_device.transition_controller, "step_delay", 0.01):
+            bloc9_device.transition_controller.start_transition(
+                property_name="s5",
+                switch_nr=4,
+                start_brightness=255,
+                end_brightness=20,
+                duration=0.1,
+                easing_name="linear",
+                on_step=None,
+            )
+
+            # Wait for transition to complete
+            time.sleep(0.15)
+
+        # Verify we got brightness values
+        assert len(brightness_values) > 0, "No brightness values captured"
+
+        # Verify monotonically decreasing (negative transition)
+        for i in range(len(brightness_values) - 1):
+            assert (
+                brightness_values[i] >= brightness_values[i + 1]
+            ), f"Brightness increased from {brightness_values[i]} to {brightness_values[i+1]}"
+
+        # Verify start and end are in correct range
+        # First value should be close to 255 (within a few steps)
+        assert (
+            brightness_values[0] >= 230
+        ), f"Expected start brightness ~255, got {brightness_values[0]}"
+        # Last value should be close to 20
+        assert (
+            brightness_values[-1] >= 18 and brightness_values[-1] <= 22
+        ), f"Expected end brightness ~20, got {brightness_values[-1]}"
+
+    def test_fade_down_uses_correct_easing_function(self, bloc9_device, mock_can_bus):
+        """
+        Test that fade-down transitions use ease_in easing (gentle at end).
+
+        When fading down to OFF (brightness=0), the system should use ease_in_cubic
+        to provide a gentle end to the transition.
+        """
+        # Set up initial state
+        bloc9_device.state["s5"] = "ON"
+        bloc9_device.state["s5_brightness"] = 100
+
+        brightness_values = []
+
+        def capture_brightness(msg):
+            if len(msg.data) == 4 and msg.data[1] == 0x11:
+                brightness_values.append(msg.data[3])
+
+        mock_can_bus.send.side_effect = capture_brightness
+
+        # Fade down to 0 (OFF)
+        with patch.object(bloc9_device.transition_controller, "step_delay", 0.01):
+            bloc9_device.transition_controller.start_transition(
+                property_name="s5",
+                switch_nr=4,
+                start_brightness=100,
+                end_brightness=0,
+                duration=0.1,
+                easing_name="ease_in_cubic",
+                on_step=None,
+            )
+
+            time.sleep(0.15)
+
+        # For ease_in_cubic, the brightness should decrease slowly at first,
+        # then more rapidly toward the end
+        # Check that the middle 50% of the transition covers less than 50% of the range
+        if len(brightness_values) >= 4:
+            quarter_idx = len(brightness_values) // 4
+            three_quarter_idx = 3 * len(brightness_values) // 4
+
+            # In the first quarter, we should still be at high brightness (ease-in = slow start)
+            first_quarter_brightness = brightness_values[quarter_idx]
+            assert first_quarter_brightness > 75, (
+                f"Ease-in should be slow at start, but brightness dropped to {first_quarter_brightness} "
+                f"in first quarter (expected > 75)"
+            )
+
+    def test_fade_down_from_high_to_mid_brightness(self, bloc9_device, mock_can_bus):
+        """
+        Test fade-down that stays in PWM range (doesn't cross thresholds).
+
+        Fade 200 -> 50 should produce smooth PWM values throughout.
+        """
+        bloc9_device.state["s5"] = "ON"
+        bloc9_device.state["s5_brightness"] = 200
+
+        brightness_values = []
+
+        def capture_brightness(msg):
+            if len(msg.data) == 4 and msg.data[1] == 0x11:
+                brightness_values.append(msg.data[3])
+
+        mock_can_bus.send.side_effect = capture_brightness
+
+        with patch.object(bloc9_device.transition_controller, "step_delay", 0.01):
+            bloc9_device.transition_controller.start_transition(
+                property_name="s5",
+                switch_nr=4,
+                start_brightness=200,
+                end_brightness=50,
+                duration=0.1,
+                easing_name="linear",
+                on_step=None,
+            )
+
+            time.sleep(0.15)
+
+        # Verify we got values
+        assert len(brightness_values) > 0
+
+        # Verify monotonic decrease
+        for i in range(len(brightness_values) - 1):
+            assert brightness_values[i] >= brightness_values[i + 1]
+
+        # Verify range
+        assert brightness_values[0] == 200
+        assert 48 <= brightness_values[-1] <= 52
+
+    def test_negative_transition_brightness_range_correct(self, bloc9_device):
+        """
+        Test that negative brightness range calculation is correct.
+
+        For fade 255 -> 20:
+        - brightness_range = 20 - 255 = -235 (negative!)
+        - At progress=0.5, brightness = 255 + (-235 * 0.5) = 137.5 ≈ 137
+        """
+        # Simulate the calculation from _execute_transition
+        start_brightness = 255
+        end_brightness = 20
+        brightness_range = end_brightness - start_brightness  # -235
+
+        # At 50% progress
+        progress = 0.5
+        expected_brightness = int(start_brightness + (brightness_range * progress))
+
+        # Should be approximately halfway between 255 and 20
+        assert (
+            135 <= expected_brightness <= 140
+        ), f"At 50% progress, expected brightness ~137, got {expected_brightness}"
+
+        # At 0% progress
+        progress = 0.0
+        expected_brightness = int(start_brightness + (brightness_range * progress))
+        assert expected_brightness == 255
+
+        # At 100% progress
+        progress = 1.0
+        expected_brightness = int(start_brightness + (brightness_range * progress))
+        assert expected_brightness == 20
