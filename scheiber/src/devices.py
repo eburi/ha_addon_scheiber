@@ -1330,7 +1330,14 @@ class Bloc9(ScheiberCanDevice):
                     if value is None:
                         continue
 
+                    # Skip unconfigured properties
                     base_prop = property_name.replace("_brightness", "")
+                    if not any(dc.output == base_prop for dc in self.discovery_configs):
+                        self.logger.debug(
+                            f"Skipping restore for unconfigured brightness property {property_name}"
+                        )
+                        continue
+
                     brightness_topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{base_prop}/brightness"
                     payload = str(value)
                     self.logger.debug(
@@ -1348,15 +1355,52 @@ class Bloc9(ScheiberCanDevice):
                     if value is None:
                         continue
 
+                    # Skip unconfigured properties
+                    if not any(
+                        dc.output == property_name for dc in self.discovery_configs
+                    ):
+                        self.logger.debug(
+                            f"Skipping restore for unconfigured property {property_name}"
+                        )
+                        continue
+
                     topic = f"{self.mqtt_topic_prefix}/scheiber/{self.device_type}/{self.device_id}/{property_name}/state"
-                    # Convert numeric values to ON/OFF for restored states too
+
+                    # Convert numeric values to ON/OFF for restored states
                     if str(value) in ("1", "True", "true", "ON"):
-                        payload = "ON"
+                        state_value = "ON"
                     elif str(value) in ("0", "False", "false", "OFF"):
-                        payload = "OFF"
+                        state_value = "OFF"
                     else:
-                        payload = str(value)
-                    self.logger.debug(f"Restoring switch state to {topic}: {payload}")
+                        state_value = str(value)
+
+                    # Get brightness for this property
+                    brightness_key = f"{property_name}_brightness"
+                    brightness = persisted_state.get(
+                        brightness_key, 255 if state_value == "ON" else 0
+                    )
+
+                    # Check if this is a light entity
+                    is_light = any(
+                        dc.output == property_name and dc.component == "light"
+                        for dc in self.discovery_configs
+                    )
+
+                    if is_light:
+                        # Publish as JSON for lights
+                        payload = json.dumps(
+                            {"state": state_value, "brightness": brightness}
+                        )
+                        self.logger.debug(
+                            f"Restoring light state (JSON) to {topic}: {payload}"
+                        )
+                    else:
+                        # Publish as plain text for switches
+                        payload = state_value
+                        self.logger.debug(
+                            f"Restoring switch state to {topic}: {payload}"
+                        )
+
                     self.mqtt_client.publish(topic, payload, qos=1, retain=True)
             except Exception as e:
                 self.logger.error(f"Failed to restore state for {property_name}: {e}")
