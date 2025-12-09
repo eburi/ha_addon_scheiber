@@ -863,12 +863,33 @@ class Bloc9(ScheiberCanDevice):
 
                     # Get current brightness for transition start point
                     current_brightness_key = f"{property_name}_brightness"
+                    # Fallback: if unknown, use 0 for OFF state, 255 for ON state
+                    current_state_value = self.state.get(property_name, "OFF")
+                    current_is_on = current_state_value in ("ON", "1", True)
                     current_brightness = self.state.get(
-                        current_brightness_key, 0 if not state else 255
+                        current_brightness_key, 255 if current_is_on else 0
                     )
 
-                    # Handle transition if requested
-                    if transition > 0 and current_brightness != brightness:
+                    # Get current state
+                    current_state = self.state.get(property_name, "OFF")
+                    current_state_bool = current_state in ("ON", "1", True)
+
+                    # Handle transition if requested AND there's an actual change
+                    # Check both brightness AND state to handle edge cases like:
+                    # - Fading to 0 (brightness 0, state OFF)
+                    # - Fading from 0 (brightness 0 -> X, state OFF -> ON)
+                    should_transition = transition > 0 and (
+                        current_brightness != brightness or current_state_bool != state
+                    )
+
+                    self.logger.info(
+                        f"Transition check: current_brightness={current_brightness}, "
+                        f"target_brightness={brightness}, current_state={current_state}, "
+                        f"target_state={'ON' if state else 'OFF'}, transition={transition}s, "
+                        f"should_transition={should_transition}"
+                    )
+
+                    if should_transition:
                         # Use transition controller for smooth dimming
 
                         # Determine easing function based on transition context
