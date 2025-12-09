@@ -1206,13 +1206,22 @@ class Bloc9(ScheiberCanDevice):
             # Compare the incoming state with our internal state expectation
             current_internal_state = self.state.get(property_name, "OFF")
 
+            # Normalize internal state for comparison (handle numeric/string variations)
+            if str(current_internal_state) in ("1", "True", "true", "ON"):
+                normalized_internal = "ON"
+            elif str(current_internal_state) in ("0", "False", "false", "OFF"):
+                normalized_internal = "OFF"
+            else:
+                normalized_internal = str(current_internal_state)
+
             # If the CAN bus reports a different state than what we're tracking internally,
             # this indicates an external command (hardware button override)
-            if state_value != current_internal_state:
+            if state_value != normalized_internal:
                 self.logger.warning(
                     f"Unexpected CAN bus state change for {property_name}: "
-                    f"received {state_value} but expected {current_internal_state} "
-                    f"(active: transition={has_active_transition}, flash={has_active_flash}). "
+                    f"received {state_value} but expected {normalized_internal} "
+                    f"(raw internal: {current_internal_state}, "
+                    f"active: transition={has_active_transition}, flash={has_active_flash}). "
                     f"External override detected - cancelling operation."
                 )
                 self.transition_controller.cancel_transition(property_name)
