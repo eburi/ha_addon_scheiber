@@ -18,7 +18,8 @@ This Home Assistant add-on provides a bridge between Scheiber devices on a CAN b
 
 **JSON Schema (v5.0.0+):** Lights use JSON MQTT payloads for better Home Assistant integration:
 - Combined state and brightness in single topic: `{"state": "ON", "brightness": 255}`
-- Supports transitions (logged but not yet implemented in CAN protocol)
+- Supports smooth transitions with easing functions (reduces MQTT traffic)
+- Automatic easing selection: ease-out-cubic for fade-up, ease-in-cubic for fade-down
 - Backwards compatible: v4 list-based configs still work
 - New dict-based config format prevents duplicate output assignments
 
@@ -139,8 +140,41 @@ Non-light entities (switches) accept simple ON/OFF:
 4. Updates internal state cache and persists to disk
 
 **Transition Support:**
-- Logged but not yet implemented in CAN protocol
-- Future enhancement pending protocol understanding
+
+The bridge supports smooth brightness transitions with easing functions, reducing MQTT traffic and offloading processing from Home Assistant to the bridge itself.
+
+**Performance:**
+- Update rate: 10 Hz (100ms per frame) - smooth perceptually natural transitions
+- CAN bus load: ~10 messages/second per transitioning light
+- Safe capacity: Up to 6 simultaneous transitions (~60 msg/s, <6% of CAN bus capacity)
+- Critical safety: All transitions cancelled immediately on new command (guaranteed OFF)
+- Bloc9-friendly: Update rate respects Bloc9's internal PWM controller
+
+**Supported Easing Functions:**
+- `ease_in_out_sine` (default) - Natural looking transitions, smooth start and end
+- `ease_in_sine`, `ease_out_sine` - Sine-based acceleration/deceleration
+- `ease_in_out_quad`, `ease_in_quad`, `ease_out_quad` - Quadratic curves
+- `ease_in_out_cubic`, `ease_in_cubic`, `ease_out_cubic` - Cubic curves (stronger)
+- `ease_in_out_quart`, `ease_in_quart`, `ease_out_quart` - Quartic curves (strongest)
+- `linear` - No easing, constant speed
+
+**Automatic Easing Selection:**
+The bridge intelligently selects easing based on context:
+- Fading up from off (0 → brightness): Uses `ease_out_cubic` for snappy start
+- Fading down to off (brightness → 0): Uses `ease_in_cubic` for gentle end
+- General transitions: Uses `ease_in_out_sine` for natural appearance
+
+**Safety Guarantees:**
+- Any new command immediately cancels running transitions
+- OFF commands guaranteed to stop brightness changes instantly
+- No orphaned transitions from rapid commands
+- Skips pointless transitions when already at target brightness
+
+**Visual Reference:**
+
+![Easing Functions](ease-functions.png)
+
+*Easing curves visualization - thanks to [Ashley Bischoff](https://community.home-assistant.io/t/ashley-s-light-fader-2-0-fade-lights-and-or-color-temperature-with-your-choice-of-easing-curves-including-ease-in-ease-out-and-ease-in-out/584077) for shamelessly inspiring, learning from, and copying ideas from Ashley's Light Fader script.*
 
 **Backwards Compatibility:**
 - Legacy v4 ON/OFF commands still accepted for lights

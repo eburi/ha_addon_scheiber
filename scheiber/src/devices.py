@@ -18,6 +18,233 @@ import can
 # Import the shared snake_case converter from config_loader
 from config_loader import name_to_snake_case
 
+# Import easing functions
+from easing import get_easing_function
+
+
+import threading
+import time
+
+
+class TransitionController:
+    """
+    Manages smooth brightness transitions with easing functions.
+
+    This controller executes transitions in a background thread, allowing concurrent
+    transitions for multiple lights. Each transition can use a different easing function
+    to create natural-looking fade effects.
+    """
+
+    def __init__(self, device, step_delay: float = 0.1):
+        """
+        Initialize the transition controller.
+
+        Args:
+            device: The device instance (must have _send_switch_command method)
+            step_delay: Time in seconds between brightness updates (default 100ms = 10Hz)
+        """
+        self.device = device
+        self.step_delay = step_delay
+        self.logger = logging.getLogger(f"{__name__}.TransitionController")
+
+        # Track active transitions: {property_name: thread}
+        self.active_transitions = {}
+
+        # Lock for thread-safe access to active_transitions
+        self.lock = threading.Lock()
+
+        # Stop events for cancelling transitions: {property_name: Event}
+        self.stop_events = {}
+
+    def start_transition(
+        self,
+        property_name: str,
+        switch_nr: int,
+        start_brightness: int,
+        end_brightness: int,
+        duration: float,
+        easing_name: str = "ease_in_out_sine",
+        on_step: Optional[Callable[[int], None]] = None,
+    ):
+        """
+        Start a smooth brightness transition.
+
+        Args:
+            property_name: Name of the property (e.g., 's1')
+            switch_nr: Switch number (0-5)
+            start_brightness: Starting brightness (0-255)
+            end_brightness: Target brightness (0-255)
+            duration: Transition duration in seconds
+            easing_name: Name of easing function to use
+            on_step: Optional callback to invoke at each step with current brightness
+        """
+        # Cancel any existing transition for this property
+        self.cancel_transition(property_name)
+
+        # Create a new stop event
+        stop_event = threading.Event()
+        with self.lock:
+            self.stop_events[property_name] = stop_event
+
+        # Start transition in a new thread
+        thread = threading.Thread(
+            target=self._execute_transition,
+            args=(
+                property_name,
+                switch_nr,
+                start_brightness,
+                end_brightness,
+                duration,
+                easing_name,
+                stop_event,
+                on_step,
+            ),
+            daemon=True,
+            name=f"Transition-{property_name}",
+        )
+
+        with self.lock:
+            self.active_transitions[property_name] = thread
+
+        thread.start()
+        self.logger.info(
+            f"Started transition for {property_name}: {start_brightness} -> {end_brightness} "
+            f"over {duration}s using {easing_name}"
+        )
+
+    def cancel_transition(self, property_name: str):
+        """
+        Cancel an active transition.
+
+        Args:
+            property_name: Name of the property to cancel transition for
+        """
+        with self.lock:
+            # Signal the thread to stop
+            if property_name in self.stop_events:
+                self.stop_events[property_name].set()
+
+            # Wait for thread to finish
+            if property_name in self.active_transitions:
+                thread = self.active_transitions[property_name]
+                # Don't wait if we're on the same thread (shouldn't happen)
+                if threading.current_thread() != thread:
+                    thread.join(timeout=1.0)
+                    if thread.is_alive():
+                        self.logger.warning(
+                            f"Transition thread for {property_name} did not stop cleanly"
+                        )
+
+                del self.active_transitions[property_name]
+
+            # Clean up stop event
+            if property_name in self.stop_events:
+                del self.stop_events[property_name]
+
+    def cancel_all(self):
+        """Cancel all active transitions."""
+        with self.lock:
+            property_names = list(self.active_transitions.keys())
+
+        for property_name in property_names:
+            self.cancel_transition(property_name)
+
+    def _execute_transition(
+        self,
+        property_name: str,
+        switch_nr: int,
+        start_brightness: int,
+        end_brightness: int,
+        duration: float,
+        easing_name: str,
+        stop_event: threading.Event,
+        on_step: Optional[Callable[[int], None]],
+    ):
+        """
+        Execute a brightness transition in the current thread.
+
+        This method runs in a background thread and should not be called directly.
+        """
+        try:
+            # Get easing function
+            try:
+                easing_func = get_easing_function(easing_name)
+            except ValueError as e:
+                self.logger.error(f"Invalid easing function: {e}, using default")
+                easing_func = get_easing_function()  # Use default
+
+            # Calculate number of steps based on duration and step delay
+            num_steps = max(1, int(duration / self.step_delay))
+
+            # Execute transition
+            start_time = time.time()
+
+            for step in range(num_steps + 1):
+                # Check if we should stop
+                if stop_event.is_set():
+                    self.logger.debug(
+                        f"Transition cancelled for {property_name} at step {step}"
+                    )
+                    return
+
+                # Calculate progress (0.0 to 1.0)
+                progress = step / num_steps if num_steps > 0 else 1.0
+
+                # Apply easing function
+                eased_progress = easing_func(progress)
+
+                # Calculate current brightness
+                brightness_range = end_brightness - start_brightness
+                current_brightness = int(
+                    start_brightness + (brightness_range * eased_progress)
+                )
+
+                # Clamp to valid range
+                current_brightness = max(0, min(255, current_brightness))
+
+                # Send command to device
+                self.device._send_switch_command(
+                    switch_nr, current_brightness > 0, brightness=current_brightness
+                )
+
+                # Invoke step callback if provided
+                if on_step:
+                    on_step(current_brightness)
+
+                # Sleep until next step (unless this is the last step)
+                if step < num_steps:
+                    # Calculate how long we should sleep to maintain timing
+                    elapsed = time.time() - start_time
+                    target_time = (step + 1) * self.step_delay
+                    sleep_time = target_time - elapsed
+
+                    if sleep_time > 0:
+                        time.sleep(sleep_time)
+                    elif sleep_time < -self.step_delay:
+                        # We're falling behind - log a warning
+                        self.logger.warning(
+                            f"Transition for {property_name} falling behind by {-sleep_time:.2f}s"
+                        )
+
+            elapsed_total = time.time() - start_time
+            self.logger.info(
+                f"Completed transition for {property_name} in {elapsed_total:.2f}s "
+                f"({num_steps} steps, target {duration:.2f}s)"
+            )
+
+        except Exception as e:
+            self.logger.error(
+                f"Error during transition for {property_name}: {e}", exc_info=True
+            )
+
+        finally:
+            # Clean up
+            with self.lock:
+                if property_name in self.active_transitions:
+                    del self.active_transitions[property_name]
+                if property_name in self.stop_events:
+                    del self.stop_events[property_name]
+
 
 class ScheiberCanDevice(ABC):
     """Base class for all Scheiber CAN devices."""
@@ -182,6 +409,9 @@ class Bloc9(ScheiberCanDevice):
         self.heartbeat_timeout = 60  # Seconds before marking offline
         self.is_online = False  # Current online status
 
+        # Transition controller for smooth brightness changes
+        self.transition_controller = TransitionController(self, step_delay=0.1)
+
         # Load persisted state and publish if available
         self._load_and_publish_persisted_state()
 
@@ -333,39 +563,100 @@ class Bloc9(ScheiberCanDevice):
                         f"brightness={brightness}, transition={transition}s{' (retained)' if is_retained else ''}"
                     )
 
-                    # For now, ignore transition (TODO: implement gradual dimming)
-                    if transition > 0:
-                        self.logger.warning(
-                            f"Transition support not yet implemented, ignoring {transition}s"
+                    # CRITICAL: Always cancel any existing transition first
+                    # This ensures that turning off a light stops any running transition
+                    self.transition_controller.cancel_transition(property_name)
+
+                    # Get current brightness for transition start point
+                    current_brightness_key = f"{property_name}_brightness"
+                    current_brightness = self.state.get(
+                        current_brightness_key, 0 if not state else 255
+                    )
+
+                    # Handle transition if requested
+                    if transition > 0 and current_brightness != brightness:
+                        # Use transition controller for smooth dimming
+
+                        # Determine easing function based on transition context
+                        if current_brightness == 0 and brightness > 0:
+                            # Fading up from off - use ease_out_cubic for snappy start
+                            easing = "ease_out_cubic"
+                        elif brightness == 0 and current_brightness > 0:
+                            # Fading down to off - use ease_in_cubic for gentle end
+                            easing = "ease_in_cubic"
+                        else:
+                            # General transition - use default ease_in_out_sine
+                            easing = "ease_in_out_sine"
+
+                        self.logger.info(
+                            f"Starting transition: {current_brightness} -> {brightness} "
+                            f"over {transition}s using {easing}"
                         )
 
-                    # Send command with brightness
-                    self._send_switch_command(switch_nr, state, brightness=brightness)
+                        # Define callback to publish intermediate state updates
+                        def on_step(step_brightness: int):
+                            state_topic = self.get_property_topic(
+                                property_name, "state"
+                            )
+                            step_state = "ON" if step_brightness > 0 else "OFF"
+                            step_payload = json.dumps(
+                                {"state": step_state, "brightness": step_brightness}
+                            )
+                            self.mqtt_client.publish(
+                                state_topic, step_payload, qos=1, retain=True
+                            )
+                            # Update internal state
+                            self.state[property_name] = step_state
+                            self.state[current_brightness_key] = step_brightness
 
-                    # Optimistically publish new state as JSON
-                    state_topic = self.get_property_topic(property_name, "state")
-                    state_value = "ON" if state and brightness > 0 else "OFF"
-                    json_payload = json.dumps(
-                        {"state": state_value, "brightness": brightness}
-                    )
-                    self.mqtt_client.publish(
-                        state_topic, json_payload, qos=1, retain=True
-                    )
-                    self.logger.debug(
-                        f"Optimistically published JSON state: {json_payload}"
-                    )
+                        # Start the transition
+                        self.transition_controller.start_transition(
+                            property_name=property_name,
+                            switch_nr=switch_nr,
+                            start_brightness=current_brightness,
+                            end_brightness=brightness,
+                            duration=transition,
+                            easing_name=easing,
+                            on_step=on_step,
+                        )
 
-                    # Update internal state
-                    self.state[property_name] = state_value
-                    self.state[f"{property_name}_brightness"] = brightness
-                    self._persist_state(property_name, state_value)
-                    self._persist_state(f"{property_name}_brightness", brightness)
+                        # Persist final state (will be reached after transition completes)
+                        final_state = "ON" if brightness > 0 else "OFF"
+                        self._persist_state(property_name, final_state)
+                        self._persist_state(current_brightness_key, brightness)
+
+                    else:
+                        # No transition - send command immediately
+                        self._send_switch_command(
+                            switch_nr, state, brightness=brightness
+                        )
+
+                        # Optimistically publish new state as JSON
+                        state_topic = self.get_property_topic(property_name, "state")
+                        state_value = "ON" if state and brightness > 0 else "OFF"
+                        json_payload = json.dumps(
+                            {"state": state_value, "brightness": brightness}
+                        )
+                        self.mqtt_client.publish(
+                            state_topic, json_payload, qos=1, retain=True
+                        )
+                        self.logger.debug(
+                            f"Optimistically published JSON state: {json_payload}"
+                        )
+
+                        # Update internal state
+                        self.state[property_name] = state_value
+                        self.state[f"{property_name}_brightness"] = brightness
+                        self._persist_state(property_name, state_value)
+                        self._persist_state(f"{property_name}_brightness", brightness)
 
                 except json.JSONDecodeError:
                     # Fall back to legacy ON/OFF command
                     self.logger.warning(
                         f"Invalid JSON payload, treating as legacy command: {payload}"
                     )
+                    # Cancel any running transition
+                    self.transition_controller.cancel_transition(property_name)
                     state = payload.upper() in ("ON", "1", "TRUE")
                     self._send_switch_command(switch_nr, state)
 
@@ -385,6 +676,8 @@ class Bloc9(ScheiberCanDevice):
                     self._persist_state(f"{property_name}_brightness", brightness)
             else:
                 # Non-light entities: simple ON/OFF command
+                # Cancel any running transition (safety measure)
+                self.transition_controller.cancel_transition(property_name)
                 state = payload.upper() in ("ON", "1", "TRUE")
                 self.logger.info(
                     f"Executing switch command: switch={switch_nr}, state={state}{' (retained)' if is_retained else ''}"
