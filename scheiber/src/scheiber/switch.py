@@ -23,6 +23,7 @@ class Switch:
         device_id: int,
         switch_nr: int,
         name: str,
+        entity_id: str,
         can_bus,
         logger: Optional[logging.Logger] = None,
     ):
@@ -33,12 +34,14 @@ class Switch:
             device_id: Parent device ID
             switch_nr: Switch number (0-indexed)
             name: Human-readable name (e.g., 's1', 's2')
+            entity_id: Entity ID for Home Assistant (without domain prefix)
             can_bus: ScheiberCanBus for sending commands
             logger: Optional logger
         """
         self.device_id = device_id
         self.switch_nr = switch_nr
         self.name = name
+        self.entity_id = entity_id
         self.can_bus = can_bus
         self.logger = logger or logging.getLogger(f"Switch.{device_id}.{name}")
 

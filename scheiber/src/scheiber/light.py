@@ -24,6 +24,7 @@ class DimmableLight:
         device_id: int,
         switch_nr: int,
         name: str,
+        entity_id: str,
         send_command_func: Callable,
         logger: Optional[logging.Logger] = None,
     ):
@@ -34,12 +35,14 @@ class DimmableLight:
             device_id: Parent device ID
             switch_nr: Switch number (0-indexed)
             name: Human-readable name (e.g., 's1', 's2')
+            entity_id: Entity ID for Home Assistant (without domain prefix)
             send_command_func: Function to send CAN commands: func(switch_nr, state, brightness)
             logger: Optional logger
         """
         self.device_id = device_id
         self.switch_nr = switch_nr
         self.name = name
+        self.entity_id = entity_id
         self._send_command = send_command_func
         self.logger = logger or logging.getLogger(f"DimmableLight.{device_id}.{name}")
 
@@ -239,20 +242,44 @@ class DimmableLight:
         """
         Update state from received CAN message (without sending command).
 
+        Special handling for Bloc9 hardware quirk:
+        - When Bloc9 is ON without PWM (full brightness), it reports: state=ON, brightness=0
+        - This must be translated to: state=ON, brightness=255 for MQTT
+        - For MQTT: brightness 0 = OFF, brightness > 0 = ON
+
         Args:
             state: New state from CAN bus
             brightness: New brightness from CAN bus
         """
-        changed = False
-        if self._state != state:
-            self._state = state
-            changed = True
-            self._notify_observers("state", state)
+        # Bloc9 hardware quirk: ON without PWM reports as state=ON, brightness=0
+        # Translate this to brightness=255 for MQTT
+        effective_brightness = brightness
+        if state and brightness == 0:
+            effective_brightness = 255
 
-        if self._brightness != brightness:
-            self._brightness = brightness
+        # Effective state: OFF if brightness is 0, ON otherwise
+        effective_state = effective_brightness > 0
+
+        changed = False
+        if self._state != effective_state:
+            self._state = effective_state
             changed = True
-            self._notify_observers("brightness", brightness)
+            self._notify_observers("state", effective_state)
+
+        if self._brightness != effective_brightness:
+            self._brightness = effective_brightness
+            changed = True
+            self._notify_observers("brightness", effective_brightness)
+
+        if changed:
+            self.logger.debug(
+                f"State updated from CAN: {self.name} state={effective_state}, brightness={effective_brightness}"
+                + (
+                    f" (translated from brightness={brightness})"
+                    if brightness != effective_brightness
+                    else ""
+                )
+            )
 
     def __str__(self) -> str:
         """String representation."""

@@ -1,0 +1,207 @@
+# Scheiber v6 Configuration
+# Converted from scheiber.yaml (v5 format)
+#
+# This file defines the devices on your CAN bus using the v6 format
+# Compatible with the new scheiber module and can-mqtt-bridge
+
+devices:
+  - type: bloc9
+    bus_id: 1
+    name: "Bloc9 X11"
+    description: "Bloc9 device ID 1"
+    switches:
+      s3:
+        name: "Reading Light & Fan Stbd"
+        entity_id: "reading_light_fan_stbd"
+
+  - type: bloc9
+    bus_id: 2
+    name: "Bloc9 X10"
+    description: "Bloc9 device ID 2"
+    switches:
+      s1:
+        name: "Navigation Light"
+        entity_id: "navigation_light"
+      s2:
+        name: "Steam Light"
+        entity_id: "steam_light"
+      s3:
+        name: "Anchor Light"
+        entity_id: "anchor_light"
+      s4:
+        name: "Power Fridge"
+        entity_id: "power_fridge"
+
+  - type: bloc9
+    bus_id: 3
+    name: "Bloc9 X12"
+    description: "Bloc9 device ID 3"
+    lights:
+      s1:
+        name: "Main Light Crew Cabin Toilette Stbd"
+        entity_id: "main_light_crew_cabin_toilette_stbd"
+      s2:
+        name: "Ambient Light Crew Cabin Toilette Stbd"
+        entity_id: "ambient_light_crew_cabin_toilette_stbd"
+      s3:
+        name: "Main Light Crew Cabin Stbd"
+        entity_id: "main_light_crew_cabin_stbd"
+      s4:
+        name: "Ambient Light Crew Cabin Stbd"
+        entity_id: "ambient_light_crew_cabin_stbd"
+      s5:
+        name: "Main Light Hallway Stbd"
+        entity_id: "main_loght_hallway_stbd"
+      s6:
+        name: "Under Stairs Light Hallway Stbd"
+        entity_id: "under_stairs_light_hallway_stbd"
+
+  - type: bloc9
+    bus_id: 4
+    name: "Bloc9 X13"
+    description: "Bloc9 device ID 4"
+    lights:
+      s1:
+        name: "Main Light Door Marc Cabin"
+        entity_id: "main_light_door_marc_cabin"
+      s2:
+        name: "Ambient Light Shower/Sink Marc Cabin"
+        entity_id: "ambient_light_shower_sink_marc_cabin"
+      s3:
+        name: "Main Light Sink Marc Cabine"
+        entity_id: "main_light_sink_marc_cabine"
+      s4:
+        name: "Toilet Light Marc Cabin"
+        entity_id: "toilet_light_marc_cabin"
+      s5:
+        name: "Main Light Marc Cabin"
+        entity_id: "main_light_marc_cabin"
+      s6:
+        name: "Ambient Light Marc Cabin"
+        entity_id: "ambient_light_marc_cabin"
+
+  - type: bloc9
+    bus_id: 5
+    name: "Bloc9 X14"
+    description: "Bloc9 device ID 5"
+    switches:
+      s1:
+        name: "Automatic Bilge Pump Engine Room Stbd"
+        entity_id: "automatic_bilge_pump_engine_room_stbd"
+      s2:
+        name: "Automatic Bilge Pump Stbd"
+        entity_id: "automatic_bilge_pump_stbd"
+      s3:
+        name: "Manual Bilge Pump Stbd"
+        entity_id: "manual_bilge_pump_stbd"
+      s4:
+        name: "Automatic Bilge Pump Engine Room Port"
+        entity_id: "automatic_bilge_pump_engine_room_port"
+      s5:
+        name: "Automatic Bilge Pump Port"
+        entity_id: "automatic_bilge_pump_port"
+      s6:
+        name: "Manual Bilge Pump Port"
+        entity_id: "manual_bilge_pump_port"
+
+  - type: bloc9
+    bus_id: 6
+    name: "Bloc9 X25"
+    description: "Bloc9 device ID 6"
+    switches:
+      s2:
+        name: "Freshwater Pump"
+        entity_id: "pump_freshwater"
+      s3:
+        name: "Decklight Bow"
+        entity_id: "decklight_bow"
+    lights:
+      s4:
+        name: "Light Flybridge"
+        entity_id: "main_light_flybridge"
+
+  - type: bloc9
+    bus_id: 7
+    name: "Bloc9 X26"
+    description: "Bloc9 device ID 7"
+    switches:
+      s6:
+        name: "Reading Light & Fan Port"
+        entity_id: "reading_light_fan_port"
+    lights:
+      s1:
+        name: "Main Light Saloon Front"
+        entity_id: "main_light_saloon_front"
+      s2:
+        name: "Main Light Saloon Aft"
+        entity_id: "main_light_saloon_aft"
+      s3:
+        name: "Cove Light Saloon"
+        entity_id: "cove_light_saloon"
+      s4:
+        name: "Ambient Light saloon Sofa"
+        entity_id: "ambient_light_saloon_sofa"
+      s5:
+        name: "Main Light Cockpit"
+        entity_id: "main_light_cockpit"
+
+  - type: bloc9
+    bus_id: 8
+    name: "Bloc9 X27"
+    description: "Bloc9 device ID 8"
+    lights:
+      s1:
+        name: "Main Light Guest Cabin Toilet Port"
+        entity_id: "main_light_guest_cabin_toilet_port"
+      s2:
+        name: "Ambient Light Guest Cabin Toilette Port"
+        entity_id: "ambient_light_guest_cabin_toilette_port"
+      s3:
+        name: "Main Light Guest Cabin Port"
+        entity_id: "main_light_guest_cabin_port"
+      s4:
+        name: "Ambient Light Guest Cabin Port"
+        entity_id: "ambient_light_guest_cabin_port"
+      s5:
+        name: "Main Light Hallway Port"
+        entity_id: "main_light_hallway_port"
+      s6:
+        name: "Under Stairs Light Hallway Port"
+        entity_id: "under_stairs_light_hallway_port"
+
+  - type: bloc9
+    bus_id: 9
+    name: "Bloc9 X28"
+    description: "Bloc9 device ID 9"
+    lights:
+      s3:
+        name: "Main Light Dotzi Toilet"
+        entity_id: "main_light_dotzi_toilet"
+      s4:
+        name: "Ambient Light Dotzi Toilet"
+        entity_id: "ambient_light_dotzi_toilet"
+      s5:
+        name: "Main Light Dotzi Cabin"
+        entity_id: "main_light_dotzi_cabin"
+      s6:
+        name: "Ambient Light Dotzi Cabin"
+        entity_id: "ambient_light_dotzi_cabin"
+
+  - type: bloc9
+    bus_id: 10
+    name: "Bloc9 X20"
+    description: "Bloc9 device ID 10"
+    switches:
+      s3:
+        name: "Aft Beam Light"
+        entity_id: "aft_beam_light"
+      s4:
+        name: "Under Water Light"
+        entity_id: "under_water_light"
+    lights:
+      s1:
+        name: "Courtesy Lights"
+        entity_id: "courtesy_lights"
+      s2:
+        name: "Secret Light"
+        entity_id: "secret_light"

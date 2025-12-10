@@ -135,7 +135,7 @@ def _create_devices(
 
     for device_config in device_configs:
         device_type = device_config.get("type")
-        device_id = device_config.get("id")
+        device_id = device_config.get("bus_id")  # Changed from "id" to "bus_id"
 
         if not device_type or device_id is None:
             logger.warning(f"Invalid device config: {device_config}")
@@ -143,13 +143,25 @@ def _create_devices(
 
         # Create device based on type
         if device_type == "bloc9":
+            # Extract lights and switches configuration
+            lights_config = device_config.get("lights", {})
+            switches_config = device_config.get("switches", {})
+
             device = Bloc9Device(
                 device_id=device_id,
                 can_bus=can_bus,
+                lights_config=lights_config,
+                switches_config=switches_config,
                 logger=logging.getLogger(f"Bloc9.{device_id}"),
             )
             devices.append(device)
-            logger.info(f"Created Bloc9 device: bus_id={device_id}")
+
+            num_lights = len(lights_config)
+            num_switches = len(switches_config)
+            logger.info(
+                f"Created Bloc9 device: bus_id={device_id}, "
+                f"{num_lights} lights, {num_switches} switches"
+            )
         else:
             logger.warning(f"Unknown device type: {device_type}")
 

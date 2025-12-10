@@ -10,6 +10,7 @@ import logging
 
 from .base_device import ScheiberCanDevice
 from .light import DimmableLight
+from .switch import Switch
 from .matchers import Matcher
 
 
@@ -43,7 +44,12 @@ class Bloc9Device(ScheiberCanDevice):
     DIMMING_THRESHOLD = 2
 
     def __init__(
-        self, device_id: int, can_bus, logger: Optional[logging.Logger] = None
+        self,
+        device_id: int,
+        can_bus,
+        lights_config: Optional[Dict[str, Dict[str, Any]]] = None,
+        switches_config: Optional[Dict[str, Dict[str, Any]]] = None,
+        logger: Optional[logging.Logger] = None,
     ):
         """
         Initialize Bloc9 device.
@@ -51,22 +57,75 @@ class Bloc9Device(ScheiberCanDevice):
         Args:
             device_id: Device bus ID
             can_bus: ScheiberCanBus instance
+            lights_config: Dict mapping output names (s1-s6) to light config
+            switches_config: Dict mapping output names (s1-s6) to switch config
             logger: Optional logger
         """
         super().__init__(device_id, "bloc9", can_bus, logger)
 
-        # Create 6 dimmable lights (S1-S6)
+        # Track all outputs (mix of switches and lights)
+        self.switches: List[Switch] = []
         self.lights: List[DimmableLight] = []
-        for i in range(6):
-            name = f"s{i+1}"
-            light = DimmableLight(
-                device_id=device_id,
-                switch_nr=i,
-                name=name,
-                send_command_func=self._send_switch_command,
-                logger=logging.getLogger(f"Bloc9.{device_id}.{name}"),
-            )
-            self.lights.append(light)
+
+        # Map output names to switch numbers
+        output_map = {f"s{i+1}": i for i in range(6)}
+
+        # Create lights for configured outputs
+        if lights_config:
+            for output_name, config in lights_config.items():
+                switch_nr = output_map.get(output_name.lower())
+                if switch_nr is None:
+                    self.logger.warning(f"Invalid output name: {output_name}")
+                    continue
+
+                name = config.get("name", output_name)
+                entity_id = config.get("entity_id", name.lower().replace(" ", "_"))
+                initial_brightness = config.get("initial_brightness")  # None if not set
+
+                light = DimmableLight(
+                    device_id=device_id,
+                    switch_nr=switch_nr,
+                    name=name,
+                    entity_id=entity_id,
+                    send_command_func=self._send_switch_command,
+                    logger=logging.getLogger(f"Bloc9.{device_id}.{output_name}"),
+                )
+                # Only set initial brightness if explicitly configured (DANGEROUS)
+                # Otherwise brightness/state will be restored from saved state or remain at 0
+                if initial_brightness is not None:
+                    self.logger.warning(
+                        f"Setting initial_brightness={initial_brightness} for {name} "
+                        f"(this will send CAN command on startup)"
+                    )
+                    light._brightness = initial_brightness
+                    light._state = initial_brightness > 0
+
+                self.lights.append(light)
+                self.logger.debug(
+                    f"Created light {name} on {output_name} (brightness={initial_brightness})"
+                )
+
+        # Create switches for configured outputs
+        if switches_config:
+            for output_name, config in switches_config.items():
+                switch_nr = output_map.get(output_name.lower())
+                if switch_nr is None:
+                    self.logger.warning(f"Invalid output name: {output_name}")
+                    continue
+
+                name = config.get("name", output_name)
+                entity_id = config.get("entity_id", name.lower().replace(" ", "_"))
+
+                switch = Switch(
+                    device_id=device_id,
+                    switch_nr=switch_nr,
+                    name=name,
+                    entity_id=entity_id,
+                    can_bus=can_bus,
+                    logger=logging.getLogger(f"Bloc9.{device_id}.{output_name}"),
+                )
+                self.switches.append(switch)
+                self.logger.debug(f"Created switch {name} on {output_name}")
 
     def get_matchers(self) -> List[Matcher]:
         """

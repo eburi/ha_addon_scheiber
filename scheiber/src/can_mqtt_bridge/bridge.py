@@ -147,6 +147,10 @@ class MQTTBridge:
         for light in device.get_lights():
             self._setup_light(device_type, device_id, light)
 
+        # Setup switches
+        for switch in device.get_switches():
+            self._setup_switch(device_type, device_id, switch)
+
     def _setup_light(self, device_type: str, device_id: int, light):
         """
         Setup MQTT for a light with Home Assistant Discovery.
@@ -229,6 +233,72 @@ class MQTTBridge:
         on_light_change("state", light.is_on())
         on_light_change("brightness", light.get_brightness())
 
+    def _setup_switch(self, device_type: str, device_id: int, switch):
+        """
+        Setup MQTT for a switch with Home Assistant Discovery.
+
+        Args:
+            device_type: Device type (e.g., 'bloc9')
+            device_id: Device bus ID
+            switch: Switch instance
+        """
+        switch_name = switch.name.lower().replace(" ", "_")
+        unique_id = f"scheiber_{device_type}_{device_id}_{switch.entity_id}"
+
+        # Base topics
+        base_topic = f"{self.mqtt_topic_prefix}/scheiber/{device_type}/{device_id}/{switch.entity_id}"
+        config_topic = f"{self.mqtt_topic_prefix}/switch/{unique_id}/config"
+        state_topic = f"{base_topic}/state"
+        command_topic = f"{base_topic}/set"
+
+        # Home Assistant Discovery config
+        discovery_config = {
+            "name": f"Scheiber {switch.name}",
+            "unique_id": unique_id,
+            "device": {
+                "identifiers": ["scheiber_system"],
+                "name": "Scheiber",
+                "manufacturer": "Scheiber",
+                "model": "Marine Lighting Control System",
+            },
+            "state_topic": state_topic,
+            "command_topic": command_topic,
+            "payload_on": "ON",
+            "payload_off": "OFF",
+            "optimistic": False,
+        }
+
+        # Publish discovery config
+        self.mqtt_client.publish(
+            config_topic, json.dumps(discovery_config), retain=True
+        )
+
+        self.logger.debug(f"Published switch discovery config for {unique_id}")
+
+        # Subscribe to commands
+        self.mqtt_client.subscribe(command_topic)
+
+        self.logger.debug(f"Subscribed to switch commands for {unique_id}")
+
+        # Subscribe to switch state changes
+        def on_switch_change(prop: str, value: Any):
+            if prop == "state":
+                # Publish state
+                payload = "ON" if value else "OFF"
+                self.mqtt_client.publish(state_topic, payload, retain=True)
+                self.logger.debug(f"{unique_id} state: {payload}")
+
+        switch.subscribe(on_switch_change)
+        self._light_subscriptions[unique_id] = (
+            switch,
+            on_switch_change,
+            command_topic,
+            None,  # No brightness topic for switches
+        )
+
+        # Publish initial state
+        on_switch_change("state", switch.get_state())
+
     def _on_mqtt_connect(self, client, userdata, flags, rc):
         """Handle MQTT connection."""
         if rc == 0:
@@ -236,13 +306,14 @@ class MQTTBridge:
 
             # Resubscribe to all command topics if reconnecting
             for unique_id, (
-                light,
+                device,
                 callback,
                 cmd_topic,
                 brightness_topic,
             ) in self._light_subscriptions.items():
                 client.subscribe(cmd_topic)
-                client.subscribe(brightness_topic)
+                if brightness_topic:  # Skip None for switches
+                    client.subscribe(brightness_topic)
                 self.logger.debug(f"Resubscribed to {unique_id}")
         else:
             self.logger.error(f"Failed to connect to MQTT broker: {rc}")
@@ -265,38 +336,47 @@ class MQTTBridge:
 
         self.logger.debug(f"MQTT message: {topic} = {payload}")
 
-        # Find the light for this topic
-        light = None
+        # Find the device (light or switch) for this topic
+        device = None
         is_brightness_command = False
+        is_switch = False
 
         for unique_id, (
-            l,
+            d,
             callback,
             cmd_topic,
             brightness_topic,
         ) in self._light_subscriptions.items():
             if topic == cmd_topic:
-                light = l
+                device = d
                 is_brightness_command = False
+                # Check if it's a switch (no brightness topic)
+                is_switch = brightness_topic is None
                 break
-            elif topic == brightness_topic:
-                light = l
+            elif brightness_topic and topic == brightness_topic:
+                device = d
                 is_brightness_command = True
+                is_switch = False
                 break
 
-        if not light:
-            self.logger.warning(f"No light found for topic: {topic}")
+        if not device:
+            self.logger.warning(f"No device found for topic: {topic}")
             return
 
-        # Handle command
+        # Handle command based on device type
         try:
-            if is_brightness_command:
-                # Brightness command
+            if is_switch:
+                # Switch command - simple ON/OFF
+                state = payload == "ON"
+                self.logger.info(f"Setting {device.name} to {payload}")
+                device.set(state)
+            elif is_brightness_command:
+                # Brightness command for light
                 brightness = int(payload)
-                self.logger.info(f"Setting {light.name} brightness to {brightness}")
-                light.set_brightness(brightness)
+                self.logger.info(f"Setting {device.name} brightness to {brightness}")
+                device.set_brightness(brightness)
             else:
-                # State command (JSON with optional transition)
+                # Light state command (JSON with optional transition)
                 try:
                     command = json.loads(payload)
                 except json.JSONDecodeError:
@@ -311,8 +391,8 @@ class MQTTBridge:
                 if flash:
                     # Flash effect
                     count = 3 if flash == "short" else 5
-                    self.logger.info(f"Flashing {light.name} {count} times")
-                    light.flash(count=count)
+                    self.logger.info(f"Flashing {device.name} {count} times")
+                    device.flash(count=count)
                 elif transition:
                     # Fade transition
                     target = (
@@ -322,21 +402,23 @@ class MQTTBridge:
                     )
                     duration_ms = int(transition * 1000)
                     self.logger.info(
-                        f"Fading {light.name} to {target} over {duration_ms}ms"
+                        f"Fading {device.name} to {target} over {duration_ms}ms"
                     )
-                    light.fade_to(target, duration_ms=duration_ms)
+                    device.fade_to(target, duration_ms=duration_ms)
                 elif brightness is not None:
                     # Set brightness
-                    self.logger.info(f"Setting {light.name} brightness to {brightness}")
-                    light.set_brightness(brightness)
+                    self.logger.info(
+                        f"Setting {device.name} brightness to {brightness}"
+                    )
+                    device.set_brightness(brightness)
                 else:
                     # Simple ON/OFF
                     target = 255 if state == "ON" else 0
-                    self.logger.info(f"Setting {light.name} to {state}")
-                    light.set_brightness(target)
+                    self.logger.info(f"Setting {device.name} to {state}")
+                    device.set_brightness(target)
 
         except Exception as e:
-            self.logger.error(f"Error handling command for {light.name}: {e}")
+            self.logger.error(f"Error handling command for {device.name}: {e}")
 
     def _on_can_stats(self, stats: Dict[str, Any]):
         """

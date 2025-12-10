@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.4.1] - 2025-12-10
+
+### Changed
+- **v6 Preview Development**: Advanced DimmableLight component
+  - Fixed `update_state()` to properly handle Bloc9 hardware quirk (full brightness reports as state=ON, brightness=0 → now translates to brightness=255)
+  - Added debug logging for state changes with translation indicator
+  - Ensures consistent MQTT reporting: brightness 0 = OFF, brightness > 0 = ON
+- **v5 Stable**: No changes (production-ready, default)
+
 ## [5.4.0] - 2025-12-10
 
 ### Added

@@ -1,0 +1,86 @@
+# Example configuration for Scheiber system (v6 format)
+# This file defines the devices on your CAN bus
+
+devices:
+  # Bloc9 devices - intelligent lighting controllers
+  # Each Bloc9 has 6 outputs (s1-s6) that can be configured as lights or switches
+  
+  - type: bloc9
+    bus_id: 3  # The Bloc9's unique CAN ID (0-31)
+    name: "Saloon Lights"
+    description: "Main saloon lighting control"
+    lights:
+      s1:
+        name: "Overhead Light"
+        entity_id: "overhead_light"
+        initial_brightness: 128
+      s2:
+        name: "Reading Light Port"
+        entity_id: "reading_light_port"
+        initial_brightness: 0
+      s3:
+        name: "Reading Light Starboard"
+        entity_id: "reading_light_starboard"
+        initial_brightness: 0
+      s4:
+        name: "Accent Lighting"
+        entity_id: "accent_lighting"
+        initial_brightness: 0
+      s5:
+        name: "Galley Light"
+        entity_id: "galley_light"
+        initial_brightness: 0
+    switches:
+      s6:
+        name: "Galley Fan"
+        entity_id: "galley_fan"
+  
+  - type: bloc9
+    bus_id: 7  # Another Bloc9 on the same bus
+    name: "Cabin Lights"
+    description: "Forward cabin lighting"
+    lights:
+      s1:
+        name: "Overhead"
+        entity_id: "cabin_overhead"
+        initial_brightness: 0
+      s2:
+        name: "Berth Light Port"
+        entity_id: "berth_light_port"
+        initial_brightness: 0
+      s3:
+        name: "Berth Light Starboard"
+        entity_id: "berth_light_starboard"
+        initial_brightness: 0
+      s4:
+        name: "Reading Light"
+        entity_id: "cabin_reading_light"
+        initial_brightness: 0
+      s5:
+        name: "Closet Light"
+        entity_id: "closet_light"
+        initial_brightness: 0
+      s6:
+        name: "Ensuite Light"
+        entity_id: "ensuite_light"
+        initial_brightness: 0
+
+# Configuration format:
+# - Each device has a type ('bloc9' for now)
+# - bus_id: Device ID on CAN bus (0-31)
+# - name: Human-readable device name
+# - description: Optional description
+# - lights: Dict mapping output names (s1-s6) to light config
+#   - name: Display name in Home Assistant
+#   - entity_id: Entity ID (without 'light.' prefix)
+#   - initial_brightness: Starting brightness (0-255), default 0
+#     ⚠️  DANGEROUS: Sets brightness on startup, may disrupt bus state
+#     ⚠️  Only use if you want the bridge to actively control lights on startup
+#     ⚠️  Recommended: Omit this field and let the bridge restore from saved state
+# - switches: Dict mapping output names (s1-s6) to switch config
+#   - name: Display name in Home Assistant
+#   - entity_id: Entity ID (without 'switch.' prefix)
+
+# State persistence
+# The system will automatically save state every 30 seconds
+# and restore it on startup if a state file is provided
