@@ -118,6 +118,13 @@ bloc9:
       - name: "Decklight Bow"
         entity_id: "switch.decklight_bow"
         output: s3
+      - name: "Freshwater Pump"
+        entity_id: "switch.pump_freshwater"
+        output: s2
+    lights:
+      - name: "Light Flybridge"
+        entity_id: "light.main_light_flybridge"
+        output: s4
 
   - bus_id: 7
     name: "Bloc9 X26 (ID: 7)"
