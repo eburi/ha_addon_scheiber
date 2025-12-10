@@ -419,4 +419,202 @@ bridge.run()
 - CLI tools need updates to use factory method
 - State file format can remain backward-compatible 
 
+---
+
+## Version 5.4.0: CAN MQTT Bridge v6 Preview
+
+### Overview
+
+Version 6.0.0 introduces `can_mqtt_bridge` - a complete rewrite of the MQTT bridge using the new scheiber module architecture. This provides cleaner code, better separation of concerns, and improved maintainability.
+
+### Architecture
+
+```
+can_mqtt_bridge/
+├── __init__.py          # Module exports
+├── __main__.py          # CLI entry point with argparse
+└── bridge.py            # MQTTBridge class
+```
+
+**Entry Point:** `scheiber/src/can-mqtt-bridge` (executable script)
+
+### MQTTBridge Class (bridge.py)
+
+**Responsibilities:**
+1. Initialize scheiber system via factory method
+2. Connect to MQTT broker with paho-mqtt
+3. Setup Home Assistant MQTT Discovery for all devices
+4. Subscribe to device state changes via observer pattern
+5. Publish state updates to MQTT
+6. Handle MQTT command messages from Home Assistant
+7. Provide clean shutdown
+
+**Key Features:**
+- **Observer Pattern**: Subscribe to light/switch changes, publish to MQTT automatically
+- **Home Assistant Discovery**: Auto-configure entities in Home Assistant
+- **Unified Device**: All entities belong to single "Scheiber" device
+- **JSON Command Schema**: Full support for brightness, transitions, and flash
+- **Read-Only Mode**: Monitor CAN bus without sending commands
+- **Automatic Reconnection**: MQTT client handles reconnection automatically
+
+### Home Assistant Discovery
+
+**Discovery Config:**
+```python
+{
+    "name": "Scheiber S1",
+    "unique_id": "scheiber_bloc9_3_s1",
+    "device": {
+        "identifiers": ["scheiber_system"],
+        "name": "Scheiber",
+        "manufacturer": "Scheiber",
+        "model": "Marine Lighting Control System"
+    },
+    "state_topic": "homeassistant/scheiber/bloc9/3/s1/state",
+    "command_topic": "homeassistant/scheiber/bloc9/3/s1/set",
+    "brightness_state_topic": "homeassistant/scheiber/bloc9/3/s1/brightness",
+    "brightness_command_topic": "homeassistant/scheiber/bloc9/3/s1/set_brightness",
+    "brightness_scale": 255,
+    "schema": "json"
+}
+```
+
+**Entity Naming:**
+- Entity ID: `light.scheiber_s1` (cleaner than `light.s1_s1`)
+- Friendly Name: "Scheiber S1"
+- Device: "Scheiber - Marine Lighting Control System"
+
+### MQTT Topics
+
+**Pattern:** `{prefix}/scheiber/{device_type}/{bus_id}/{light_name}/{suffix}`
+
+**State Topics:**
+- State: `{prefix}/scheiber/bloc9/3/s1/state` → "ON" or "OFF"
+- Brightness: `{prefix}/scheiber/bloc9/3/s1/brightness` → 0-255
+
+**Command Topics:**
+- State/JSON: `{prefix}/scheiber/bloc9/3/s1/set` → JSON or "ON"/"OFF"
+- Brightness: `{prefix}/scheiber/bloc9/3/s1/set_brightness` → 0-255
+
+**Discovery:**
+- Config: `{prefix}/light/{unique_id}/config` → JSON discovery payload
+
+### Command Handling
+
+**Simple Commands:**
+```json
+"ON"              → Set brightness to 255
+"OFF"             → Set brightness to 0
+```
+
+**JSON Commands:**
+```json
+{
+  "state": "ON",           // ON/OFF
+  "brightness": 200        // 0-255
+}
+
+{
+  "state": "ON",
+  "brightness": 255,
+  "transition": 2.0        // Fade over 2 seconds
+}
+
+{
+  "state": "ON",
+  "flash": "short"         // Flash 3 times (short) or 5 times (long)
+}
+```
+
+**Command Processing:**
+1. Parse JSON or simple ON/OFF string
+2. Check for flash effect → call `light.flash(count)`
+3. Check for transition → call `light.fade_to(target, duration_ms)`
+4. Otherwise → call `light.set_brightness(value)`
+
+### Usage
+
+**Command Line:**
+```bash
+can-mqtt-bridge \
+    --can-interface can0 \
+    --mqtt-host localhost \
+    --mqtt-port 1883 \
+    --mqtt-user mqtt_user \
+    --mqtt-password mqtt \
+    --mqtt-topic-prefix homeassistant \
+    --config /config/scheiber.yaml \
+    --data-dir /data \
+    --log-level info
+```
+
+**Home Assistant Addon:**
+- Config option: `run_dev_version: true` enables new bridge
+- Config option: `run_dev_version: false` uses old mqtt_bridge.py (v5.3.6)
+- Seamless transition - no breaking changes for users
+
+**run.sh Logic:**
+```bash
+if [ "${RUN_DEV_VERSION}" = "true" ]; then
+    exec python3 can-mqtt-bridge ...  # Version 6.0.0
+else
+    exec python3 mqtt_bridge.py ...   # Version 5.3.6
+fi
+```
+
+### State Flow
+
+**CAN → MQTT (Incoming):**
+1. CAN message arrives at ScheiberCanBus
+2. ScheiberSystem routes to Bloc9Device via matchers
+3. Bloc9Device updates DimmableLight state
+4. DimmableLight notifies observers (MQTTBridge callback)
+5. MQTTBridge publishes state/brightness to MQTT
+
+**MQTT → CAN (Commands):**
+1. MQTT command arrives (e.g., `{"state": "ON", "brightness": 200}`)
+2. MQTTBridge parses command, finds light by topic
+3. Calls `light.set_brightness(200)` or `light.fade_to(255, duration_ms=2000)`
+4. Light cancels any active transitions
+5. Light updates internal state and sends CAN command via ScheiberCanBus
+6. State change triggers observer notification → MQTT publish (echo)
+
+### Benefits Over Old Bridge
+
+1. **Cleaner Architecture**: Scheiber module handles all CAN/device logic
+2. **No Dual Tracking**: Single source of truth (scheiber module), MQTT just subscribes
+3. **Simpler Code**: MQTTBridge is ~280 lines vs old bridge ~500+ lines
+4. **Better Testing**: Can test scheiber module independently of MQTT
+5. **Future-Proof**: Easy to add new device types (Bloc7, etc.)
+6. **State Persistence**: Handled by scheiber system, not MQTT bridge
+7. **Unified Device**: All entities in Home Assistant belong to single device
+
+### Migration Path
+
+**Phase 1 (Current):**
+- Both bridges coexist in codebase
+- Users opt-in via `run_dev_version` flag
+- Default remains old bridge (v5.3.6)
+
+**Phase 2 (Future):**
+- After testing, flip default to new bridge
+- Old bridge remains available with `run_dev_version: false`
+
+**Phase 3 (Long-term):**
+- Remove old bridge code after stable period
+- New bridge becomes only option
+
+### Configuration
+
+**Old Bridge (mqtt_bridge.py):**
+- Uses environment variables or command-line args
+- No scheiber.yaml config file
+- Device IDs hardcoded or discovered
+
+**New Bridge (can-mqtt-bridge):**
+- Requires `scheiber.yaml` config file (optional for auto-discovery)
+- Clean YAML-based device configuration
+- Example: `scheiber.example.yaml` in repo root
+
+---
 

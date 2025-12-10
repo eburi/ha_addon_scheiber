@@ -1,6 +1,6 @@
 {
   "python.defaultInterpreterPath": "${workspaceFolder}/scheiber/src/.venv/bin/python",
-  "python.linting.enabled": true,
+  "python.linting.enabled": false,
   "python.linting.pylintEnabled": false,
   "python.linting.flake8Enabled": false,
   "python.analysis.typeCheckingMode": "basic",

@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.4.0] - 2025-12-10
+
+### Added
+- **PREVIEW: New scheiber Python module** - First prototype with clean architecture
+  - Factory pattern for initialization (`create_scheiber_system()`)
+  - Modular structure: `can_bus.py`, `system.py`, `base_device.py`, `bloc9.py`, `light.py`, `switch.py`, `transitions.py`, `matchers.py`
+  - Observer pattern for state notifications
+  - Periodic state persistence (every 30s)
+  - CAN bus statistics tracking
+  - Read-only mode support
+- **PREVIEW: can-mqtt-bridge** - Prototype MQTT bridge using scheiber module
+  - Cleaner code (~280 lines vs 500+ in old bridge)
+  - Home Assistant MQTT Discovery integration
+  - JSON command schema for brightness, transitions, flash
+  - Unified "Scheiber" device in Home Assistant
+  - Observer-based state publishing (no polling)
+  - **Note**: Not yet feature-complete, opt-in only
+- **scheiber-cli tool**: Command-line interface for monitoring CAN bus
+  - `listen` command for real-time message display
+  - Config file support or auto-discovery
+  - State persistence support
+- **run_dev_version config option**: Toggle between preview and stable bridge
+  - `true`: Run new can-mqtt-bridge (experimental)
+  - `false`: Run old mqtt_bridge.py v5.3.6 (default, stable)
+- **Comprehensive documentation**: IMPLEMENTATION.md with complete architecture details
+
+### Changed
+- Major architecture advancement for improved readability and maintainability
+- Preview bridge uses different command-line arguments and config format
+
+### Note
+- This is a **preview release** showcasing the future v6.0.0 architecture
+- New bridge is a prototype - not yet on par with v5.3.6 implementation
+- Default remains stable v5.3.6 bridge for production use
+- Opt-in to preview via `run_dev_version: true` for testing and feedback
+
 ## [5.3.6] - 2024-12-09
 
 ### Fixed

@@ -1,6 +1,6 @@
 name: scheiber
 slug: scheiber
-version: "5.3.7"
+version: "5.4.0"
 description: >
   MQTT Bridge to connect Scheiber CAN devices to Home Assistant via MQTT.
 
@@ -30,6 +30,7 @@ options:
   log_level: info
   data_dir: /data
   config_file: /config/scheiber.yaml
+  run_dev_version: false
 
 schema:
   can_interface: str
@@ -41,3 +42,4 @@ schema:
   log_level: list(info|debug|warning|error)
   data_dir: str?
   config_file: str?
+  run_dev_version: bool
