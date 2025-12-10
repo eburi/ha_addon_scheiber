@@ -15,11 +15,20 @@ Core purpose
 
 Important files and their roles
 - **Production code (scheiber/src/)**:
+  - `scheiber_device.py`: **Hardware abstraction layer** - Device classes with CAN protocol implementation
+    - `ScheiberCanDevice`: Base class with observer pattern (subscribe/unsubscribe/notify)
+    - `Bloc9Device`: Bloc9 CAN protocol, brightness control, transitions, flash effects
+    - `Bloc7Device`: Tank sensor stub (read-only)
+    - `TransitionController`: Smooth brightness transitions with easing (50Hz, 20ms steps)
+    - `FlashController`: Flash effects with state restoration
+  - `devices.py`: **MQTT/Home Assistant bridge layer** - MQTT handlers for device types
+    - `ScheiberCanDeviceMqttHandler`: Abstract base for MQTT bridges
+    - `Bloc9`: MQTT handler that uses Bloc9Device, subscribes as observer, publishes to MQTT
+    - Handles Home Assistant discovery, entity configuration, state persistence
   - `can_decoder.py`: CAN message decoding utilities (find_device_and_matcher, extract_property_value)
   - `device_types.yaml`: YAML configuration defining device types, matchers, and property extraction templates
   - `mqtt_bridge.py`: Main MQTT bridge program that publishes CAN messages to MQTT broker
-  - `devices.py`: Device class hierarchy with ScheiberCanDevice base and Bloc9 concrete class
-  - `scheiber.py`: Low-level CAN command functions (bloc9_switch, send_burst)
+  - `scheiber.py`: Low-level CAN command functions (bloc9_switch, send_burst) - **deprecated, use Bloc9Device instead**
   - `requirements.txt`: Python dependencies (python-can, paho-mqtt, PyYAML)
 
 - **Debug/analysis tools (scheiber/src/tools/)**:
@@ -51,16 +60,43 @@ Key patterns and protocols (must be respected)
   - `0x02180600` — S3 & S4 change messages
   - `0x021A0600` — S5 & S6 change messages
 
+**Layered Architecture** (CRITICAL - must be respected):
+```
+MQTT/HA Layer (devices.py)
+    │ uses observer pattern
+    ↓
+Hardware Layer (scheiber_device.py)
+    │ uses python-can
+    ↓
+CAN Bus
+```
+- **Hardware changes go in scheiber_device.py**: CAN protocol, device behavior, transitions, effects
+- **MQTT changes go in devices.py**: Topics, discovery, entity config, Home Assistant integration
+- **Never mix layers**: Hardware code shouldn't know about MQTT; MQTT code shouldn't implement CAN protocol
+- **Observer pattern**: MQTT handlers subscribe to hardware devices via callbacks, not direct polling
+- **Command delegation**: MQTT handlers call hardware device methods (set_brightness, fade_to, flash), don't send CAN directly
+
 Agent coding rules for this repo
 - Follow existing style (snake_case functions, concise helpers in `scheiber/src`).
 - When changing code that opens `can.interface.Bus`, always open in a try/finally and call `bus.shutdown()` in `finally`.
 - Use `apply_patch` for edits (small focused patches). Don't reformat whole files.
+- **Respect layer boundaries**: Hardware features in scheiber_device.py, MQTT/HA integration in devices.py
+- **Use hardware API**: For new device commands, add methods to device class (e.g., Bloc9Device), not in MQTT handler
 - Avoid touching hardware-specific code unless the change is clearly safer (e.g., better error handling or clear abstractions). When in doubt, add a small wrapper or feature-flag.
-- **Version management**: After making any code changes, update the `version` field in `scheiber/config.yaml` following semantic versioning (semver):
-  - **PATCH** (0.0.X): Bug fixes, small tweaks, no API changes
-  - **MINOR** (0.X.0): New features, backward-compatible changes (new parameters with defaults, new optional functionality)
-  - **MAJOR** (X.0.0): Breaking changes (API changes, removed functionality, changed behavior, Home Assistant device structure changes)
-  - Example: `0.5.8` → `0.5.9` for bug fix, `0.5.8` → `0.6.0` for new feature, `0.5.8` → `1.0.0` for breaking change
+- **Version management**: After making any code changes, update both version AND changelog:
+  1. Update the `version` field in `scheiber/config.yaml` following semantic versioning (semver):
+     - **PATCH** (0.0.X): Bug fixes, small tweaks, no API changes
+     - **MINOR** (0.X.0): New features, backward-compatible changes (new parameters with defaults, new optional functionality)
+     - **MAJOR** (X.0.0): Breaking changes (API changes, removed functionality, changed behavior, Home Assistant device structure changes)
+     - Example: `0.5.8` → `0.5.9` for bug fix, `0.5.8` → `0.6.0` for new feature, `0.5.8` → `1.0.0` for breaking change
+  2. Update `scheiber/CHANGELOG.md` following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format:
+     - Move relevant items from `[Unreleased]` section to new version section
+     - Add new version header: `## [X.Y.Z] - YYYY-MM-DD`
+     - Use ISO 8601 date format (YYYY-MM-DD)
+     - Categorize changes under: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`
+     - Write entries for humans, not commit logs - focus on user-facing impact
+     - Update version comparison links at bottom of file
+     - Keep `[Unreleased]` section at top for tracking upcoming changes
 
 **Home Assistant Device Structure (v4.0.0+)**:
 - All entities (lights, switches, sensors) belong to a single unified "Scheiber" device in Home Assistant

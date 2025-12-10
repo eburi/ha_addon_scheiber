@@ -1,0 +1,422 @@
+
+# Scheiber Module Architecture
+
+## Overview
+
+Refactor `scheiber_device.py` into a proper `scheiber/` module with clear separation of concerns between CAN bus management, device abstraction, and client integrations (MQTT, CLI).
+
+## Goals
+
+1. **Client-agnostic CAN bus layer**: Separate CAN bus logic from MQTT bridge
+2. **Clean API**: Factory pattern for initialization, simple device access
+3. **Maintainable code**: One file per class, clear architecture boundaries
+4. **State persistence**: Robust state saving and restoration
+5. **Future-proof**: Easy to add new device types (Bloc7, etc.)
+
+---
+
+## Module Structure
+
+```
+scheiber/
+├── __init__.py              # Public API: factory method
+├── can_bus.py               # ScheiberCanBus: Low-level CAN bus I/O
+├── system.py                # ScheiberSystem: Device manager, state persistence
+├── base_device.py           # ScheiberCanDevice: Abstract base class
+├── bloc9.py                 # Bloc9Device implementation
+├── switch.py                # Switch class (basic on/off)
+├── light.py                 # DimmableLight class (composition over Switch)
+├── transitions.py           # TransitionController, FlashController (existing)
+└── matchers.py              # Message matching utilities
+```
+
+---
+
+## Architecture Components
+
+### 1. Factory Method (scheiber/__init__.py)
+
+**Public API:**
+```python
+def create_scheiber_system(
+    can_interface: str,
+    config_path: str,           # Path to scheiber.yaml
+    state_file: Optional[str],  # Path to scheiber.state.yaml
+    log_level: str = "info"
+) -> ScheiberSystem
+```
+
+**Returns:** `ScheiberSystem` instance ready to use
+
+**Responsibilities:**
+- Parse configuration file
+- Validate device configurations (unique bus_id per device_type)
+- Create device instances
+- Initialize ScheiberCanBus and ScheiberSystem
+- Load and restore state
+
+---
+
+### 2. ScheiberCanBus (scheiber/can_bus.py)
+
+**Low-level CAN bus wrapper**
+
+**Responsibilities:**
+- Open/close CAN socket (python-can)
+- Send CAN messages (with optional read-only mode)
+- Provide raw message sending interface to devices
+- Track basic I/O statistics
+
+**API:**
+```python
+class ScheiberCanBus:
+    def __init__(self, interface: str, read_only: bool = False):
+        pass
+    
+    def send_message(self, arbitration_id: int, data: bytes) -> None:
+        """Send CAN message if not in read-only mode."""
+        pass
+    
+    def start_listening(self, on_message_callback: Callable) -> None:
+        """Start listening for CAN messages, call callback for each."""
+        pass
+    
+    def stop(self) -> None:
+        """Stop listening and close CAN bus."""
+        pass
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Return CAN bus I/O statistics."""
+        pass
+```
+
+**Observer Pattern:**
+- Implements observer pattern for bus statistics updates
+- Notifies subscribers periodically (e.g., every 10 seconds)
+
+---
+
+### 3. ScheiberSystem (scheiber/system.py)
+
+**High-level device manager**
+
+**Responsibilities:**
+- Manage device instances
+- Route incoming CAN messages to appropriate devices via matchers
+- Coordinate state persistence (periodically, not on every message)
+- Provide device access API for clients
+- Track bus statistics and unknown messages
+
+**API:**
+```python
+class ScheiberSystem:
+    def __init__(self, can_bus: ScheiberCanBus, devices: List[ScheiberCanDevice]):
+        pass
+    
+    def get_device(self, device_type: str, bus_id: int) -> Optional[ScheiberCanDevice]:
+        """Get device by type and bus ID."""
+        pass
+    
+    def get_all_devices(self) -> List[ScheiberCanDevice]:
+        """Get all registered devices."""
+        pass
+    
+    def restore_state(self, state_data: Dict[str, Any]) -> None:
+        """Restore state for all devices."""
+        pass
+    
+    def save_state(self) -> Dict[str, Any]:
+        """Collect state from all devices for persistence."""
+        pass
+    
+    def start(self) -> None:
+        """Start CAN message processing."""
+        pass
+    
+    def stop(self) -> None:
+        """Stop CAN message processing."""
+        pass
+    
+    def subscribe_to_stats(self, callback: Callable) -> None:
+        """Subscribe to bus statistics updates."""
+        pass
+```
+
+**Message Routing:**
+- Each device provides matchers (pattern/mask for arbitration IDs)
+- On incoming message, check all matchers, route to matching device
+- Track unknown arbitration IDs, log once per ID
+
+**State Persistence:**
+- Save state periodically (e.g., every 30 seconds) if changes detected
+- Save on shutdown
+- **Not** after every CAN message (excessive I/O)
+
+---
+
+### 4. ScheiberCanDevice (scheiber/base_device.py)
+
+**Abstract base class for all device types**
+
+**Responsibilities:**
+- Define device interface
+- Provide matchers for message routing
+- Handle state serialization/deserialization
+- Manage child components (switches, lights)
+
+**API:**
+```python
+class ScheiberCanDevice(ABC):
+    def __init__(self, device_id: int, can_bus: ScheiberCanBus):
+        pass
+    
+    @abstractmethod
+    def get_matchers(self) -> List[Matcher]:
+        """Return list of matchers for this device's CAN messages."""
+        pass
+    
+    @abstractmethod
+    def process_message(self, msg: can.Message, matched_property: Optional[str]) -> None:
+        """Process incoming CAN message that matched this device."""
+        pass
+    
+    @abstractmethod
+    def restore_from_state(self, state: Dict[str, Any]) -> None:
+        """Restore device state from persisted data."""
+        pass
+    
+    @abstractmethod
+    def store_to_state(self) -> Dict[str, Any]:
+        """Return current state for persistence."""
+        pass
+    
+    def get_switches(self) -> List[Switch]:
+        """Return list of switches (if any)."""
+        return []
+    
+    def get_lights(self) -> List[DimmableLight]:
+        """Return list of dimmable lights (if any)."""
+        return []
+```
+
+---
+
+### 5. Bloc9Device (scheiber/bloc9.py)
+
+**Bloc9-specific implementation**
+
+**Responsibilities:**
+- Implement Bloc9 CAN protocol
+- Manage 6 dimmable lights (S1-S6)
+- Provide matchers for Bloc9 messages (status, commands)
+- Handle state persistence
+
+**Matchers:**
+- Hardcoded in Python (efficient, maintainable once protocol is known)
+- Human-readable format (e.g., `Matcher(pattern=0x00000600, mask=0xFFFFFF00)`)
+- Include command matchers to identify own messages (not "unknown")
+- Derived from current `device_types.yaml`, but moved into code
+
+**Example:**
+```python
+class Bloc9Device(ScheiberCanDevice):
+    # Matcher definitions (human-readable, in code)
+    STATUS_MATCHERS = [
+        Matcher(pattern=0x00000600, mask=0xFFFFFF00, property="low_priority_status"),
+        Matcher(pattern=0x02160600, mask=0xFFFFFF00, property="s1_s2_change"),
+        Matcher(pattern=0x02180600, mask=0xFFFFFF00, property="s3_s4_change"),
+        Matcher(pattern=0x021A0600, mask=0xFFFFFF00, property="s5_s6_change"),
+    ]
+    
+    def get_matchers(self) -> List[Matcher]:
+        """Return all matchers including command matchers."""
+        matchers = self.STATUS_MATCHERS.copy()
+        # Add command matcher for this device's ID
+        command_id = 0x02360600 | ((self.device_id << 3) | 0x80)
+        matchers.append(Matcher(pattern=command_id, mask=0xFFFFFFFF, property="command"))
+        return matchers
+```
+
+---
+
+### 6. Switch and DimmableLight (scheiber/switch.py, scheiber/light.py)
+
+**Component classes for device outputs**
+
+**Design Decision:** Use **composition** instead of inheritance
+- Switch: Basic ON/OFF control
+- DimmableLight: Contains a Switch, adds brightness/fade/flash
+
+**Switch API:**
+```python
+class Switch:
+    def __init__(self, device_id: int, switch_nr: int, can_bus: ScheiberCanBus):
+        pass
+    
+    def set(self, state: bool) -> None:
+        """Turn switch ON or OFF."""
+        pass
+    
+    def subscribe(self, callback: Callable[[str, Any], None]) -> None:
+        """Subscribe to state changes (observer pattern)."""
+        pass
+    
+    def get_state(self) -> bool:
+        """Get current state."""
+        pass
+```
+
+**DimmableLight API:**
+```python
+class DimmableLight:
+    def __init__(self, device_id: int, switch_nr: int, can_bus: ScheiberCanBus):
+        self.switch = Switch(device_id, switch_nr, can_bus)
+        self.transition_controller = TransitionController(...)
+        self.flash_controller = FlashController(...)
+    
+    def set(
+        self, 
+        state: bool, 
+        brightness: Optional[int] = None,
+        flash: float = 0.0,
+        fade_to: Optional[int] = None,
+        fade_duration: float = 1.0,
+        fade_easing: str = "ease_in_out_sine"
+    ) -> None:
+        """
+        Control light with multiple options.
+        
+        Args:
+            state: True=ON, False=OFF
+            brightness: 0-255 (None=use previous, 0=OFF)
+            flash: Flash duration in seconds (overrides other params)
+            fade_to: Target brightness for fade (None=no fade)
+            fade_duration: Fade duration in seconds
+            fade_easing: Easing function name
+        """
+        pass
+    
+    def subscribe(self, callback: Callable[[str, Any], None]) -> None:
+        """Subscribe to state/brightness changes."""
+        pass
+    
+    def get_state(self) -> Dict[str, Any]:
+        """Return {"state": bool, "brightness": int}."""
+        pass
+```
+
+**Flash Behavior (Future Enhancement):**
+> **Current implementation:** Simple flash - turn ON at full brightness, then restore previous state.
+>
+> **Future complex logic:** Flash effect adapts to current brightness:
+> - If brightness > 170 (2/3 of 255): Flash OFF (turn off for flash duration)
+> - If brightness ≤ 170 or OFF: Flash ON (turn on for flash duration)
+> - Always restore to previous state after flash
+> - If transition is running: Use fade_to target as restore state instead of current
+>
+> This provides visual feedback regardless of current light state, but is **deferred** for later implementation.
+
+**Observer Pattern:**
+- Switches and lights notify subscribers of state changes
+- Clients (MQTT bridge) subscribe to individual lights/switches
+- No polling required
+
+---
+
+## Client Integration
+
+### MQTT Bridge Usage
+
+```python
+from scheiber import create_scheiber_system
+
+# Initialize scheiber system
+scheiber_system = create_scheiber_system(
+    can_interface="can0",
+    config_path="/data/scheiber.yaml",
+    state_file="/data/scheiber.state.yaml",
+    log_level="info"
+)
+
+# Create MQTT bridge with scheiber system
+bridge = MQTTBridge(
+    mqtt_host="localhost",
+    mqtt_port=1883,
+    mqtt_user="mqtt_user",
+    mqtt_password="mqtt",
+    mqtt_topic_prefix="homeassistant",
+    scheiber_system=scheiber_system,
+    log_level="info"
+)
+
+# Start both
+scheiber_system.start()
+bridge.run()
+```
+
+**MQTTBridge responsibilities (simplified):**
+1. Get devices from scheiber_system
+2. Subscribe to each light/switch for state changes
+3. Publish Home Assistant discovery configs
+4. Handle MQTT command messages → call light/switch methods
+5. Publish state updates when notified by observers
+
+**What MQTTBridge does NOT do:**
+- CAN bus management (handled by scheiber module)
+- Message decoding (handled by devices)
+- Transition management (handled by lights)
+- State persistence (handled by scheiber system)
+
+---
+
+## Implementation Strategy
+
+### Phase 1: Module Structure
+1. Create `scheiber/` directory with `__init__.py`
+2. Move and refactor classes into separate files
+3. Implement factory method
+
+### Phase 2: Core Components
+1. Implement ScheiberCanBus (CAN I/O wrapper)
+2. Implement ScheiberSystem (device manager, message router)
+3. Update base device class
+
+### Phase 3: Device Implementation
+1. Refactor Bloc9Device with hardcoded matchers
+2. Split Switch and DimmableLight (composition)
+3. Keep TransitionController and FlashController as-is
+
+### Phase 4: Client Integration
+1. Refactor MQTTBridge to use scheiber module
+2. Update CLI tools to use scheiber module
+3. Update tests
+
+### Phase 5: State Persistence
+1. Implement periodic state saving in ScheiberSystem
+2. Implement state restoration on startup
+3. Handle migration for old state formats
+
+---
+
+## Design Decisions Summary
+
+| Aspect | Decision | Rationale |
+|--------|----------|-----------|
+| **Event notification** | Observer pattern | Real-time updates, no polling overhead |
+| **Flash behavior** | Keep simple (defer complex logic) | Current implementation works, complex logic is future enhancement |
+| **Matcher storage** | Hardcoded in device classes | Efficient once protocol known, still human-readable |
+| **Architecture** | ScheiberCanBus + ScheiberSystem | Clear separation: I/O vs device management |
+| **Switch vs Light** | Composition | Avoids inheritance issues, more flexible |
+| **State persistence** | Periodic (not per-message) | Avoid excessive disk I/O |
+| **File organization** | One file per class | Clear changesets, better maintainability |
+
+---
+
+## Migration Notes
+
+- Existing tests continue to work with minimal changes
+- MQTT bridge API changes, but functionality preserved
+- CLI tools need updates to use factory method
+- State file format can remain backward-compatible 
+
+

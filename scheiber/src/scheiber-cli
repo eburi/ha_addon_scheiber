@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+"""
+Scheiber CLI - Command-line interface for Scheiber CAN devices.
+
+Usage:
+    scheiber-cli listen <interface> [--config CONFIG] [--state STATE] [--log-level LEVEL]
+
+Commands:
+    listen      Listen to CAN bus and display decoded messages
+"""
+
+import argparse
+import sys
+import signal
+from pathlib import Path
+
+# Add scheiber module to path
+sys.path.insert(0, str(Path(__file__).parent))
+
+from scheiber import create_scheiber_system
+
+
+def cmd_listen(args):
+    """
+    Listen to CAN bus and display messages.
+
+    Args:
+        args: Parsed command-line arguments
+    """
+    print(f"Scheiber CLI - Listening on {args.interface}")
+    print(f"Config: {args.config or 'auto-discovery'}")
+    print(f"State: {args.state or 'none'}")
+    print(f"Log level: {args.log_level}")
+    print("-" * 60)
+
+    # Create system
+    try:
+        system = create_scheiber_system(
+            can_interface=args.interface,
+            config_path=args.config,
+            state_file=args.state,
+            log_level=args.log_level,
+            read_only=args.read_only,
+        )
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    # Setup signal handler for clean shutdown
+    def signal_handler(sig, frame):
+        print("\nShutting down...")
+        system.stop()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    # Subscribe to device updates
+    for device in system.get_all_devices():
+        print(f"Device: {device}")
+
+        # Subscribe to lights
+        for light in device.get_lights():
+
+            def on_light_change(prop, value, light_name=light.name):
+                print(f"  {light_name}.{prop} = {value}")
+
+            light.subscribe(on_light_change)
+
+    # Subscribe to CAN bus statistics
+    def on_stats_update(stats):
+        print(
+            f"CAN Stats: {stats['messages_received']} rx, {stats['messages_sent']} tx, "
+            f"{stats['unique_ids']} unique IDs, "
+            f"uptime: {stats['uptime_seconds']:.1f}s"
+        )
+
+    system.subscribe_to_stats(on_stats_update)
+
+    # Start system
+    try:
+        system.start()
+        print("Listening... (Press Ctrl+C to stop)")
+
+        # Keep running
+        signal.pause()
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        system.stop()
+        return 1
+
+    return 0
+
+
+def main():
+    """Main entry point."""
+    parser = argparse.ArgumentParser(
+        description="Scheiber CLI - Command-line interface for Scheiber CAN devices",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
+    subparsers.required = True
+
+    # Listen command
+    listen_parser = subparsers.add_parser("listen", help="Listen to CAN bus")
+    listen_parser.add_argument("interface", help="CAN interface (e.g., can0, can1)")
+    listen_parser.add_argument("--config", help="Path to scheiber.yaml config file")
+    listen_parser.add_argument("--state", help="Path to state file")
+    listen_parser.add_argument(
+        "--log-level",
+        default="info",
+        choices=["debug", "info", "warning", "error"],
+        help="Logging level (default: info)",
+    )
+    listen_parser.add_argument(
+        "--read-only", action="store_true", help="Read-only mode (no CAN messages sent)"
+    )
+    listen_parser.set_defaults(func=cmd_listen)
+
+    # Parse arguments
+    args = parser.parse_args()
+
+    # Execute command
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
