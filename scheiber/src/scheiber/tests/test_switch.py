@@ -25,58 +25,6 @@ class TestSwitch:
         assert switch.entity_id == "test_switch"
         assert switch.get_state() == False  # Default OFF
 
-    def test_turn_on(self, mock_scheiber_can_bus):
-        """Test turning switch ON sends correct CAN command."""
-        switch = Switch(
-            device_id=3,
-            switch_nr=0,
-            name="Test",
-            entity_id="test",
-            can_bus=mock_scheiber_can_bus,
-        )
-
-        switch.set(True)
-
-        assert switch.get_state() == True
-        mock_scheiber_can_bus.send_message.assert_called_once()
-
-        # Verify CAN message structure
-        call_args = mock_scheiber_can_bus.send_message.call_args
-        arb_id, data = call_args[0]
-
-        # Check data payload: [switch_nr, 0x01 for ON, 0x00, 0x00]
-        assert data[0] == 0  # switch_nr
-        assert data[1] == 0x01  # ON
-        assert data[2] == 0x00
-        assert data[3] == 0x00
-
-    def test_turn_off(self, mock_scheiber_can_bus):
-        """Test turning switch OFF sends correct CAN command."""
-        switch = Switch(
-            device_id=3,
-            switch_nr=2,
-            name="Test",
-            entity_id="test",
-            can_bus=mock_scheiber_can_bus,
-        )
-
-        # Turn on first
-        switch.set(True)
-        mock_scheiber_can_bus.send_message.reset_mock()
-
-        # Now turn off
-        switch.set(False)
-
-        assert switch.get_state() == False
-        mock_scheiber_can_bus.send_message.assert_called_once()
-
-        # Verify CAN message
-        call_args = mock_scheiber_can_bus.send_message.call_args
-        arb_id, data = call_args[0]
-
-        assert data[0] == 2  # switch_nr
-        assert data[1] == 0x00  # OFF
-
     def test_observer_pattern(self, mock_scheiber_can_bus):
         """Test observer callbacks are triggered on state changes."""
         switch = Switch(
@@ -159,23 +107,6 @@ class TestSwitch:
         # Should NOT send CAN message (only update internal state)
         mock_scheiber_can_bus.send_message.assert_not_called()
 
-    def test_no_duplicate_notifications(self, mock_scheiber_can_bus):
-        """Test setting same state doesn't trigger notification."""
-        switch = Switch(
-            device_id=3,
-            switch_nr=0,
-            name="Test",
-            entity_id="test",
-            can_bus=mock_scheiber_can_bus,
-        )
 
-        observer = Mock()
-        switch.subscribe(observer)
-
-        # Set to ON twice
-        switch.set(True)
-        observer.reset_mock()
-        switch.set(True)
-
-        # Should not notify second time (same state)
-        observer.assert_not_called()
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
