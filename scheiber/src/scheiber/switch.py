@@ -4,7 +4,7 @@ Basic ON/OFF switch component.
 Provides simple boolean state control with observer pattern for notifications.
 """
 
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 import logging
 
 
@@ -24,7 +24,7 @@ class Switch:
         switch_nr: int,
         name: str,
         entity_id: str,
-        can_bus,
+        send_command_func: Callable[[int, bool, Optional[int]], None],
         logger: Optional[logging.Logger] = None,
     ):
         """
@@ -35,18 +35,18 @@ class Switch:
             switch_nr: Switch number (0-indexed)
             name: Human-readable name (e.g., 's1', 's2')
             entity_id: Entity ID for Home Assistant (without domain prefix)
-            can_bus: ScheiberCanBus for sending commands
+            send_command_func: Callback to send CAN command (switch_nr, state, optional brightness)
             logger: Optional logger
         """
         self.device_id = device_id
         self.switch_nr = switch_nr
         self.name = name
         self.entity_id = entity_id
-        self.can_bus = can_bus
+        self.send_command_func = send_command_func
         self.logger = logger or logging.getLogger(f"Switch.{device_id}.{name}")
 
         self._state = False
-        self._observers: List[Callable[[str, Any], None]] = []
+        self._observers: List[Callable[[Dict[str, Any]], None]] = []
 
     def set(self, state: bool) -> None:
         """
@@ -57,7 +57,7 @@ class Switch:
         """
         self._state = state
         self._send_command(state)
-        self._notify_observers("state", state)
+        self._notify_observers({"state": state})
 
     def get_state(self) -> bool:
         """
@@ -68,17 +68,17 @@ class Switch:
         """
         return self._state
 
-    def subscribe(self, callback: Callable[[str, Any], None]) -> None:
+    def subscribe(self, callback: Callable[[Dict[str, Any]], None]) -> None:
         """
         Subscribe to state changes.
 
         Args:
-            callback: Function called as callback(property_name, value)
+            callback: Function called as callback(state_dict) with changed properties
         """
         if callback not in self._observers:
             self._observers.append(callback)
 
-    def unsubscribe(self, callback: Callable[[str, Any], None]) -> None:
+    def unsubscribe(self, callback: Callable[[Dict[str, Any]], None]) -> None:
         """
         Unsubscribe from state changes.
 
@@ -88,24 +88,22 @@ class Switch:
         if callback in self._observers:
             self._observers.remove(callback)
 
-    def _notify_observers(self, property_name: str, value: Any) -> None:
-        """Notify all observers of state change."""
+    def _notify_observers(self, state: Dict[str, Any]) -> None:
+        """Notify all observers with state dict containing changed properties."""
         for observer in self._observers:
             try:
-                observer(property_name, value)
+                observer(state)
             except Exception as e:
                 self.logger.error(f"Error in observer callback: {e}")
 
     def _send_command(self, state: bool) -> None:
         """
-        Send CAN command to switch device.
+        Send CAN command to switch device via callback.
 
         Args:
             state: Desired state
         """
-        # This will be overridden or delegated to device-specific implementation
-        # For now, log that command would be sent
-        self.logger.debug(f"Switch {self.name}: set to {state}")
+        self.send_command_func(self.switch_nr, state)
 
     def update_state(self, state: bool) -> None:
         """
@@ -116,7 +114,7 @@ class Switch:
         """
         if self._state != state:
             self._state = state
-            self._notify_observers("state", state)
+            self._notify_observers({"state": state})
 
     def __str__(self) -> str:
         """String representation."""

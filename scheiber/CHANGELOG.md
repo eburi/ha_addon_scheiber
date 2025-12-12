@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.5.0] - 2025-12-11
+
+### Changed
+- **MQTT Bridge Architecture**: Refactored to object-oriented design
+  - New `MQTTLight` class handles all light-specific MQTT operations
+  - New `MQTTSwitch` class handles all switch-specific MQTT operations
+  - Each entity manages its own discovery config, state publishing, and command handling
+  - Cleaner separation of concerns: entities know how to advertise themselves
+  - Simplified `MQTTBridge` class - now just creates and manages entity instances
+  - Topic matching delegated to individual entities via `matches_topic()` method
+  - Command handling delegated to individual entities via `handle_command()` method
+- **Switches use JSON schema**: Consistent with lights (v5.0.0+)
+  - Switch states published as `{"state": "ON/OFF"}` instead of plain strings
+  - Switch commands parsed as JSON like lights
+  - Discovery config includes `"schema": "json"`
+
+### Technical Details
+- Bridge creates entity instances from hardware devices on startup
+- Each entity subscribes to its hardware device's state changes
+- Observer pattern maintained: hardware → entity → MQTT
+- All 19 tests pass with refactored architecture
+
+## [5.4.2] - 2025-12-11
+
+### Fixed
+- **MQTT Bridge**: Added missing `availability_topic` to Home Assistant discovery configs for lights and switches
+  - Publishes "online" status for all entities on startup
+  - Required for compliance with Home Assistant MQTT Discovery specification
+  - Fixes check_mqtt.py test validation
+
 ## [5.4.1] - 2025-12-10
 
 ### Changed

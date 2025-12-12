@@ -55,7 +55,7 @@ class DimmableLight:
         self.flash_controller = FlashController(self)
 
         # Observers
-        self._observers = []
+        self._observers: list[Callable[[Dict[str, Any]], None]] = []
 
     def set(
         self,
@@ -129,10 +129,9 @@ class DimmableLight:
         # Send CAN command
         self._send_switch_command(self.switch_nr, state, brightness)
 
-        # Notify observers
+        # Notify observers with complete state
         if notify:
-            self._notify_observers("state", state)
-            self._notify_observers("brightness", brightness)
+            self._notify_observers({"state": state, "brightness": brightness})
 
     def _send_switch_command(
         self, switch_nr: int, state: bool, brightness: int
@@ -215,26 +214,44 @@ class DimmableLight:
             "brightness": self._brightness,
         }
 
-    def subscribe(self, callback: Callable[[str, Any], None]) -> None:
+    def is_on(self) -> bool:
+        """
+        Check if light is ON.
+
+        Returns:
+            True if light is ON, False if OFF
+        """
+        return self._state
+
+    def get_brightness(self) -> int:
+        """
+        Get current brightness.
+
+        Returns:
+            Brightness value (0-255)
+        """
+        return self._brightness
+
+    def subscribe(self, callback: Callable[[Dict[str, Any]], None]) -> None:
         """
         Subscribe to state/brightness changes.
 
         Args:
-            callback: Function called as callback(property_name, value)
+            callback: Function called as callback(state_dict) with changed properties
         """
         if callback not in self._observers:
             self._observers.append(callback)
 
-    def unsubscribe(self, callback: Callable[[str, Any], None]) -> None:
+    def unsubscribe(self, callback: Callable[[Dict[str, Any]], None]) -> None:
         """Unsubscribe from changes."""
         if callback in self._observers:
             self._observers.remove(callback)
 
-    def _notify_observers(self, property_name: str, value: Any) -> None:
-        """Notify all observers of change."""
+    def _notify_observers(self, state: Dict[str, Any]) -> None:
+        """Notify all observers with state dict containing changed properties."""
         for observer in self._observers:
             try:
-                observer(property_name, value)
+                observer(state)
             except Exception as e:
                 self.logger.error(f"Error in observer callback: {e}")
 
@@ -260,26 +277,25 @@ class DimmableLight:
         # Effective state: OFF if brightness is 0, ON otherwise
         effective_state = effective_brightness > 0
 
-        changed = False
+        changed_props = {}
         if self._state != effective_state:
             self._state = effective_state
-            changed = True
-            self._notify_observers("state", effective_state)
+            changed_props["state"] = effective_state
 
         if self._brightness != effective_brightness:
             self._brightness = effective_brightness
-            changed = True
-            self._notify_observers("brightness", effective_brightness)
+            changed_props["brightness"] = effective_brightness
 
-        if changed:
-            self.logger.debug(
-                f"State updated from CAN: {self.name} state={effective_state}, brightness={effective_brightness}"
-                + (
-                    f" (translated from brightness={brightness})"
-                    if brightness != effective_brightness
-                    else ""
-                )
+        if changed_props:
+            translation_note = (
+                f" (translated from brightness={brightness})"
+                if brightness != effective_brightness
+                else ""
             )
+            self.logger.debug(
+                f"State updated from CAN: {self.name} state={effective_state}, brightness={effective_brightness}{translation_note}"
+            )
+            self._notify_observers(changed_props)
 
     def __str__(self) -> str:
         """String representation."""

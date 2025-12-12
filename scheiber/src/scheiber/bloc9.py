@@ -121,7 +121,7 @@ class Bloc9Device(ScheiberCanDevice):
                     switch_nr=switch_nr,
                     name=name,
                     entity_id=entity_id,
-                    can_bus=can_bus,
+                    send_command_func=self._send_switch_command,
                     logger=logging.getLogger(f"Bloc9.{device_id}.{output_name}"),
                 )
                 self.switches.append(switch)
@@ -218,7 +218,7 @@ class Bloc9Device(ScheiberCanDevice):
         self.logger.debug(f"Status message: {msg.data.hex()}")
 
     def _send_switch_command(
-        self, switch_nr: int, state: bool, brightness: int
+        self, switch_nr: int, state: bool, brightness: Optional[int] = None
     ) -> None:
         """
         Send switch command via CAN bus.
@@ -231,6 +231,9 @@ class Bloc9Device(ScheiberCanDevice):
         # Construct CAN ID
         low_byte = ((self.device_id << 3) | 0x80) & 0xFF
         can_id = 0x02360600 | low_byte
+
+        # Determine brightness
+        brightness = brightness if brightness is not None else (255 if state else 0)
 
         # Apply dimming threshold logic
         if brightness <= self.DIMMING_THRESHOLD:
