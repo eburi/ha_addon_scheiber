@@ -260,6 +260,10 @@ class Bloc9Device(ScheiberCanDevice):
         """Return list of all lights (S1-S6)."""
         return self.lights
 
+    def get_switches(self) -> List[Switch]:
+        """Return list of all switches."""
+        return self.switches
+
     def restore_from_state(self, state: Dict[str, Any]) -> None:
         """
         Restore device state from persisted data.

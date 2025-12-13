@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.7.1] - 2025-12-12
+
+### Fixed
+- **Switch Discovery**: Added missing `get_switches()` method override in Bloc9Device
+  - Switches are now properly exposed to MQTT bridge for discovery publishing
+  - Previously, `get_switches()` returned empty list from base class despite switches being configured
+  - All 16 configured switches now publish discovery configs correctly
+
 ## [5.7.0] - 2025-12-12
 
 ### Fixed
