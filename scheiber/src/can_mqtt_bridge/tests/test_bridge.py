@@ -167,7 +167,9 @@ class TestMQTTDiscoveryLights:
         """Test light discovery config is published correctly."""
         # Setup mock light
         mock_light = MagicMock()
-        mock_light.name = "s1"
+        mock_light.name = "S1"  # Human-readable name
+        mock_light.entity_id = "s1"  # Entity ID
+        mock_light.switch_nr = 0  # 0-based index
         mock_light.get_state.return_value = {"state": False, "brightness": 0}
         mock_light.subscribe = Mock()
 
@@ -202,8 +204,8 @@ class TestMQTTDiscoveryLights:
         config_payload = discovery_calls[0][0][1]
         config = json.loads(config_payload)
 
-        # Verify config topic
-        assert config_topic == "homeassistant/light/scheiber_bloc9_7_s1/config"
+        # Verify config topic (uses entity_id)
+        assert config_topic == "homeassistant/light/s1/config"
 
         # Verify config content
         assert config["name"] == "S1"
@@ -244,7 +246,9 @@ class TestMQTTDiscoveryLights:
     def test_light_availability_published(self, mock_create_system, mock_mqtt_client):
         """Test light availability is published as online."""
         mock_light = MagicMock()
-        mock_light.name = "s1"
+        mock_light.name = "S1"  # Human-readable name
+        mock_light.entity_id = "s1"  # Entity ID
+        mock_light.switch_nr = 0  # 0-based index
         mock_light.get_state.return_value = {"state": False, "brightness": 0}
         mock_light.subscribe = Mock()
 
@@ -282,7 +286,9 @@ class TestMQTTDiscoveryLights:
     def test_light_command_subscription(self, mock_create_system, mock_mqtt_client):
         """Test bridge subscribes to light command topics."""
         mock_light = MagicMock()
-        mock_light.name = "s1"
+        mock_light.name = "S1"  # Human-readable name
+        mock_light.entity_id = "s1"  # Entity ID
+        mock_light.switch_nr = 0  # 0-based index
         mock_light.get_state.return_value = {"state": False, "brightness": 0}
         mock_light.subscribe = Mock()
 
@@ -317,6 +323,7 @@ class TestMQTTDiscoverySwitches:
         mock_switch = MagicMock()
         mock_switch.name = "Switch 1"
         mock_switch.entity_id = "switch_1"
+        mock_switch.switch_nr = 0
         mock_switch.get_state.return_value = False
         mock_switch.subscribe = Mock()
 
@@ -347,15 +354,15 @@ class TestMQTTDiscoverySwitches:
         config_payload = discovery_calls[0][0][1]
         config = json.loads(config_payload)
 
-        # Verify config
-        assert config_topic == "homeassistant/switch/scheiber_bloc9_7_switch_1/config"
+        # Verify config (uses entity_id in config topic, s1 in state topic)
+        assert config_topic == "homeassistant/switch/switch_1/config"
         assert config["name"] == "Switch 1"
-        assert config["unique_id"] == "scheiber_bloc9_7_switch_1"
-        assert config["state_topic"] == "homeassistant/scheiber/bloc9/7/switch_1/state"
-        assert config["command_topic"] == "homeassistant/scheiber/bloc9/7/switch_1/set"
+        assert config["unique_id"] == "scheiber_bloc9_7_s1"
+        assert config["state_topic"] == "homeassistant/scheiber/bloc9/7/s1/state"
+        assert config["command_topic"] == "homeassistant/scheiber/bloc9/7/s1/set"
         assert (
             config["availability_topic"]
-            == "homeassistant/scheiber/bloc9/7/switch_1/availability"
+            == "homeassistant/scheiber/bloc9/7/s1/availability"
         )
         assert config["schema"] == "json"
         assert config["optimistic"] is False
@@ -369,7 +376,9 @@ class TestStatePublishing:
     def test_light_state_change_published(self, mock_create_system, mock_mqtt_client):
         """Test light state changes are published to MQTT."""
         mock_light = MagicMock()
-        mock_light.name = "s1"
+        mock_light.name = "S1"  # Human-readable name
+        mock_light.entity_id = "s1"  # Entity ID
+        mock_light.switch_nr = 0  # 0-based index
         mock_light.get_state.return_value = {"state": False, "brightness": 0}
 
         # Capture the callback
@@ -423,6 +432,7 @@ class TestStatePublishing:
         mock_switch = MagicMock()
         mock_switch.name = "Switch 1"
         mock_switch.entity_id = "switch_1"
+        mock_switch.switch_nr = 0
         mock_switch.get_state.return_value = False
 
         callback_holder = []
@@ -472,7 +482,9 @@ class TestCommandHandling:
     def test_light_brightness_command(self, mock_create_system, mock_mqtt_client):
         """Test handling brightness command for light."""
         mock_light = MagicMock()
-        mock_light.name = "s1"
+        mock_light.name = "S1"  # Human-readable name
+        mock_light.entity_id = "s1"  # Entity ID
+        mock_light.switch_nr = 0  # 0-based index
         mock_light.get_state.return_value = {"state": False, "brightness": 0}
         mock_light.subscribe = Mock()
         mock_light.set_brightness = Mock()
@@ -511,7 +523,9 @@ class TestCommandHandling:
     def test_light_on_command(self, mock_create_system, mock_mqtt_client):
         """Test handling ON command for light."""
         mock_light = MagicMock()
-        mock_light.name = "s1"
+        mock_light.name = "S1"  # Human-readable name
+        mock_light.entity_id = "s1"  # Entity ID
+        mock_light.switch_nr = 0  # 0-based index
         mock_light.get_state.return_value = {"state": False, "brightness": 0}
         mock_light.subscribe = Mock()
         mock_light.set_brightness = Mock()
@@ -545,7 +559,9 @@ class TestCommandHandling:
     def test_fade_command_with_effect(self, mock_create_system, mock_mqtt_client):
         """Test fade command with custom easing effect."""
         mock_light = MagicMock()
-        mock_light.name = "s1"
+        mock_light.name = "S1"  # Human-readable name
+        mock_light.entity_id = "s1"  # Entity ID
+        mock_light.switch_nr = 0  # 0-based index
         mock_light.get_state.return_value = {"state": True, "brightness": 128}
         mock_light.subscribe = Mock()
 
@@ -592,7 +608,9 @@ class TestCommandHandling:
     def test_fade_command_default_easing(self, mock_create_system, mock_mqtt_client):
         """Test fade command defaults to ease_in_out_sine when no effect specified."""
         mock_light = MagicMock()
-        mock_light.name = "s1"
+        mock_light.name = "S1"  # Human-readable name
+        mock_light.entity_id = "s1"  # Entity ID
+        mock_light.switch_nr = 0  # 0-based index
         mock_light.get_state.return_value = {"state": True, "brightness": 128}
         mock_light.subscribe = Mock()
 
@@ -634,7 +652,9 @@ class TestCommandHandling:
     def test_fade_command(self, mock_create_system, mock_mqtt_client):
         """Test handling fade transition command."""
         mock_light = MagicMock()
-        mock_light.name = "s1"
+        mock_light.name = "S1"  # Human-readable name
+        mock_light.entity_id = "s1"  # Entity ID
+        mock_light.switch_nr = 0  # 0-based index
         mock_light.get_state.return_value = {"state": False, "brightness": 0}
         mock_light.subscribe = Mock()
         mock_light.fade_to = Mock()
@@ -670,7 +690,9 @@ class TestCommandHandling:
     def test_multiple_easing_effects(self, mock_create_system, mock_mqtt_client):
         """Test that different easing effects are properly passed to hardware layer."""
         mock_light = MagicMock()
-        mock_light.name = "s1"
+        mock_light.name = "S1"  # Human-readable name
+        mock_light.entity_id = "s1"  # Entity ID
+        mock_light.switch_nr = 0  # 0-based index
         mock_light.get_state.return_value = {"state": True, "brightness": 128}
         mock_light.subscribe = Mock()
 
@@ -736,7 +758,9 @@ class TestCommandHandling:
     def test_light_flash_command(self, mock_create_system, mock_mqtt_client):
         """Test handling flash effect command."""
         mock_light = MagicMock()
-        mock_light.name = "s1"
+        mock_light.name = "S1"  # Human-readable name
+        mock_light.entity_id = "s1"  # Entity ID
+        mock_light.switch_nr = 0  # 0-based index
         mock_light.get_state.return_value = {"state": False, "brightness": 0}
         mock_light.subscribe = Mock()
         mock_light.flash = Mock()
@@ -772,6 +796,7 @@ class TestCommandHandling:
         mock_switch = MagicMock()
         mock_switch.name = "Switch 1"
         mock_switch.entity_id = "switch_1"
+        mock_switch.switch_nr = 0
         mock_switch.get_state.return_value = False
         mock_switch.subscribe = Mock()
         mock_switch.set = Mock()
@@ -793,7 +818,7 @@ class TestCommandHandling:
         bridge.start()
 
         msg = MagicMock()
-        msg.topic = "homeassistant/scheiber/bloc9/7/switch_1/set"
+        msg.topic = "homeassistant/scheiber/bloc9/7/s1/set"
         msg.payload = b'{"state": "ON"}'
 
         bridge._on_mqtt_message(None, None, msg)
@@ -807,7 +832,9 @@ class TestCommandHandling:
     ):
         """Test read-only mode ignores all commands."""
         mock_light = MagicMock()
-        mock_light.name = "s1"
+        mock_light.name = "S1"  # Human-readable name
+        mock_light.entity_id = "s1"  # Entity ID
+        mock_light.switch_nr = 0  # 0-based index
         mock_light.get_state.return_value = {"state": False, "brightness": 0}
         mock_light.subscribe = Mock()
 
@@ -845,7 +872,9 @@ class TestTopicPrefix:
     def test_custom_topic_prefix(self, mock_create_system, mock_mqtt_client):
         """Test using custom topic prefix."""
         mock_light = MagicMock()
-        mock_light.name = "s1"
+        mock_light.name = "S1"  # Human-readable name
+        mock_light.entity_id = "s1"  # Entity ID
+        mock_light.switch_nr = 0  # 0-based index
         mock_light.get_state.return_value = {"state": False, "brightness": 0}
         mock_light.subscribe = Mock()
 
@@ -878,8 +907,8 @@ class TestTopicPrefix:
         config_payload = discovery_calls[0][0][1]
         config = json.loads(config_payload)
 
-        # Verify custom prefix used
-        assert config_topic == "boat/light/scheiber_bloc9_7_s1/config"
+        # Verify custom prefix used (config topic uses entity_id)
+        assert config_topic == "boat/light/s1/config"
         assert config["state_topic"] == "boat/scheiber/bloc9/7/s1/state"
         assert config["command_topic"] == "boat/scheiber/bloc9/7/s1/set"
         assert config["availability_topic"] == "boat/scheiber/bloc9/7/s1/availability"

@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.7.0] - 2025-12-12
+
+### Fixed
+- **MQTT Topic Schema Compatibility**: Restored v5 MQTT topic structure to maintain entity persistence
+  - Config topics now use entity_id: `{prefix}/light/{entity_id}/config`
+  - State/command topics use switch identifier: `{prefix}/scheiber/{type}/{id}/s{n}/state`
+  - unique_id maintains v5 format: `scheiber_{type}_{id}_s{n}`
+  - Display names taken directly from hardware config (`hardware_light.name`)
+  - Switch identifier generated from switch_nr: `f"s{switch_nr + 1}"`
+  - Both light and switch entities updated for consistency
+  - All 22 bridge tests updated with proper mocks and assertions
+
+### Changed
+- **Transition Controller Refactoring**: Complete OOP rewrite with progressive simplification
+  - TransitionController and FlashController now use clean object-oriented design
+  - Added TYPE_CHECKING imports for DimmableLight type hints
+  - Controllers call `light._set_brightness(brightness, notify=False)` during transitions
+  - Observers notified once at end of transition for efficiency
+  - Removed unused parameters: switch_nr, on_step, property_name
+  - Converted active_transitions dictionary to single `self.stop_event` property
+  - Direct use of `self.stop_event` without intermediate variables
+  - Inlined `_send_switch_command` in light.py for cleaner API
+
+### Added
+- **Flash Support in MQTT Discovery**: Advertise flash capability with configurable durations
+  - `flash: true` in discovery payload
+  - `flash_time_short: 2` seconds
+  - `flash_time_long: 10` seconds
+- **Comprehensive Test Coverage**: 45 tests total (23 hardware + 22 bridge)
+  - 6 CAN message sequence tests verifying proper transitions with Scheiber edge case
+  - 2 timing accuracy tests verifying transitions take expected duration (±100-150ms)
+  - Tests use observer callbacks for proper completion detection
+  - All easing functions tested with various parameters
+
 ## [5.6.0] - 2025-12-12
 
 ### Added
