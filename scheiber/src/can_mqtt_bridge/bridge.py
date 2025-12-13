@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from scheiber import create_scheiber_system, ScheiberSystem
 from .light import MQTTLight
 from .switch import MQTTSwitch
+from .sensor import MQTTSensor
 
 
 class MQTTBridge:
@@ -177,6 +178,21 @@ class MQTTBridge:
             mqtt_switch.publish_initial_state()
             self._mqtt_entities.append(mqtt_switch)
 
+        # Create MQTT sensor entities
+        for hardware_sensor in device.get_sensors():
+            mqtt_sensor = MQTTSensor(
+                hardware_sensor=hardware_sensor,
+                device_type=device_type,
+                device_id=device_id,
+                mqtt_client=self.mqtt_client,
+                mqtt_topic_prefix=self.mqtt_topic_prefix,
+            )
+            mqtt_sensor.publish_discovery()
+            mqtt_sensor.publish_availability(True)
+            mqtt_sensor.subscribe_to_updates()
+            mqtt_sensor.publish_state()
+            self._mqtt_entities.append(mqtt_sensor)
+
     def _on_mqtt_connect(self, client, userdata, flags, rc):
         """Handle MQTT connection."""
         if rc == 0:
@@ -217,7 +233,7 @@ class MQTTBridge:
 
     def _on_can_stats(self, stats: Dict[str, Any]):
         """
-        Handle CAN statistics updates.
+        Handle CAN statistics updates and publish to MQTT.
 
         Args:
             stats: Statistics dictionary
@@ -227,3 +243,11 @@ class MQTTBridge:
             f"{stats['messages_sent']} tx, "
             f"{stats['unique_ids']} unique IDs"
         )
+
+        # Publish stats to MQTT
+        try:
+            topic = f"{self.mqtt_topic_prefix}/scheiber/can/stats/state"
+            payload = json.dumps(stats)
+            self.mqtt_client.publish(topic, payload, retain=False)
+        except Exception as e:
+            self.logger.error(f"Failed to publish CAN stats to MQTT: {e}")

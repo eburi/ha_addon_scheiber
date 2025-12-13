@@ -176,7 +176,7 @@ class ScheiberCanDevice(ABC):
         pass
     
     @abstractmethod
-    def process_message(self, msg: can.Message, matched_property: Optional[str]) -> None:
+    def process_message(self, msg: can.Message) -> None:
         """Process incoming CAN message that matched this device."""
         pass
     

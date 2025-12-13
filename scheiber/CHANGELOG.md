@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.2.0] - 2024-12-13
+
+### Added
+- **Bloc7 Device Support**: New configuration-driven module for analog sensor monitoring
+  - `Voltage` and `Level` sensor types for tank levels and voltages
+  - Each sensor configured with its own matcher and value extraction rules (start byte, bit length, endianness, scale)
+  - `ValueConfig` class handles flexible data extraction from CAN messages
+  - State persistence for sensor values
+  - `MQTTSensor` bridge for Home Assistant integration with proper device classes
+  - Example configuration in `scheiber-config.yaml`
+- Analysis tool: `analyze_bloc7.py` for discovering Bloc7 CAN message patterns
+  - Correlates CAN bus traffic with MQTT sensor values
+  - Identifies voltage and tank level encodings automatically
+
+### Changed
+- **Refactored Bloc7 Integration**: Removed hardcoded message routing
+  - Bloc7Device now properly implements `get_matchers()` like Bloc9Device
+  - Integrates with existing matcher system instead of special-case handling
+  - Removed `isinstance(device, Bloc7Device)` checks from `system.py`
+  - Cleaner, more maintainable architecture
+- Simplified `process_message()` interface across all devices
+  - Removed unused `matched_property` parameter from abstract method
+  - Updated all device implementations (Bloc9Device, Bloc7Device)
+  - Updated documentation in `IMPLEMENTATION.md`
+- Improved Home Assistant sensor configuration
+  - Voltage sensors use proper `device_class: "voltage"`
+  - Tank levels use `icon: "mdi:gauge"` and `state_class: "measurement"`
+  - Removed workaround of using `power_factor` device class
+
 ## [6.1.1] - 2024-12-13
 
 ### Added
