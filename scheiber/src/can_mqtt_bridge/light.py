@@ -83,6 +83,23 @@ class MQTTLight:
             "brightness_scale": 255,
             "optimistic": False,
             "schema": "json",
+            "supported_color_modes": ["brightness"],
+            "effect": True,
+            "effect_list": [
+                "linear",
+                "ease_in_sine",
+                "ease_out_sine",
+                "ease_in_out_sine",
+                "ease_in_quad",
+                "ease_out_quad",
+                "ease_in_out_quad",
+                "ease_in_cubic",
+                "ease_out_cubic",
+                "ease_in_out_cubic",
+                "ease_in_quart",
+                "ease_out_quart",
+                "ease_in_out_quart",
+            ],
         }
 
         self.mqtt_client.publish(
@@ -146,6 +163,7 @@ class MQTTLight:
             brightness = command.get("brightness")
             transition = command.get("transition")
             flash = command.get("flash")
+            effect = command.get("effect")
 
             # Execute command
             if flash:
@@ -154,15 +172,16 @@ class MQTTLight:
                 self.logger.info(f"Flashing {count} times")
                 self.hardware_light.flash(count=count)
             elif transition:
-                # Fade transition
+                # Fade transition with optional easing effect
                 target = (
                     brightness
                     if brightness is not None
                     else (255 if state == "ON" else 0)
                 )
-                duration_ms = int(transition * 1000)
-                self.logger.info(f"Fading to {target} over {duration_ms}ms")
-                self.hardware_light.fade_to(target, duration_ms=duration_ms)
+                duration = transition
+                easing = effect if effect else "ease_in_out_sine"
+                self.logger.info(f"Fading to {target} over {duration}s with {easing}")
+                self.hardware_light.fade_to(target, duration=duration, easing=easing)
             elif brightness is not None:
                 # Set brightness
                 self.logger.info(f"Setting brightness to {brightness}")

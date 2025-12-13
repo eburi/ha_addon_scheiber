@@ -225,6 +225,20 @@ class TestMQTTDiscoveryLights:
         assert config["device"]["manufacturer"] == "Scheiber"
         assert config["device"]["model"] == "Marine Lighting Control System"
 
+        # Verify color mode support
+        assert config["supported_color_modes"] == ["brightness"]
+
+        # Verify effect support with all easing functions
+        assert config["effect"] is True
+        assert "effect_list" in config
+        assert isinstance(config["effect_list"], list)
+        assert len(config["effect_list"]) == 13
+        # Verify key easing functions are present
+        assert "linear" in config["effect_list"]
+        assert "ease_in_out_sine" in config["effect_list"]
+        assert "ease_in_quad" in config["effect_list"]
+        assert "ease_out_quart" in config["effect_list"]
+
     @patch("can_mqtt_bridge.bridge.mqtt.Client")
     @patch("can_mqtt_bridge.bridge.create_scheiber_system")
     def test_light_availability_published(self, mock_create_system, mock_mqtt_client):
@@ -528,7 +542,96 @@ class TestCommandHandling:
 
     @patch("can_mqtt_bridge.bridge.mqtt.Client")
     @patch("can_mqtt_bridge.bridge.create_scheiber_system")
-    def test_light_fade_command(self, mock_create_system, mock_mqtt_client):
+    def test_fade_command_with_effect(self, mock_create_system, mock_mqtt_client):
+        """Test fade command with custom easing effect."""
+        mock_light = MagicMock()
+        mock_light.name = "s1"
+        mock_light.get_state.return_value = {"state": True, "brightness": 128}
+        mock_light.subscribe = Mock()
+
+        mock_device = MagicMock()
+        mock_device.__class__.__name__ = "Bloc9Device"
+        mock_device.device_id = 7
+        mock_device.get_lights.return_value = [mock_light]
+        mock_device.get_switches.return_value = []
+
+        mock_system = MagicMock()
+        mock_system.get_all_devices.return_value = [mock_device]
+        mock_create_system.return_value = mock_system
+
+        mock_client = MagicMock()
+        mock_mqtt_client.return_value = mock_client
+
+        bridge = MQTTBridge(can_interface="can0", mqtt_host="localhost")
+        bridge.start()
+
+        # Simulate fade command with custom effect
+        command_payload = json.dumps(
+            {
+                "state": "ON",
+                "brightness": 200,
+                "transition": 2.5,
+                "effect": "ease_in_quad",
+            }
+        )
+
+        # Find the message callback and invoke it
+        on_message = mock_client.on_message
+        msg = MagicMock()
+        msg.topic = "homeassistant/scheiber/bloc9/7/s1/set"
+        msg.payload = command_payload.encode()
+        on_message(mock_client, None, msg)
+
+        # Verify fade_to was called with correct easing
+        mock_light.fade_to.assert_called_once_with(
+            200, duration=2.5, easing="ease_in_quad"
+        )
+
+    @patch("can_mqtt_bridge.bridge.mqtt.Client")
+    @patch("can_mqtt_bridge.bridge.create_scheiber_system")
+    def test_fade_command_default_easing(self, mock_create_system, mock_mqtt_client):
+        """Test fade command defaults to ease_in_out_sine when no effect specified."""
+        mock_light = MagicMock()
+        mock_light.name = "s1"
+        mock_light.get_state.return_value = {"state": True, "brightness": 128}
+        mock_light.subscribe = Mock()
+
+        mock_device = MagicMock()
+        mock_device.__class__.__name__ = "Bloc9Device"
+        mock_device.device_id = 7
+        mock_device.get_lights.return_value = [mock_light]
+        mock_device.get_switches.return_value = []
+
+        mock_system = MagicMock()
+        mock_system.get_all_devices.return_value = [mock_device]
+        mock_create_system.return_value = mock_system
+
+        mock_client = MagicMock()
+        mock_mqtt_client.return_value = mock_client
+
+        bridge = MQTTBridge(can_interface="can0", mqtt_host="localhost")
+        bridge.start()
+
+        # Simulate fade command without effect
+        command_payload = json.dumps(
+            {"state": "ON", "brightness": 200, "transition": 2.5}
+        )
+
+        # Find the message callback and invoke it
+        on_message = mock_client.on_message
+        msg = MagicMock()
+        msg.topic = "homeassistant/scheiber/bloc9/7/s1/set"
+        msg.payload = command_payload.encode()
+        on_message(mock_client, None, msg)
+
+        # Verify fade_to was called with default easing
+        mock_light.fade_to.assert_called_once_with(
+            200, duration=2.5, easing="ease_in_out_sine"
+        )
+
+    @patch("can_mqtt_bridge.bridge.mqtt.Client")
+    @patch("can_mqtt_bridge.bridge.create_scheiber_system")
+    def test_fade_command(self, mock_create_system, mock_mqtt_client):
         """Test handling fade transition command."""
         mock_light = MagicMock()
         mock_light.name = "s1"
@@ -558,7 +661,9 @@ class TestCommandHandling:
 
         bridge._on_mqtt_message(None, None, msg)
 
-        mock_light.fade_to.assert_called_once_with(200, duration_ms=2000)
+        mock_light.fade_to.assert_called_once_with(
+            200, duration=2, easing="ease_in_out_sine"
+        )
 
     @patch("can_mqtt_bridge.bridge.mqtt.Client")
     @patch("can_mqtt_bridge.bridge.create_scheiber_system")

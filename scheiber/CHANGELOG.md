@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.6.0] - 2025-12-12
+
+### Added
+- **Easing Effects for Lights**: MQTT discovery now advertises all 13 easing functions from `easing.py`
+  - Effect list includes: linear, ease_in_sine, ease_out_sine, ease_in_out_sine, ease_in_quad, ease_out_quad, ease_in_out_quad, ease_in_cubic, ease_out_cubic, ease_in_out_cubic, ease_in_quart, ease_out_quart, ease_in_out_quart
+  - Users can select easing effect in Home Assistant UI for fade transitions
+  - Command JSON accepts `"effect": "<easing_name>"` parameter alongside `"transition"`
+  - Effect parameter passed to hardware layer's `fade_to()` method as `easing` argument
+  - Defaults to `ease_in_out_sine` when no effect specified
+  - Tests verify effect parameter is correctly applied and defaults work
+
 ## [5.5.0] - 2025-12-11
 
 ### Changed
