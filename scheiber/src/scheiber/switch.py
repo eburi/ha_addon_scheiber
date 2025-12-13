@@ -98,6 +98,28 @@ class Switch(Output):
         Args:
             state: Desired state
         """
+        self.send_command_func(self.switch_nr, state, None)
+
+    def restore_from_state(self, state: Dict[str, Any]) -> None:
+        """
+        Restore switch state from persisted data.
+
+        Args:
+            state: Dictionary with 'state' key
+        """
+        switch_state = state.get("state", False)
+        # Restore without sending command (will sync on first CAN message)
+        self._state = switch_state
+        self.logger.debug(f"Restored state: {switch_state}")
+
+    def store_to_state(self) -> Dict[str, Any]:
+        """
+        Return current state for persistence.
+
+        Returns:
+            Dictionary with 'state' key
+        """
+        return {"state": self._state
         self.send_command_func(self.switch_nr, state)
 
     def update_state(self, state: bool) -> None:

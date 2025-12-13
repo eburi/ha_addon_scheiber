@@ -78,6 +78,7 @@ class MQTTSwitch:
             "command_topic": self.command_topic,
             "availability_topic": self.availability_topic,
             "optimistic": False,
+            "device_class": "switch",
             "device": {
                 "identifiers": ["scheiber_system"],
                 "name": "Scheiber",

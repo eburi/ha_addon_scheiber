@@ -297,31 +297,44 @@ class Bloc9Device(ScheiberCanDevice):
         """
         Restore device state from persisted data.
 
+        Delegates to individual lights and switches.
+
         Args:
-            state: Dictionary with light states
+            state: Dictionary with output states keyed by output identifier (s1-s6)
         """
-        for i, light in enumerate(self.lights):
-            light_key = f"s{i+1}"
-            if light_key in state:
-                light_state = state[light_key]
-                brightness = light_state.get("brightness", 0)
-                # Restore without sending command (will sync on first CAN message)
-                light._brightness = brightness
-                light._state = brightness > 0
-                self.logger.debug(f"Restored {light_key}: brightness={brightness}")
+        # Restore lights
+        for light in self.lights:
+            output_key = f"s{light.switch_nr + 1}"
+            if output_key in state:
+                light.restore_from_state(state[output_key])
+                self.logger.debug(f"Restored light {output_key}")
+
+        # Restore switches
+        for switch in self.switches:
+            output_key = f"s{switch.switch_nr + 1}"
+            if output_key in state:
+                switch.restore_from_state(state[output_key])
+                self.logger.debug(f"Restored switch {output_key}")
 
     def store_to_state(self) -> Dict[str, Any]:
         """
         Return current state for persistence.
 
+        Delegates to individual lights and switches.
+
         Returns:
-            Dictionary with light states
+            Dictionary with output states keyed by output identifier (s1-s6)
         """
         state = {}
-        for i, light in enumerate(self.lights):
-            light_key = f"s{i+1}"
-            state[light_key] = {
-                "brightness": light._brightness,
-                "state": light._state,
-            }
+
+        # Store lights
+        for light in self.lights:
+            output_key = f"s{light.switch_nr + 1}"
+            state[output_key] = light.store_to_state()
+
+        # Store switches
+        for switch in self.switches:
+            output_key = f"s{switch.switch_nr + 1}"
+            state[output_key] = switch.store_to_state()
+
         return state

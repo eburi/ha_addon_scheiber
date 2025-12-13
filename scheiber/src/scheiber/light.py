@@ -149,6 +149,31 @@ class DimmableLight(Output):
         self._state = state
         self._brightness = brightness
 
+    def restore_from_state(self, state: Dict[str, Any]) -> None:
+        """
+        Restore light state from persisted data.
+
+        Args:
+            state: Dictionary with 'brightness' and 'state' keys
+        """
+        brightness = state.get("brightness", 0)
+        # Restore without sending command (will sync on first CAN message)
+        self._brightness = brightness
+        self._state = brightness > 0
+        self.logger.debug(f"Restored state: brightness={brightness}")
+
+    def store_to_state(self) -> Dict[str, Any]:
+        """
+        Return current state for persistence.
+
+        Returns:
+            Dictionary with 'brightness' and 'state' keys
+        """
+        return {
+            "brightness": self._brightness,
+            "state": self._state,
+        }
+
         # Send CAN command
         self._send_command(self.switch_nr, state, brightness)
 

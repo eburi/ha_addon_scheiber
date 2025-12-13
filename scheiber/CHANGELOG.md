@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.2.1] - 2024-12-13
+
+### Changed
+- **Refactored State Persistence**: Improved encapsulation following OOP principles
+  - `DimmableLight` and `Switch` now own their state persistence logic
+  - Added `restore_from_state()` and `store_to_state()` methods to both classes
+  - `Bloc9Device` now delegates state operations to individual outputs instead of directly accessing internal attributes
+  - Better encapsulation: state management contained within each output class
+  - Easier to extend with new output types in the future
+- Added `device_class: "switch"` to MQTT switch discovery config for proper Home Assistant categorization
+
 ## [6.2.0] - 2024-12-13
 
 ### Added
