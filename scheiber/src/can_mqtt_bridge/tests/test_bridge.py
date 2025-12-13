@@ -667,6 +667,72 @@ class TestCommandHandling:
 
     @patch("can_mqtt_bridge.bridge.mqtt.Client")
     @patch("can_mqtt_bridge.bridge.create_scheiber_system")
+    def test_multiple_easing_effects(self, mock_create_system, mock_mqtt_client):
+        """Test that different easing effects are properly passed to hardware layer."""
+        mock_light = MagicMock()
+        mock_light.name = "s1"
+        mock_light.get_state.return_value = {"state": True, "brightness": 128}
+        mock_light.subscribe = Mock()
+
+        mock_device = MagicMock()
+        mock_device.__class__.__name__ = "Bloc9Device"
+        mock_device.device_id = 7
+        mock_device.get_lights.return_value = [mock_light]
+        mock_device.get_switches.return_value = []
+
+        mock_system = MagicMock()
+        mock_system.get_all_devices.return_value = [mock_device]
+        mock_create_system.return_value = mock_system
+
+        mock_client = MagicMock()
+        mock_mqtt_client.return_value = mock_client
+
+        bridge = MQTTBridge(can_interface="can0", mqtt_host="localhost")
+        bridge.start()
+
+        # Test various easing functions
+        test_cases = [
+            ("linear", 180, 1.0),
+            ("ease_in_sine", 200, 2.0),
+            ("ease_out_sine", 150, 1.5),
+            ("ease_in_out_sine", 255, 3.0),
+            ("ease_in_quad", 100, 0.5),
+            ("ease_out_quad", 220, 2.5),
+            ("ease_in_out_quad", 80, 1.2),
+            ("ease_in_cubic", 190, 1.8),
+            ("ease_out_cubic", 160, 2.2),
+            ("ease_in_out_cubic", 240, 3.5),
+            ("ease_in_quart", 120, 1.1),
+            ("ease_out_quart", 210, 2.8),
+            ("ease_in_out_quart", 170, 2.3),
+        ]
+
+        on_message = mock_client.on_message
+
+        for easing, brightness, duration in test_cases:
+            mock_light.fade_to.reset_mock()
+
+            command_payload = json.dumps(
+                {
+                    "state": "ON",
+                    "brightness": brightness,
+                    "transition": duration,
+                    "effect": easing,
+                }
+            )
+
+            msg = MagicMock()
+            msg.topic = "homeassistant/scheiber/bloc9/7/s1/set"
+            msg.payload = command_payload.encode()
+            on_message(mock_client, None, msg)
+
+            # Verify correct easing was passed to hardware
+            mock_light.fade_to.assert_called_once_with(
+                brightness, duration=duration, easing=easing
+            )
+
+    @patch("can_mqtt_bridge.bridge.mqtt.Client")
+    @patch("can_mqtt_bridge.bridge.create_scheiber_system")
     def test_light_flash_command(self, mock_create_system, mock_mqtt_client):
         """Test handling flash effect command."""
         mock_light = MagicMock()

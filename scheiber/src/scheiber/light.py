@@ -114,7 +114,7 @@ class DimmableLight:
 
     def _set_brightness(self, brightness: int, notify: bool = True) -> None:
         """
-        Internal brightness setter (used by transitions).
+        Internal brightness setter (used by set_brightness()).
 
         Args:
             brightness: 0-255
@@ -160,12 +160,10 @@ class DimmableLight:
 
         self.transition_controller.start_transition(
             property_name=property_name,
-            switch_nr=self.switch_nr,
             start_brightness=start_brightness,
             end_brightness=target_brightness,
             duration=duration,
             easing_name=easing,
-            on_step=None,
         )
 
         if on_complete:
@@ -187,7 +185,6 @@ class DimmableLight:
 
         self.flash_controller.start_flash(
             property_name=property_name,
-            switch_nr=self.switch_nr,
             duration=duration,
             previous_state=previous_state,
             previous_brightness=previous_brightness,

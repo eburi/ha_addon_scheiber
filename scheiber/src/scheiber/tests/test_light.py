@@ -343,5 +343,240 @@ class TestDimmableLight:
         assert str(light) == "DimmableLight(Living Room, state=ON, brightness=180)"
 
 
+class TestDimmableLightTransitions:
+    """Test DimmableLight fade transitions and CAN message sequences."""
+
+    def test_fade_from_0_to_255_linear(self):
+        """Test fade from 0 to 255 generates correct CAN message sequence."""
+        import time
+
+        send_command_mock = Mock()
+        light = DimmableLight(
+            device_id=7,
+            switch_nr=2,
+            name="s1",
+            entity_id="s1",
+            send_command_func=send_command_mock,
+        )
+
+        # Start at 0
+        assert light._brightness == 0
+        assert light._state == False
+
+        # Fade to 255 with linear easing over 0.1 seconds (for faster test)
+        light.fade_to(target_brightness=255, duration=0.1, easing="linear")
+
+        # Wait for transition to complete
+        time.sleep(0.15)
+
+        # Verify CAN commands were sent
+        assert send_command_mock.call_count > 0
+
+        # Get all brightness values that were sent
+        calls = send_command_mock.call_args_list
+        brightness_values = [call[0][2] for call in calls]  # Third arg is brightness
+
+        # Verify progression from 0 to 255
+        assert brightness_values[0] == 0  # Start at 0
+        assert brightness_values[-1] == 255  # End at 255
+
+        # Verify values are increasing (linear progression)
+        for i in range(1, len(brightness_values)):
+            assert brightness_values[i] >= brightness_values[i - 1]
+
+        # Verify state transitions: False (OFF) -> True (ON)
+        states = [call[0][1] for call in calls]  # Second arg is state
+        assert states[0] == False  # Start OFF
+        assert states[-1] == True  # End ON
+
+        # Verify final light state
+        assert light._brightness == 255
+        assert light._state == True
+
+    def test_fade_from_255_to_0_linear(self):
+        """Test fade from 255 to 0 generates correct CAN message sequence."""
+        import time
+
+        send_command_mock = Mock()
+        light = DimmableLight(
+            device_id=7,
+            switch_nr=2,
+            name="s1",
+            entity_id="s1",
+            send_command_func=send_command_mock,
+        )
+
+        # Start at 255
+        light.set_brightness(255)
+        send_command_mock.reset_mock()
+
+        # Fade to 0 with linear easing
+        light.fade_to(target_brightness=0, duration=0.1, easing="linear")
+
+        # Wait for transition to complete
+        time.sleep(0.15)
+
+        # Verify CAN commands were sent
+        assert send_command_mock.call_count > 0
+
+        # Get all brightness values
+        calls = send_command_mock.call_args_list
+        brightness_values = [call[0][2] for call in calls]
+
+        # Verify progression from 255 to 0
+        assert brightness_values[0] == 255  # Start at 255
+        assert brightness_values[-1] == 0  # End at 0
+
+        # Verify values are decreasing
+        for i in range(1, len(brightness_values)):
+            assert brightness_values[i] <= brightness_values[i - 1]
+
+        # Verify state transitions: True (ON) -> False (OFF)
+        states = [call[0][1] for call in calls]
+        assert states[0] == True  # Start ON
+        assert states[-1] == False  # End OFF
+
+        # Verify final light state
+        assert light._brightness == 0
+        assert light._state == False
+
+    def test_fade_with_different_easing_functions(self):
+        """Test fade with various easing functions produces smooth sequences."""
+        import time
+
+        easing_functions = [
+            "linear",
+            "ease_in_sine",
+            "ease_out_sine",
+            "ease_in_out_sine",
+            "ease_in_quad",
+            "ease_out_quad",
+            "ease_in_cubic",
+        ]
+
+        for easing in easing_functions:
+            send_command_mock = Mock()
+            light = DimmableLight(
+                device_id=7,
+                switch_nr=2,
+                name=f"test_{easing}",
+                entity_id=f"test_{easing}",
+                send_command_func=send_command_mock,
+            )
+
+            # Fade from 0 to 200
+            light.fade_to(target_brightness=200, duration=0.1, easing=easing)
+            time.sleep(0.15)
+
+            # Verify commands were sent
+            assert send_command_mock.call_count > 0, f"No commands for {easing}"
+
+            calls = send_command_mock.call_args_list
+            brightness_values = [call[0][2] for call in calls]
+
+            # Verify start and end
+            assert brightness_values[0] == 0, f"{easing}: bad start"
+            assert brightness_values[-1] == 200, f"{easing}: bad end"
+
+            # Verify monotonic increase
+            for i in range(1, len(brightness_values)):
+                assert (
+                    brightness_values[i] >= brightness_values[i - 1]
+                ), f"{easing}: not monotonic at step {i}"
+
+    def test_scheiber_edge_case_on_with_brightness_0(self):
+        """Test Scheiber edge case: state=ON with brightness=0 translates to 255."""
+        send_command_mock = Mock()
+        light = DimmableLight(
+            device_id=7,
+            switch_nr=2,
+            name="s1",
+            entity_id="s1",
+            send_command_func=send_command_mock,
+        )
+
+        # Simulate receiving CAN message: state=ON, brightness=0 (full brightness no PWM)
+        light.update_state(state=True, brightness=0)
+
+        # Should be translated to brightness=255
+        assert light._brightness == 255
+        assert light._state == True
+
+        # Verify observer would be notified with corrected values
+        observer = Mock()
+        light.subscribe(observer)
+
+        # Trigger another update
+        light.update_state(state=True, brightness=0)
+
+        # Observer should not be called (no change from 255)
+        observer.assert_not_called()
+
+    def test_fade_from_scheiber_edge_case(self):
+        """Test fade starting from Scheiber edge case (ON, brightness=0 -> 255)."""
+        import time
+
+        send_command_mock = Mock()
+        light = DimmableLight(
+            device_id=7,
+            switch_nr=2,
+            name="s1",
+            entity_id="s1",
+            send_command_func=send_command_mock,
+        )
+
+        # Simulate Scheiber edge case: ON without PWM
+        light.update_state(state=True, brightness=0)
+        assert light._brightness == 255  # Translated
+
+        send_command_mock.reset_mock()
+
+        # Fade from this state to 128
+        light.fade_to(target_brightness=128, duration=0.1, easing="linear")
+        time.sleep(0.15)
+
+        # Verify fade started from 255 (not 0)
+        calls = send_command_mock.call_args_list
+        brightness_values = [call[0][2] for call in calls]
+
+        assert brightness_values[0] == 255  # Start from translated value
+        assert brightness_values[-1] == 128  # End at target
+
+        # Verify monotonic decrease
+        for i in range(1, len(brightness_values)):
+            assert brightness_values[i] <= brightness_values[i - 1]
+
+    def test_transition_cancellation_stops_can_messages(self):
+        """Test that cancelling a transition stops sending CAN messages."""
+        import time
+
+        send_command_mock = Mock()
+        light = DimmableLight(
+            device_id=7,
+            switch_nr=2,
+            name="s1",
+            entity_id="s1",
+            send_command_func=send_command_mock,
+        )
+
+        # Start a long fade
+        light.fade_to(target_brightness=255, duration=1.0, easing="linear")
+
+        # Let it run for a bit
+        time.sleep(0.1)
+        initial_count = send_command_mock.call_count
+        assert initial_count > 0  # Some commands sent
+
+        # Cancel the transition
+        light.cancel_transition()
+
+        # Wait a bit more
+        time.sleep(0.1)
+        final_count = send_command_mock.call_count
+
+        # Count should not have increased much (transition stopped)
+        assert final_count - initial_count < 5  # Small tolerance for in-flight
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
