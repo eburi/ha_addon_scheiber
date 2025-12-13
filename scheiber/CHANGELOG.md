@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.2.11] - 2025-12-13
+
+### Added
+- **Automatic Migration System**: run.sh now automatically runs migration scripts on startup
+  - Migration scripts in `src/migrate/` directory
+  - Supports both Python (.py) and Shell (.sh) scripts
+  - Tracks applied migrations in `${DATA_DIR}/.migrations_applied`
+  - Migrations run once, in alphabetical order
+  - Startup fails if migration fails (safety mechanism)
+
+### Fixed
+- **State File Migration**: Added backward compatibility for state file format
+  - System now tries entity_id first, then falls back to old s1-s6 format
+  - Migration script `001_migrate_state_keys_to_entity_id.py` automatically converts old format to new
+  - Creates timestamped backup before migration
+  - Idempotent (safe to run multiple times)
+  - Fixes issue where devices didn't initialize with persisted state after v6.2.9 upgrade
+
+### Technical Details
+- Migration framework in `run.sh` with proper error handling
+- Python migrations run with activated virtualenv
+- Shell migrations receive DATA_DIR and CONFIG_FILE as arguments
+- Comprehensive README.md in migrate/ directory with examples and best practices
+
 ## [6.2.10] - 2025-12-13
 
 ### Changed

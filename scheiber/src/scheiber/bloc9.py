@@ -82,7 +82,16 @@ class Bloc9Device(ScheiberCanDevice):
                 entity_id = config.get("entity_id", name.lower().replace(" ", "_"))
 
                 # Get persisted state for this output
-                output_state = self._initial_state.get(entity_id, {})
+                # Try entity_id first (new format), fall back to output_name (old format s1-s6)
+                output_state = self._initial_state.get(entity_id)
+                if output_state is None:
+                    output_state = self._initial_state.get(output_name, {})
+                    if output_state:
+                        self.logger.debug(
+                            f"Using legacy state key '{output_name}' for {entity_id}"
+                        )
+                else:
+                    output_state = output_state or {}
                 persisted_brightness = output_state.get("brightness")
                 persisted_state = output_state.get("state")
 
@@ -134,7 +143,16 @@ class Bloc9Device(ScheiberCanDevice):
                 entity_id = config.get("entity_id", name.lower().replace(" ", "_"))
 
                 # Get persisted state for this output
-                output_state = self._initial_state.get(entity_id, {})
+                # Try entity_id first (new format), fall back to output_name (old format s1-s6)
+                output_state = self._initial_state.get(entity_id)
+                if output_state is None:
+                    output_state = self._initial_state.get(output_name, {})
+                    if output_state:
+                        self.logger.debug(
+                            f"Using legacy state key '{output_name}' for {entity_id}"
+                        )
+                else:
+                    output_state = output_state or {}
                 persisted_state = output_state.get("state")
 
                 switch = Switch(

@@ -56,10 +56,53 @@ ip link set can1 up
 ifconfig can1 txqueuelen 10000
 
 bashio::log.info "---------------------------------------------------------------------------"
-bashio::log.info "Starting actual bridge..."
-# Start scheiber mqtt bridge
+bashio::log.info "Running migrations..."
+# Run migration scripts if they exist
 cd /src
 source .venv/bin/activate
+
+if [ -d "migrate" ]; then
+    # Create migration tracker file if it doesn't exist
+    MIGRATION_TRACKER="${DATA_DIR}/.migrations_applied"
+    touch "${MIGRATION_TRACKER}"
+    
+    # Find all migration scripts (sorted by filename)
+    for migration in $(find migrate -type f \( -name "*.sh" -o -name "*.py" \) | sort); do
+        migration_name=$(basename "$migration")
+        
+        # Check if migration has already been applied
+        if grep -Fxq "${migration_name}" "${MIGRATION_TRACKER}"; then
+            bashio::log.debug "Migration ${migration_name} already applied, skipping"
+            continue
+        fi
+        
+        bashio::log.info "Running migration: ${migration_name}"
+        
+        # Run migration based on file type
+        if [[ "$migration" == *.py ]]; then
+            # Python migration (with venv already activated)
+            if python3 "$migration" --data-dir "${DATA_DIR}" --config-file "${CONFIG_FILE}"; then
+                echo "${migration_name}" >> "${MIGRATION_TRACKER}"
+                bashio::log.info "Migration ${migration_name} completed successfully"
+            else
+                bashio::log.error "Migration ${migration_name} failed!"
+                exit 1
+            fi
+        elif [[ "$migration" == *.sh ]]; then
+            # Shell migration
+            if bash "$migration" "${DATA_DIR}" "${CONFIG_FILE}"; then
+                echo "${migration_name}" >> "${MIGRATION_TRACKER}"
+                bashio::log.info "Migration ${migration_name} completed successfully"
+            else
+                bashio::log.error "Migration ${migration_name} failed!"
+                exit 1
+            fi
+        fi
+    done
+fi
+
+bashio::log.info "---------------------------------------------------------------------------"
+bashio::log.info "Starting actual bridge..."
 
 # Check which version to run
 if [ "${RUN_DEV_VERSION}" = "true" ]; then
