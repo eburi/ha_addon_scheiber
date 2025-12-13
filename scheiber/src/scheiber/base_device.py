@@ -103,6 +103,15 @@ class ScheiberCanDevice(ABC):
         """
         return []
 
+    def get_sensors(self) -> List:
+        """
+        Return list of Sensor instances (if any).
+
+        Returns:
+            List of Sensor objects (empty by default)
+        """
+        return []
+
     def __str__(self) -> str:
         """String representation."""
         return f"{self.__class__.__name__}(device_id={self.device_id})"

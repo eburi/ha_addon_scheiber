@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.2.4] - 2024-12-13
+
+### Fixed
+- **AttributeError**: Added default `get_sensors()` method to `ScheiberCanDevice` base class
+- Bridge was calling `get_sensors()` on all devices, but only `Bloc7Device` implemented it
+- `Bloc9Device` now safely returns empty list when bridge queries for sensors
+- Consistent API: all devices now have `get_lights()`, `get_switches()`, and `get_sensors()` methods
+- All 74 unit tests passing
+
 ## [6.2.3] - 2024-12-13
 
 ### Fixed
