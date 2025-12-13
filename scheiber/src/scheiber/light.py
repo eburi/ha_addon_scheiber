@@ -149,6 +149,13 @@ class DimmableLight(Output):
         self._state = state
         self._brightness = brightness
 
+        # Send CAN command
+        self._send_command_func(self.switch_nr, state, brightness)
+
+        # Notify observers with complete state
+        if notify:
+            self._notify_observers({"state": state, "brightness": brightness})
+
     def restore_from_state(self, state: Dict[str, Any]) -> None:
         """
         Restore light state from persisted data.
@@ -173,13 +180,6 @@ class DimmableLight(Output):
             "brightness": self._brightness,
             "state": self._state,
         }
-
-        # Send CAN command
-        self._send_command(self.switch_nr, state, brightness)
-
-        # Notify observers with complete state
-        if notify:
-            self._notify_observers({"state": state, "brightness": brightness})
 
     def fade_to(
         self,

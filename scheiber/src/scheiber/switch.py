@@ -98,7 +98,7 @@ class Switch(Output):
         Args:
             state: Desired state
         """
-        self.send_command_func(self.switch_nr, state, None)
+        self._send_command_func(self.switch_nr, state)
 
     def restore_from_state(self, state: Dict[str, Any]) -> None:
         """
@@ -119,8 +119,7 @@ class Switch(Output):
         Returns:
             Dictionary with 'state' key
         """
-        return {"state": self._state
-        self.send_command_func(self.switch_nr, state)
+        return {"state": self._state}
 
     def update_state(self, state: bool) -> None:
         """

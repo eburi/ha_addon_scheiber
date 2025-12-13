@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.2.2] - 2024-12-13
+
+### Fixed
+- **Critical Syntax Error**: Fixed missing closing brace in `Switch.store_to_state()` that prevented module loading
+- **Attribute Name Errors**: Fixed incorrect references to `send_command_func` and `notify_observers` (should be `_send_command_func` and `_notify_observers`)
+- Removed orphaned code fragment in `switch.py` from previous refactoring
+- All 74 unit tests now passing
+
 ## [6.2.1] - 2024-12-13
 
 ### Changed
