@@ -327,7 +327,9 @@ class DimmableLight(Output):
             self.logger.debug(
                 f"State updated from CAN: {self.name} state={effective_state}, brightness={effective_brightness}{translation_note}"
             )
-            self._notify_observers(changed_props)
+            # Always send full state to MQTT (Home Assistant needs both state and brightness)
+            full_state = {"state": effective_state, "brightness": effective_brightness}
+            self._notify_observers(full_state)
 
     def __str__(self) -> str:
         """String representation."""

@@ -375,7 +375,10 @@ class TestMQTTDiscoverySwitches:
             config["availability_topic"]
             == "homeassistant/scheiber/bloc9/7/s1/availability"
         )
-        assert config["schema"] == "json"
+        assert config["payload_on"] == "ON"
+        assert config["payload_off"] == "OFF"
+        assert config["state_on"] == "ON"
+        assert config["state_off"] == "OFF"
         assert config["optimistic"] is False
 
 
@@ -481,8 +484,7 @@ class TestStatePublishing:
 
         assert len(state_publishes) == 1
         topic, payload = state_publishes[0]
-        state = json.loads(payload)
-        assert state["state"] == "ON"
+        assert payload == "ON"
 
 
 class TestCommandHandling:
@@ -832,9 +834,7 @@ class TestCommandHandling:
         bridge = MQTTBridge(can_interface="can0", mqtt_host="localhost")
         bridge.start()
 
-        msg = create_mock_mqtt_message(
-            "homeassistant/scheiber/bloc9/7/s1/set", b'{"state": "ON"}'
-        )
+        msg = create_mock_mqtt_message("homeassistant/scheiber/bloc9/7/s1/set", b"ON")
 
         bridge._on_mqtt_message(None, None, msg)
 

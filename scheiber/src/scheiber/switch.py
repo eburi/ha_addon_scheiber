@@ -55,13 +55,18 @@ class Switch(Output):
         Turn switch ON or OFF.
 
         Sends command to hardware. State will be updated when CAN confirmation
-        message is received via update_state().
+        message is received via update_state(). This ensures Home Assistant
+        only shows the confirmed state from the hardware.
 
         Args:
             state: True for ON, False for OFF
         """
+        self.logger.info(f"Setting switch to {'ON' if state else 'OFF'}")
+
+        # Send command to hardware - don't update state yet
+        # Wait for CAN confirmation via update_state()
         self._send_command(state)
-        # Don't update _state here - wait for CAN confirmation via update_state()
+        self.logger.debug(f"Command sent, waiting for CAN confirmation")
 
     def process_matching_message(self, msg: can.Message) -> None:
         """
@@ -130,6 +135,10 @@ class Switch(Output):
         Args:
             state: New state from CAN bus
         """
+        self.logger.debug(f"CAN state update received: {state}")
         if self._state != state:
             self._state = state
+            self.logger.info(f"State changed from CAN, notifying observers: {state}")
             self._notify_observers({"state": state})
+        else:
+            self.logger.debug(f"CAN state matches current state: {state}")

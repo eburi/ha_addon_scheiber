@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.2.8] - 2024-12-13
+
+### Fixed
+- **Light State Publishing**: Fixed incomplete MQTT state messages for lights
+  - Light state updates now always publish both `state` and `brightness` fields
+  - Previously only published changed fields (e.g., `{"brightness": 36}` without `state`)
+  - Home Assistant requires both fields for proper entity state display
+  - Now publishes complete state: `{"state": "ON", "brightness": 36}`
+  - Fixes issue where light entities showed unknown state in Home Assistant UI
+
+## [6.2.7] - 2024-12-13
+
+### Fixed
+- **Non-optimistic Switch Behavior**: Proper implementation of state updates only after CAN confirmation
+  - Switch MQTT handler waits for CAN confirmation before publishing state to MQTT
+  - `Switch.set()` sends CAN command without updating internal state
+  - `Switch.update_state()` (called when CAN message received) updates state and notifies observers
+  - MQTT handler publishes state only when observer callback triggered by CAN message
+  - Logging added for debugging: command sending, CAN confirmation, and state updates
+  - Prevents state desync between Home Assistant and physical hardware
+  - ~100ms latency between MQTT command and state update (typical CAN response time)
+
+### Added
+- Comprehensive integration test suite for switch state confirmation flow
+  - Test MQTT command → CAN command → CAN confirmation → MQTT state update
+  - Test physical button press → CAN message → MQTT state update
+  - Test discovery config with `optimistic: false`
+  - All 109 unit tests passing
+
+## [6.2.6] - 2024-12-13
+
+### Fixed
+- **Switch State Updates**: Restored optimistic state updates in `Switch.set()` method
+  - Switch now updates state immediately when MQTT command received
+  - Still validates with CAN confirmation via `update_state()`
+  - Only publishes to MQTT if state actually changes (prevents duplicate notifications)
+  - Fixes issue where switches didn't respond to MQTT commands
+  - Physical button presses still trigger MQTT updates via CAN messages
+- Optimistic updates work like lights: immediate feedback with CAN validation
+- All 74 unit tests passing
+
 ## [6.2.5] - 2024-12-13
 
 ### Fixed

@@ -158,7 +158,7 @@ class TestRetainedMessageHandling:
         )  # Simulate recent retained message (1 minute old)
         recent_timestamp = time.time() - 60
         switch.handle_command(
-            payload='{"state": "ON"}', is_retained=True, timestamp=recent_timestamp
+            payload="ON", is_retained=True, timestamp=recent_timestamp
         )
 
         # Verify: hardware command IS sent
@@ -186,9 +186,7 @@ class TestRetainedMessageHandling:
             mqtt_topic_prefix="homeassistant",
             read_only=False,
         )  # Simulate non-retained message
-        switch.handle_command(
-            payload='{"state": "ON"}', is_retained=False, timestamp=None
-        )
+        switch.handle_command(payload="ON", is_retained=False, timestamp=None)
 
         # Verify: hardware command IS sent
         mock_hardware.set.assert_called_once_with(True)
