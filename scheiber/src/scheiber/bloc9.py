@@ -192,6 +192,11 @@ class Bloc9Device(ScheiberCanDevice):
         if len(msg.data) < 4:
             return
 
+        # Log the actual CAN message being processed
+        self.logger.info(
+            f"Processing {property_name}: ID=0x{msg.arbitration_id:08X} Data={msg.data.hex()}"
+        )
+
         # Determine which switch numbers based on property
         switch_nr_1 = 0  # Default S1
         switch_nr_2 = 1  # Default S2
