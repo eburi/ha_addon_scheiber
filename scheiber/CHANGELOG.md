@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.7.3] - 2025-12-13
+
+### Fixed
+- **CAN Message Processing**: Fixed IndexError when processing CAN messages for mixed light/switch configurations
+  - Bloc9Device now uses switch_nr-to-object mapping instead of assuming list positions
+  - Handles cases where S1-S6 outputs are configured as lights, switches, or not configured at all
+  - Prevents crashes when receiving status messages for unconfigured outputs
+  - Status messages now gracefully skip unconfigured outputs instead of throwing IndexError
+
 ## [5.7.2] - 2025-12-13
 
 ### Fixed

@@ -70,6 +70,10 @@ class Bloc9Device(ScheiberCanDevice):
         # Map output names to switch numbers
         output_map = {f"s{i+1}": i for i in range(6)}
 
+        # Map switch_nr to light/switch objects for CAN message processing
+        self._switch_nr_to_light: Dict[int, DimmableLight] = {}
+        self._switch_nr_to_switch: Dict[int, Switch] = {}
+
         # Create lights for configured outputs
         if lights_config:
             for output_name, config in lights_config.items():
@@ -101,6 +105,7 @@ class Bloc9Device(ScheiberCanDevice):
                     light._state = initial_brightness > 0
 
                 self.lights.append(light)
+                self._switch_nr_to_light[switch_nr] = light
                 self.logger.debug(
                     f"Created light {name} on {output_name} (brightness={initial_brightness})"
                 )
@@ -125,6 +130,7 @@ class Bloc9Device(ScheiberCanDevice):
                     logger=logging.getLogger(f"Bloc9.{device_id}.{output_name}"),
                 )
                 self.switches.append(switch)
+                self._switch_nr_to_switch[switch_nr] = switch
                 self.logger.debug(f"Created switch {name} on {output_name}")
 
     def get_matchers(self) -> List[Matcher]:
@@ -185,14 +191,16 @@ class Bloc9Device(ScheiberCanDevice):
         if len(msg.data) < 4:
             return
 
-        # Determine which switch pair
-        switch_offset = 0
+        # Determine which switch numbers based on property
+        switch_nr_1 = 0  # Default S1
+        switch_nr_2 = 1  # Default S2
+
         if property_name == "s1_s2_change":
-            switch_offset = 0  # S1, S2
+            switch_nr_1, switch_nr_2 = 0, 1  # S1, S2
         elif property_name == "s3_s4_change":
-            switch_offset = 2  # S3, S4
+            switch_nr_1, switch_nr_2 = 2, 3  # S3, S4
         elif property_name == "s5_s6_change":
-            switch_offset = 4  # S5, S6
+            switch_nr_1, switch_nr_2 = 4, 5  # S5, S6
 
         # Parse first switch (odd-numbered: S1, S3, S5)
         state1_byte = msg.data[0]
@@ -204,9 +212,22 @@ class Bloc9Device(ScheiberCanDevice):
         brightness2 = msg.data[3]
         state2 = state2_byte == 0x01 or brightness2 > self.DIMMING_THRESHOLD
 
-        # Update lights
-        self.lights[switch_offset].update_state(state1, brightness1)
-        self.lights[switch_offset + 1].update_state(state2, brightness2)
+        # Update outputs if they're configured (check both lights and switches)
+        light1 = self._switch_nr_to_light.get(switch_nr_1)
+        if light1:
+            light1.update_state(state1, brightness1)
+        else:
+            switch1 = self._switch_nr_to_switch.get(switch_nr_1)
+            if switch1:
+                switch1.update_state(state1)
+
+        light2 = self._switch_nr_to_light.get(switch_nr_2)
+        if light2:
+            light2.update_state(state2, brightness2)
+        else:
+            switch2 = self._switch_nr_to_switch.get(switch_nr_2)
+            if switch2:
+                switch2.update_state(state2)
 
     def _process_status(self, msg: can.Message) -> None:
         """
