@@ -254,6 +254,12 @@ class DimmableLight(Output):
         state, brightness = self.get_state_from_can_message(
             msg, self.switch_nr, self.dimming_threshold
         )
+
+        self.logger.debug(
+            f"Light '{self.name}' (S{self.switch_nr+1}) received matched message: "
+            f"arbitration_id=0x{msg.arbitration_id:08X}, state={state}, brightness={brightness}"
+        )
+
         self.update_state(state, brightness)
 
     def update_state(self, state: bool, brightness: int) -> None:

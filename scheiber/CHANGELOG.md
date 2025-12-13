@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.1.1] - 2024-12-13
+
+### Added
+- Debug logging for CAN message routing at output level
+  - Switch outputs log: `Switch 'Name' (SX) received matched message: arbitration_id=0xXXXXXXXX, state=True/False`
+  - Light outputs log: `Light 'Name' (SX) received matched message: arbitration_id=0xXXXXXXXX, state=True/False, brightness=XXX`
+  - Helps track which outputs are processing which CAN messages during runtime
+  - Uses existing logger hierarchy: `Bloc9.{device_id}.{output_name}`
+
+### Changed
+- Moved `config_loader.py` to `archive/` directory (only used by archived v5 code)
+  - v6 uses inline YAML loading in `scheiber/__init__.py`
+  - Cleaner src directory structure
+
 ## [6.1.0] - 2024-12-13
 
 ### Fixed
