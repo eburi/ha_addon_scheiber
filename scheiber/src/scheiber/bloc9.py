@@ -7,6 +7,7 @@ Manages 6 dimmable light outputs (S1-S6) using the Bloc9 CAN protocol.
 from typing import Any, Dict, List, Optional
 import can
 import logging
+import time
 
 from .base_device import ScheiberCanDevice
 from .light import DimmableLight
@@ -231,10 +232,35 @@ class Bloc9Device(ScheiberCanDevice):
 
     def _process_status(self, msg: can.Message) -> None:
         """
-        Process low-priority status message.
+        Process low-priority status message (heartbeat).
+
+        This message is periodic and doesn't contain state changes.
+        Use it to publish device info to MQTT.
         """
-        # For now, just log
-        self.logger.debug(f"Status message: {msg.data.hex()}")
+        self.logger.debug(f"Heartbeat: {msg.data.hex()}")
+
+        # Build output info dict
+        outputs = {}
+        for i in range(6):  # S1-S6
+            output_name = f"s{i+1}"
+            # Check if this output is configured as light or switch
+            light = self._switch_nr_to_light.get(i)
+            if light:
+                outputs[output_name] = light.name
+            else:
+                switch = self._switch_nr_to_switch.get(i)
+                if switch:
+                    outputs[output_name] = switch.name
+                else:
+                    outputs[output_name] = "unknown"
+
+        # Notify observers with device info
+        device_info = {
+            "device_type": "bloc9",
+            "bus_id": self.device_id,
+            "outputs": outputs,
+        }
+        self._notify_observers({"device_info": device_info})
 
     def _send_switch_command(
         self, switch_nr: int, state: bool, brightness: Optional[int] = None

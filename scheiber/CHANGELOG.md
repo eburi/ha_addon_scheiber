@@ -7,7 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [5.7.5] - 2025-12-13
+## [5.7.6] - 2024-12-13
+
+### Added
+- Comprehensive test suite for heartbeat behavior with 8 new tests:
+  - `test_heartbeat_does_not_update_light_state`: Verifies heartbeats don't override light states
+  - `test_heartbeat_publishes_device_info`: Verifies device info publication on heartbeat
+  - `test_state_change_message_still_updates_state`: Ensures actual state change messages work
+  - `test_heartbeat_after_command_does_not_reset`: Tests the specific brightness reset bug scenario
+  - `test_heartbeat_with_no_configured_outputs`: Tests edge case with no outputs
+  - `test_multiple_heartbeats_in_sequence`: Verifies repeated heartbeats don't affect state
+  - `test_switch_not_affected_by_heartbeat`: Ensures switches also protected from heartbeat interference
+  - `test_device_observer_pattern_for_heartbeat`: Tests device-level observer pattern
+- Device-level observer pattern in `ScheiberCanDevice` base class for heartbeat events
+
+### Changed
+- All 84 tests passing (76 original + 8 new heartbeat tests)
+
+## [5.7.5] - 2024-12-13
 
 ### Changed
 - **Improved State Update Logging**: State updates from CAN bus to MQTT now log at INFO level instead of DEBUG
@@ -16,10 +33,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Makes it easier to verify that CAN messages are being received and processed
   - Helps diagnose issues with state synchronization between hardware and Home Assistant
 
+- **Low-Priority Status Messages**: Changed to heartbeat-only, no longer used for state updates
+  - Status message (`0x00000600`) is now only used as device heartbeat
+  - Prevents stale heartbeat data from overriding actual switch state changes
+  - Status messages now trigger device info publication to MQTT
+  - Device info includes output configuration: `{"outputs": {"s1": "Main Light", "s2": "unknown", ...}}`
+
 ### Added
 - **State Flow Test**: Added comprehensive test verifying CAN → Hardware → MQTT state propagation
   - Confirms observer pattern working correctly
   - Validates state updates are published with correct topics and payloads
+
+- **Device-Level Observer Pattern**: Base device class now supports observers for device-level events
+  - Enables publishing device info (output configuration) to MQTT
+  - Heartbeat messages trigger device info updates
+  - Foundation for future device-level monitoring features
+
+### Fixed
+- **State Override Issue**: Commands no longer get immediately overridden by heartbeat messages
+  - Root cause: Heartbeat messages were being parsed as state changes
+  - Solution: Heartbeat messages now only publish device info, not state updates
+  - State updates only come from actual switch change messages (`0x021A0600` etc.)
 
 ## [5.7.4] - 2025-12-13
 

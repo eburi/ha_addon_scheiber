@@ -43,6 +43,7 @@ class ScheiberCanDevice(ABC):
         self.logger = logger or logging.getLogger(
             f"{self.__class__.__name__}.{device_id}"
         )
+        self._observers: List[Any] = []
 
     @abstractmethod
     def get_matchers(self) -> List:
@@ -112,3 +113,33 @@ class ScheiberCanDevice(ABC):
     def __repr__(self) -> str:
         """Debug representation."""
         return f"{self.__class__.__name__}(device_id={self.device_id}, device_type='{self.device_type}')"
+
+    def subscribe(self, observer: Any) -> None:
+        """
+        Subscribe to device-level events (e.g., heartbeats, device info).
+
+        Args:
+            observer: Callable that will be notified with event data
+        """
+        if observer not in self._observers:
+            self._observers.append(observer)
+
+    def unsubscribe(self, observer: Any) -> None:
+        """
+        Unsubscribe from device-level events.
+
+        Args:
+            observer: Observer to remove
+        """
+        if observer in self._observers:
+            self._observers.remove(observer)
+
+    def _notify_observers(self, event_data: Dict[str, Any]) -> None:
+        """
+        Notify all device-level observers of an event.
+
+        Args:
+            event_data: Dict containing event information
+        """
+        for observer in self._observers:
+            observer(event_data)
