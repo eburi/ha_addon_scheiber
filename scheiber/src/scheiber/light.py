@@ -105,9 +105,8 @@ class DimmableLight:
             brightness: 0-255 (0=OFF)
         """
         # Cancel any active transition or flash
-        property_name = self.name
-        self.transition_controller.cancel_transition(property_name)
-        self.flash_controller.cancel_flash(property_name)
+        self.transition_controller.cancel_transition()
+        self.flash_controller.cancel_flash()
 
         # Set new brightness
         self._set_brightness(brightness, notify=True)
@@ -127,17 +126,11 @@ class DimmableLight:
         self._brightness = brightness
 
         # Send CAN command
-        self._send_switch_command(self.switch_nr, state, brightness)
+        self._send_command(self.switch_nr, state, brightness)
 
         # Notify observers with complete state
         if notify:
             self._notify_observers({"state": state, "brightness": brightness})
-
-    def _send_switch_command(
-        self, switch_nr: int, state: bool, brightness: int
-    ) -> None:
-        """Send CAN command via provided function."""
-        self._send_command(switch_nr, state, brightness)
 
     def fade_to(
         self,
@@ -155,11 +148,9 @@ class DimmableLight:
             easing: Easing function name
             on_complete: Optional callback when complete
         """
-        property_name = self.name
         start_brightness = self._brightness
 
         self.transition_controller.start_transition(
-            property_name=property_name,
             start_brightness=start_brightness,
             end_brightness=target_brightness,
             duration=duration,
@@ -179,12 +170,10 @@ class DimmableLight:
             duration: Flash duration in seconds
             on_complete: Optional callback when complete
         """
-        property_name = self.name
         previous_state = self._state
         previous_brightness = self._brightness
 
         self.flash_controller.start_flash(
-            property_name=property_name,
             duration=duration,
             previous_state=previous_state,
             previous_brightness=previous_brightness,
@@ -193,11 +182,11 @@ class DimmableLight:
 
     def cancel_transition(self) -> None:
         """Cancel any active transition."""
-        self.transition_controller.cancel_transition(self.name)
+        self.transition_controller.cancel_transition()
 
     def cancel_flash(self) -> None:
         """Cancel any active flash."""
-        self.flash_controller.cancel_flash(self.name)
+        self.flash_controller.cancel_flash()
 
     def get_state(self) -> Dict[str, Any]:
         """

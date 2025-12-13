@@ -6,8 +6,11 @@ Designed for DimmableLight objects using proper object-oriented approach.
 
 import threading
 import time
-from typing import Callable, Optional
+from typing import Callable, Optional, TYPE_CHECKING
 import logging
+
+if TYPE_CHECKING:
+    from scheiber.light import DimmableLight
 
 # Import easing functions from easing module
 import sys
@@ -26,7 +29,7 @@ class TransitionController:
     without triggering state notifications during the transition.
     """
 
-    def __init__(self, light, step_delay: float = 0.02):
+    def __init__(self, light: "DimmableLight", step_delay: float = 0.02):
         """
         Initialize transition controller.
 
@@ -34,9 +37,9 @@ class TransitionController:
             light: DimmableLight instance
             step_delay: Delay between transition steps in seconds (50Hz = 0.02s)
         """
-        self.light = light
+        self.light: "DimmableLight" = light
         self.step_delay = step_delay
-        self.active_transitions = {}
+        self.stop_event = None
         self.lock = threading.Lock()
         self.logger = (
             light.logger if hasattr(light, "logger") else logging.getLogger(__name__)
@@ -44,7 +47,6 @@ class TransitionController:
 
     def start_transition(
         self,
-        property_name: str,
         start_brightness: int,
         end_brightness: int,
         duration: float,
@@ -54,16 +56,14 @@ class TransitionController:
         Start a smooth transition for a dimmable output.
 
         Args:
-            property_name: Name of the property (e.g., 's1')
             start_brightness: Starting brightness (0-255)
             end_brightness: Target brightness (0-255)
             duration: Transition duration in seconds
             easing_name: Name of the easing function to use
         """
-        self.cancel_transition(property_name)
+        self.cancel_transition()
 
-        stop_event = threading.Event()
-        self.active_transitions[property_name] = stop_event
+        self.stop_event = threading.Event()
 
         def run_transition():
             try:
@@ -71,9 +71,9 @@ class TransitionController:
                 easing_func = get_easing_function(easing_name)
 
                 for step in range(steps + 1):
-                    if stop_event.is_set():
+                    if self.stop_event.is_set():
                         self.logger.info(
-                            f"Transition for {property_name} cancelled at step {step}/{steps}"
+                            f"Transition for {self.light.name} cancelled at step {step}/{steps}"
                         )
                         return
 
@@ -94,13 +94,8 @@ class TransitionController:
                     # Update brightness without triggering observers
                     # (observers are notified at the end)
                     brightness_val = max(0, min(255, value))
-                    state = brightness_val > 0
 
-                    self.light._state = state
-                    self.light._brightness = brightness_val
-                    self.light._send_switch_command(
-                        self.light.switch_nr, state, brightness_val
-                    )
+                    self.light._set_brightness(brightness_val, notify=False)
 
                     time.sleep(self.step_delay)
 
@@ -110,23 +105,23 @@ class TransitionController:
                 )
 
                 self.logger.info(
-                    f"Transition for {property_name} completed: {start_brightness} -> {end_brightness}"
+                    f"Transition for {self.light.name} completed: {start_brightness} -> {end_brightness}"
                 )
             except Exception as e:
                 self.logger.error(
-                    f"Error in transition for {property_name}: {e}", exc_info=True
+                    f"Error in transition for {self.light.name}: {e}", exc_info=True
                 )
             finally:
                 with self.lock:
-                    if property_name in self.active_transitions:
-                        del self.active_transitions[property_name]
+                    self.stop_event = None
 
         threading.Thread(target=run_transition, daemon=True).start()
 
-    def cancel_transition(self, property_name: str):
-        """Cancel any active transition for the given property."""
+    def cancel_transition(self):
+        """Cancel any active transition for this light."""
         with self.lock:
-            stop_event = self.active_transitions.pop(property_name, None)
+            stop_event = self.stop_event
+            self.stop_event = None
         if stop_event:
             stop_event.set()
 
@@ -139,7 +134,7 @@ class FlashController:
     then restore previous state.
     """
 
-    def __init__(self, light, flash_transition_length: float = 0.25):
+    def __init__(self, light: "DimmableLight", flash_transition_length: float = 0.25):
         """
         Initialize flash controller.
 
@@ -147,10 +142,9 @@ class FlashController:
             light: DimmableLight instance
             flash_transition_length: Duration of flash (not currently used)
         """
-        self.light = light
+        self.light: "DimmableLight" = light
         self.flash_transition_length = flash_transition_length
-        self.active_flashes = {}
-        self.stop_events = {}
+        self.stop_event = None
         self.lock = threading.Lock()
         self.logger = (
             light.logger if hasattr(light, "logger") else logging.getLogger(__name__)
@@ -158,7 +152,6 @@ class FlashController:
 
     def start_flash(
         self,
-        property_name: str,
         duration: float,
         previous_state: bool,
         previous_brightness: int,
@@ -168,35 +161,29 @@ class FlashController:
         Start a flash effect for a given output, then restore previous state.
 
         Args:
-            property_name: Name of the property (e.g., 's1')
             duration: Flash duration in seconds
             previous_state: State to restore after flash
             previous_brightness: Brightness to restore after flash
             on_complete: Optional callback after restore
         """
-        self.cancel_flash(property_name)
+        self.cancel_flash()
 
-        stop_event = threading.Event()
         with self.lock:
-            self.stop_events[property_name] = stop_event
-            self.active_flashes[property_name] = stop_event
+            self.stop_event = threading.Event()
 
         def run_flash():
             try:
                 # Phase 1: Flash ON at full brightness
-                self.light._state = True
-                self.light._brightness = 255
-                self.light._send_switch_command(self.light.switch_nr, True, 255)
-                self.light._notify_observers({"state": True, "brightness": 255})
-                self.logger.debug(f"Flash {property_name}: ON @ 255")
+                self.light._set_brightness(255, notify=True)
+                self.logger.debug(f"Flash {self.light.name}: ON @ 255")
 
                 # Wait for flash duration with cancellation checks
                 elapsed = 0.0
                 check_interval = 0.05
                 while elapsed < duration:
-                    if stop_event.is_set():
+                    if self.stop_event.is_set():
                         self.logger.warning(
-                            f"Flash interrupted for {property_name} after {elapsed:.1f}s"
+                            f"Flash interrupted for {self.light.name} after {elapsed:.1f}s"
                         )
                         return
 
@@ -205,48 +192,39 @@ class FlashController:
                     elapsed += sleep_time
 
                 # Phase 2: Restore to previous state
-                if stop_event.is_set():
+                if self.stop_event.is_set():
                     self.logger.warning(
-                        f"Flash interrupted for {property_name} before restore"
+                        f"Flash interrupted for {self.light.name} before restore"
                     )
                     return
 
-                self.light._state = previous_state
-                self.light._brightness = previous_brightness
-                self.light._send_switch_command(
-                    self.light.switch_nr, previous_state, previous_brightness
-                )
-                self.light._notify_observers(
-                    {"state": previous_state, "brightness": previous_brightness}
-                )
+                self.light._set_brightness(previous_brightness, notify=True)
                 self.logger.debug(
-                    f"Flash {property_name}: restored to state={previous_state}, brightness={previous_brightness}"
+                    f"Flash {self.light.name}: restored to state={previous_state}, brightness={previous_brightness}"
                 )
 
                 # Invoke completion callback
                 if on_complete:
                     on_complete()
 
-                self.logger.info(f"Completed flash for {property_name}")
+                self.logger.info(f"Completed flash for {self.light.name}")
 
             except Exception as e:
                 self.logger.error(
-                    f"Error during flash for {property_name}: {e}", exc_info=True
+                    f"Error during flash for {self.light.name}: {e}", exc_info=True
                 )
 
             finally:
                 # Clean up
                 with self.lock:
-                    if property_name in self.active_flashes:
-                        del self.active_flashes[property_name]
-                    if property_name in self.stop_events:
-                        del self.stop_events[property_name]
+                    self.stop_event = None
 
         threading.Thread(target=run_flash, daemon=True).start()
 
-    def cancel_flash(self, property_name: str):
-        """Cancel any active flash for the given property."""
+    def cancel_flash(self):
+        """Cancel any active flash for this light."""
         with self.lock:
-            stop_event = self.stop_events.pop(property_name, None)
+            stop_event = self.stop_event
+            self.stop_event = None
         if stop_event:
             stop_event.set()

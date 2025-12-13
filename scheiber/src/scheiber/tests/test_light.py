@@ -577,6 +577,128 @@ class TestDimmableLightTransitions:
         # Count should not have increased much (transition stopped)
         assert final_count - initial_count < 5  # Small tolerance for in-flight
 
+    def test_transition_timing_accuracy(self):
+        """Test that transition duration is accurate within tolerance."""
+        import time
+
+        send_command_mock = Mock()
+        light = DimmableLight(
+            device_id=7,
+            switch_nr=2,
+            name="s1",
+            entity_id="s1",
+            send_command_func=send_command_mock,
+        )
+
+        # Test various durations
+        test_cases = [
+            (0.5, 0.1),  # 0.5s transition, ±100ms tolerance
+            (1.0, 0.1),  # 1.0s transition, ±100ms tolerance
+            (2.0, 0.15),  # 2.0s transition, ±150ms tolerance
+        ]
+
+        for duration, tolerance in test_cases:
+            send_command_mock.reset_mock()
+
+            # Track when transition completes
+            completion_time = None
+
+            def observer(state_dict):
+                nonlocal completion_time
+                if state_dict["brightness"] == 200:
+                    completion_time = time.time()
+
+            light.subscribe(observer)
+
+            # Record start time
+            start_time = time.time()
+
+            # Start transition
+            light.fade_to(target_brightness=200, duration=duration, easing="linear")
+
+            # Wait for transition to actually complete (poll the observer callback)
+            timeout = duration + 1.0  # Max wait time
+            while completion_time is None and (time.time() - start_time) < timeout:
+                time.sleep(0.01)
+
+            # Verify transition completed
+            assert (
+                completion_time is not None
+            ), f"Transition {duration}s did not complete within timeout"
+
+            # Calculate actual elapsed time
+            elapsed = completion_time - start_time
+
+            # Verify timing is accurate within tolerance
+            assert (
+                duration <= elapsed <= duration + tolerance
+            ), f"Duration {duration}s: elapsed={elapsed:.3f}s, expected {duration}s ±{tolerance}s"
+
+            # Verify final state is correct
+            assert light._brightness == 200
+            assert light._state == True
+
+            # Cleanup for next test
+            light.unsubscribe(observer)
+            light.set_brightness(0)
+
+    def test_transition_timing_with_observer_notification(self):
+        """Test that observer is notified at the end of transition, not during."""
+        import time
+
+        send_command_mock = Mock()
+        light = DimmableLight(
+            device_id=7,
+            switch_nr=2,
+            name="s1",
+            entity_id="s1",
+            send_command_func=send_command_mock,
+        )
+
+        # Track observer notifications
+        notifications = []
+
+        def observer(state_dict):
+            notifications.append((time.time(), state_dict.copy()))
+
+        light.subscribe(observer)
+
+        # Clear initial notification from subscription
+        notifications.clear()
+
+        # Start transition
+        start_time = time.time()
+        duration = 0.5
+        light.fade_to(target_brightness=150, duration=duration, easing="linear")
+
+        # Wait a bit but not for full duration
+        time.sleep(0.2)
+
+        # Should have no notifications yet (transition in progress)
+        assert (
+            len(notifications) == 0
+        ), "Observer should not be notified during transition"
+
+        # Wait for transition to complete
+        time.sleep(duration + 0.1)
+
+        # Should have exactly one notification at the end
+        assert (
+            len(notifications) == 1
+        ), "Observer should be notified exactly once at end"
+
+        # Verify notification timing (should be near the end of transition)
+        notification_time, state = notifications[0]
+        elapsed = notification_time - start_time
+
+        assert (
+            duration <= elapsed <= duration + 0.15
+        ), f"Notification came at {elapsed:.3f}s, expected ~{duration}s"
+
+        # Verify notification content
+        assert state["brightness"] == 150
+        assert state["state"] == True
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
