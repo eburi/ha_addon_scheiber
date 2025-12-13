@@ -191,7 +191,7 @@ class ScheiberSystem:
             if matcher.matches(msg):
                 matched = True
                 try:
-                    device.process_message(msg, matcher.property)
+                    device.process_message(msg)
                     self._mark_state_dirty()
                 except Exception as e:
                     self.logger.error(

@@ -19,12 +19,10 @@ class Matcher:
     Args:
         pattern: The expected arbitration ID pattern
         mask: Bitmask to apply (0xFF masks all bits, 0x00 ignores all bits)
-        property: Optional property name associated with this matcher
     """
 
     pattern: int
     mask: int
-    property: Optional[str] = None
 
     def matches(self, msg: can.Message) -> bool:
         """Check if a CAN message matches this pattern."""
@@ -32,6 +30,4 @@ class Matcher:
 
     def __str__(self) -> str:
         """Human-readable representation."""
-        if self.property:
-            return f"Matcher(pattern=0x{self.pattern:08X}, mask=0x{self.mask:08X}, property='{self.property}')"
         return f"Matcher(pattern=0x{self.pattern:08X}, mask=0x{self.mask:08X})"

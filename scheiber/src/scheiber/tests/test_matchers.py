@@ -30,7 +30,7 @@ class TestMatcher:
 
     def test_bloc9_status_matcher(self):
         """Test Bloc9 status message matching."""
-        matcher = Matcher(pattern=0x00000600, mask=0xFFFFFF00, property="status")
+        matcher = Matcher(pattern=0x00000600, mask=0xFFFFFF00)
 
         # Should match messages with device IDs in lower byte
         assert matcher.matches(make_message(0x00000600))  # Device 0
@@ -50,16 +50,10 @@ class TestMatcher:
         assert matcher.matches(make_message(command_id))
         assert not matcher.matches(make_message(command_id + 1))
 
-    def test_property_attribute(self):
-        """Test that property attribute is stored."""
-        matcher = Matcher(pattern=0x123, mask=0xFFF, property="test_property")
-        assert matcher.property == "test_property"
-
     def test_string_representation(self):
         """Test human-readable string representation."""
-        matcher = Matcher(pattern=0x12345678, mask=0xFFFFFF00, property="test")
+        matcher = Matcher(pattern=0x12345678, mask=0xFFFFFF00)
         str_repr = str(matcher)
 
         assert "0x12345678" in str_repr or "0x12345678" in str_repr.upper()
         assert "0xffffff00" in str_repr or "0xFFFFFF00" in str_repr
-        assert "test" in str_repr

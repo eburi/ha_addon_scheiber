@@ -1,22 +1,22 @@
 """
 Dimmable light component with transitions and flash effects.
 
-Uses composition to combine Switch functionality with brightness control,
-transitions, and flash effects.
+Inherits from Output base class for CAN message processing.
 """
 
 from typing import Any, Callable, Dict, Optional
 import logging
+import can
 
-from .switch import Switch
+from .output import Output
 from .transitions import TransitionController, FlashController
 
 
-class DimmableLight:
+class DimmableLight(Output):
     """
     Dimmable light with brightness control, transitions, and flash effects.
 
-    Uses composition: contains a Switch and adds brightness/fade/flash capabilities.
+    Inherits from Output and adds brightness control, transitions, and flash capabilities.
     """
 
     def __init__(
@@ -27,6 +27,7 @@ class DimmableLight:
         entity_id: str,
         send_command_func: Callable,
         logger: Optional[logging.Logger] = None,
+        dimming_threshold: int = 2,
     ):
         """
         Initialize dimmable light.
@@ -38,16 +39,15 @@ class DimmableLight:
             entity_id: Entity ID for Home Assistant (without domain prefix)
             send_command_func: Function to send CAN commands: func(switch_nr, state, brightness)
             logger: Optional logger
+            dimming_threshold: Threshold for considering brightness as ON
         """
-        self.device_id = device_id
-        self.switch_nr = switch_nr
-        self.name = name
-        self.entity_id = entity_id
+        super().__init__(
+            device_id, switch_nr, name, entity_id, send_command_func, logger
+        )
         self._send_command = send_command_func
-        self.logger = logger or logging.getLogger(f"DimmableLight.{device_id}.{name}")
+        self.dimming_threshold = dimming_threshold
 
-        # State
-        self._state = False
+        # Brightness state
         self._brightness = 0
 
         # Default easing for transitions (can be set via effect parameter)
@@ -56,9 +56,6 @@ class DimmableLight:
         # Controllers
         self.transition_controller = TransitionController(self)
         self.flash_controller = FlashController(self)
-
-        # Observers
-        self._observers: list[Callable[[Dict[str, Any]], None]] = []
 
     def set(
         self,
@@ -245,28 +242,19 @@ class DimmableLight:
         """
         return self._brightness
 
-    def subscribe(self, callback: Callable[[Dict[str, Any]], None]) -> None:
+    def process_matching_message(self, msg: can.Message) -> None:
         """
-        Subscribe to state/brightness changes.
+        Process a CAN message that matched this light's matcher.
+
+        Extracts state and brightness from the message and updates internal state.
 
         Args:
-            callback: Function called as callback(state_dict) with changed properties
+            msg: CAN message
         """
-        if callback not in self._observers:
-            self._observers.append(callback)
-
-    def unsubscribe(self, callback: Callable[[Dict[str, Any]], None]) -> None:
-        """Unsubscribe from changes."""
-        if callback in self._observers:
-            self._observers.remove(callback)
-
-    def _notify_observers(self, state: Dict[str, Any]) -> None:
-        """Notify all observers with state dict containing changed properties."""
-        for observer in self._observers:
-            try:
-                observer(state)
-            except Exception as e:
-                self.logger.error(f"Error in observer callback: {e}")
+        state, brightness = self.get_state_from_can_message(
+            msg, self.switch_nr, self.dimming_threshold
+        )
+        self.update_state(state, brightness)
 
     def update_state(self, state: bool, brightness: int) -> None:
         """

@@ -211,30 +211,102 @@ class ScheiberCanDevice(ABC):
 - Provide matchers for Bloc9 messages (status, commands)
 - Handle state persistence
 
-**Matchers:**
-- Hardcoded in Python (efficient, maintainable once protocol is known)
-- Human-readable format (e.g., `Matcher(pattern=0x00000600, mask=0xFFFFFF00)`)
-- Include command matchers to identify own messages (not "unknown")
-- Derived from current `device_types.yaml`, but moved into code
+**Matchers (v6.1.0+ Architecture):**
+- **Outputs define their own matchers** via `get_matchers()` method
+- **No property field**: Matchers use only pattern/mask (property was removed as unnecessary)
+- **Full 32-bit matching**: Mask is 0xFFFFFFFF to include device ID byte (prevents cross-device pollution)
+- **Direct dispatch**: `_matcher_to_outputs` maps arbitration_id → List[Output]
+- Device ID encoding: `(device_id << 3) | 0x80` for all message types
+
+**Critical Fix (v6.1.0):**
+Previous implementation used 0xFFFFFF00 mask, causing cross-device side effects.
+Message 0x021806D0 (device 10, S3/S4) matched ALL devices because mask ignored low byte.
+Solution: Use 0xFFFFFFFF mask to include full arbitration ID.
 
 **Example:**
 ```python
 class Bloc9Device(ScheiberCanDevice):
-    # Matcher definitions (human-readable, in code)
-    STATUS_MATCHERS = [
-        Matcher(pattern=0x00000600, mask=0xFFFFFF00, property="low_priority_status"),
-        Matcher(pattern=0x02160600, mask=0xFFFFFF00, property="s1_s2_change"),
-        Matcher(pattern=0x02180600, mask=0xFFFFFF00, property="s3_s4_change"),
-        Matcher(pattern=0x021A0600, mask=0xFFFFFF00, property="s5_s6_change"),
-    ]
+    def __init__(self, ...):
+        # ... create lights and switches ...
+        
+        # Build matcher mapping (called automatically at end of __init__)
+        self.get_matchers()
     
     def get_matchers(self) -> List[Matcher]:
-        """Return all matchers including command matchers."""
-        matchers = self.STATUS_MATCHERS.copy()
-        # Add command matcher for this device's ID
+        """Delegate to outputs and build dispatch mapping."""
+        matchers = []
+        self._matcher_to_outputs = {}  # Clear and rebuild
+        
+        # Collect matchers from all lights
+        for light in self.lights:
+            for matcher in light.get_matchers():
+                pattern = matcher.pattern
+                if pattern not in self._matcher_to_outputs:
+                    self._matcher_to_outputs[pattern] = []
+                    matchers.append(matcher)
+                self._matcher_to_outputs[pattern].append(light)
+        
+        # Collect matchers from all switches (same pattern)
+        for switch in self.switches:
+            for matcher in switch.get_matchers():
+                pattern = matcher.pattern
+                if pattern not in self._matcher_to_outputs:
+                    self._matcher_to_outputs[pattern] = []
+                    matchers.append(matcher)
+                self._matcher_to_outputs[pattern].append(switch)
+        
+        # Add heartbeat and command echo matchers
+        heartbeat_pattern = 0x00000600 | ((self.device_id << 3) | 0x80)
+        matchers.append(Matcher(pattern=heartbeat_pattern, mask=0xFFFFFFFF))
+        
         command_id = 0x02360600 | ((self.device_id << 3) | 0x80)
-        matchers.append(Matcher(pattern=command_id, mask=0xFFFFFFFF, property="command"))
+        matchers.append(Matcher(pattern=command_id, mask=0xFFFFFFFF))
+        
         return matchers
+    
+    def process_message(self, msg: can.Message) -> None:
+        """Process incoming CAN message using direct dispatch."""
+        # Check heartbeat (device-level)
+        heartbeat_pattern = 0x00000600 | ((self.device_id << 3) | 0x80)
+        if msg.arbitration_id == heartbeat_pattern:
+            self._process_status(msg)
+            return
+        
+        # Ignore command echo
+        command_id = 0x02360600 | ((self.device_id << 3) | 0x80)
+        if msg.arbitration_id == command_id:
+            return
+        
+        # Direct dispatch to outputs
+        outputs = self._matcher_to_outputs.get(msg.arbitration_id, [])
+        if outputs:
+            for output in outputs:
+                output.process_matching_message(msg)
+```
+
+**Output Base Class:**
+```python
+class Output:
+    def get_matchers(self) -> List[Matcher]:
+        """Return matchers for this output's CAN messages."""
+        # Determine message type based on switch_nr
+        if self.switch_nr in (0, 1):  # S1, S2
+            base_pattern = 0x02160600
+        elif self.switch_nr in (2, 3):  # S3, S4
+            base_pattern = 0x02180600
+        elif self.switch_nr in (4, 5):  # S5, S6
+            base_pattern = 0x021A0600
+        
+        # Add device ID (with 0x80 bit)
+        pattern = base_pattern | ((self.device_id << 3) | 0x80)
+        
+        # Use full 32-bit mask to prevent cross-device pollution
+        return [Matcher(pattern=pattern, mask=0xFFFFFFFF)]
+    
+    def process_matching_message(self, msg: can.Message) -> None:
+        """Process a CAN message that matched this output."""
+        state, brightness = self.get_state_from_can_message(msg, self.switch_nr)
+        # Update state and notify observers...
 ```
 
 ---

@@ -41,7 +41,7 @@ class TestBloc9Heartbeat:
             is_extended_id=True,
         )
 
-        device.process_message(heartbeat_msg, "low_priority_status")
+        device.process_message(heartbeat_msg)
 
         # Verify light state wasn't changed
         assert light.get_state() == {
@@ -75,7 +75,7 @@ class TestBloc9Heartbeat:
             is_extended_id=True,
         )
 
-        device.process_message(heartbeat_msg, "low_priority_status")
+        device.process_message(heartbeat_msg)
 
         # Verify device observer was notified with device info
         device_observer.assert_called_once()
@@ -119,7 +119,7 @@ class TestBloc9Heartbeat:
             is_extended_id=True,
         )
 
-        device.process_message(change_msg, "s5_s6_change")
+        device.process_message(change_msg)
 
         # Verify light state WAS updated from change message
         assert light.get_state() == {
@@ -155,7 +155,7 @@ class TestBloc9Heartbeat:
             is_extended_id=True,
         )
 
-        device.process_message(heartbeat_msg, "low_priority_status")
+        device.process_message(heartbeat_msg)
 
         # Step 3: Verify light state is STILL brightness=76 (not reset by heartbeat)
         assert light.get_state() == {
@@ -180,7 +180,7 @@ class TestBloc9Heartbeat:
         )
 
         # Should not crash, should still publish device info
-        device.process_message(heartbeat_msg, "low_priority_status")
+        device.process_message(heartbeat_msg)
 
         device_observer.assert_called_once()
         args = device_observer.call_args[0]
@@ -224,7 +224,7 @@ class TestBloc9Heartbeat:
                 data=bytes([i, i * 10, i * 20, i * 30, i * 40]),
                 is_extended_id=True,
             )
-            device.process_message(heartbeat_msg, "low_priority_status")
+            device.process_message(heartbeat_msg)
 
         # Verify states unchanged
         assert light1.get_state() == {"state": True, "brightness": 128}
@@ -258,7 +258,7 @@ class TestBloc9Heartbeat:
             is_extended_id=True,
         )
 
-        device.process_message(heartbeat_msg, "low_priority_status")
+        device.process_message(heartbeat_msg)
 
         # Verify switch state unchanged
         assert switch.get_state() == True
@@ -287,7 +287,7 @@ class TestBloc9Heartbeat:
             is_extended_id=True,
         )
 
-        device.process_message(heartbeat_msg, "low_priority_status")
+        device.process_message(heartbeat_msg)
 
         # Both observers notified
         observer1.assert_called_once()
@@ -298,7 +298,7 @@ class TestBloc9Heartbeat:
         observer1.reset_mock()
         observer2.reset_mock()
 
-        device.process_message(heartbeat_msg, "low_priority_status")
+        device.process_message(heartbeat_msg)
 
         # Only observer2 notified
         observer1.assert_not_called()

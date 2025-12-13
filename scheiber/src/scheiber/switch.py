@@ -4,11 +4,14 @@ Basic ON/OFF switch component.
 Provides simple boolean state control with observer pattern for notifications.
 """
 
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
 import logging
+import can
+
+from .output import Output
 
 
-class Switch:
+class Switch(Output):
     """
     Basic ON/OFF switch.
 
@@ -16,6 +19,7 @@ class Switch:
     - Simple set(state) method for ON/OFF control
     - Observer pattern for state change notifications
     - State query
+    - CAN message processing
     """
 
     def __init__(
@@ -26,6 +30,7 @@ class Switch:
         entity_id: str,
         send_command_func: Callable[[int, bool, Optional[int]], None],
         logger: Optional[logging.Logger] = None,
+        dimming_threshold: int = 2,
     ):
         """
         Initialize switch.
@@ -37,16 +42,13 @@ class Switch:
             entity_id: Entity ID for Home Assistant (without domain prefix)
             send_command_func: Callback to send CAN command (switch_nr, state, optional brightness)
             logger: Optional logger
+            dimming_threshold: Threshold for considering brightness as ON
         """
-        self.device_id = device_id
-        self.switch_nr = switch_nr
-        self.name = name
-        self.entity_id = entity_id
+        super().__init__(
+            device_id, switch_nr, name, entity_id, send_command_func, logger
+        )
         self.send_command_func = send_command_func
-        self.logger = logger or logging.getLogger(f"Switch.{device_id}.{name}")
-
-        self._state = False
-        self._observers: List[Callable[[Dict[str, Any]], None]] = []
+        self.dimming_threshold = dimming_threshold
 
     def set(self, state: bool) -> None:
         """
@@ -59,6 +61,21 @@ class Switch:
         self._send_command(state)
         self._notify_observers({"state": state})
 
+    def process_matching_message(self, msg: can.Message) -> None:
+        """
+        Process a CAN message that matched this switch's matcher.
+
+        Extracts state from the message and updates internal state.
+
+        Args:
+            msg: CAN message
+        """
+        state, brightness = self.get_state_from_can_message(
+            msg, self.switch_nr, self.dimming_threshold
+        )
+        # Switch ignores brightness, only cares about state
+        self.update_state(state)
+
     def get_state(self) -> bool:
         """
         Get current switch state.
@@ -67,34 +84,6 @@ class Switch:
             Current state (True=ON, False=OFF)
         """
         return self._state
-
-    def subscribe(self, callback: Callable[[Dict[str, Any]], None]) -> None:
-        """
-        Subscribe to state changes.
-
-        Args:
-            callback: Function called as callback(state_dict) with changed properties
-        """
-        if callback not in self._observers:
-            self._observers.append(callback)
-
-    def unsubscribe(self, callback: Callable[[Dict[str, Any]], None]) -> None:
-        """
-        Unsubscribe from state changes.
-
-        Args:
-            callback: Previously subscribed callback
-        """
-        if callback in self._observers:
-            self._observers.remove(callback)
-
-    def _notify_observers(self, state: Dict[str, Any]) -> None:
-        """Notify all observers with state dict containing changed properties."""
-        for observer in self._observers:
-            try:
-                observer(state)
-            except Exception as e:
-                self.logger.error(f"Error in observer callback: {e}")
 
     def _send_command(self, state: bool) -> None:
         """
@@ -115,7 +104,3 @@ class Switch:
         if self._state != state:
             self._state = state
             self._notify_observers({"state": state})
-
-    def __str__(self) -> str:
-        """String representation."""
-        return f"Switch({self.name}, state={'ON' if self._state else 'OFF'})"

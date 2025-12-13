@@ -31,16 +31,6 @@ class Bloc9Device(ScheiberCanDevice):
     - Brightness 253-255: Full ON (no PWM)
     """
 
-    # Hardcoded matchers (from device_types.yaml)
-    STATUS_MATCHERS = [
-        # Low-priority status messages
-        {"pattern": 0x00000600, "mask": 0xFFFFFF00, "property": "low_priority_status"},
-        # Switch change messages (pairs)
-        {"pattern": 0x02160600, "mask": 0xFFFFFF00, "property": "s1_s2_change"},
-        {"pattern": 0x02180600, "mask": 0xFFFFFF00, "property": "s3_s4_change"},
-        {"pattern": 0x021A0600, "mask": 0xFFFFFF00, "property": "s5_s6_change"},
-    ]
-
     # Dimming threshold (prevent LED flickering at extremes)
     DIMMING_THRESHOLD = 2
 
@@ -71,9 +61,9 @@ class Bloc9Device(ScheiberCanDevice):
         # Map output names to switch numbers
         output_map = {f"s{i+1}": i for i in range(6)}
 
-        # Map switch_nr to light/switch objects for CAN message processing
-        self._switch_nr_to_light: Dict[int, DimmableLight] = {}
-        self._switch_nr_to_switch: Dict[int, Switch] = {}
+        # Matcher-to-output mapping for direct dispatch
+        # Will be built by get_matchers() when called
+        self._matcher_to_outputs: Dict[int, List] = {}
 
         # Create lights for configured outputs
         if lights_config:
@@ -106,7 +96,6 @@ class Bloc9Device(ScheiberCanDevice):
                     light._state = initial_brightness > 0
 
                 self.lights.append(light)
-                self._switch_nr_to_light[switch_nr] = light
                 self.logger.debug(
                     f"Created light {name} on {output_name} (brightness={initial_brightness})"
                 )
@@ -131,68 +120,84 @@ class Bloc9Device(ScheiberCanDevice):
                     logger=logging.getLogger(f"Bloc9.{device_id}.{output_name}"),
                 )
                 self.switches.append(switch)
-                self._switch_nr_to_switch[switch_nr] = switch
                 self.logger.debug(f"Created switch {name} on {output_name}")
+
+        # Build matcher-to-outputs mapping for message dispatch
+        self.get_matchers()
 
     def get_matchers(self) -> List[Matcher]:
         """
         Return all matchers for Bloc9 messages.
 
-        Includes status matchers and command matcher for this device.
+        Delegates to individual lights and switches to get their matchers,
+        builds a mapping from matcher pattern to outputs for direct dispatch,
+        then adds heartbeat and command echo matchers.
         """
         matchers = []
+        self._matcher_to_outputs = {}  # Clear and rebuild
 
-        # Add status matchers
-        for m in self.STATUS_MATCHERS:
-            # Match messages for this device ID
-            # Low byte contains device_id, extract using mask
-            pattern = m["pattern"] | ((self.device_id & 0x1F) << 3)
-            matcher = Matcher(
-                pattern=pattern, mask=m["mask"], property=m.get("property")
-            )
-            matchers.append(matcher)
+        # Collect matchers from all lights
+        for light in self.lights:
+            for matcher in light.get_matchers():
+                pattern = matcher.pattern
+                if pattern not in self._matcher_to_outputs:
+                    self._matcher_to_outputs[pattern] = []
+                    matchers.append(matcher)
+                self._matcher_to_outputs[pattern].append(light)
+
+        # Collect matchers from all switches
+        for switch in self.switches:
+            for matcher in switch.get_matchers():
+                pattern = matcher.pattern
+                if pattern not in self._matcher_to_outputs:
+                    self._matcher_to_outputs[pattern] = []
+                    matchers.append(matcher)
+                self._matcher_to_outputs[pattern].append(switch)
+
+        # Add heartbeat matcher (low-priority status)
+        heartbeat_pattern = 0x00000600 | ((self.device_id & 0x1F) << 3)
+        matchers.append(Matcher(pattern=heartbeat_pattern, mask=0xFFFFFFFF))
 
         # Add command matcher (identify our own commands as known, not "unknown")
         command_id = 0x02360600 | ((self.device_id << 3) | 0x80)
-        matchers.append(
-            Matcher(pattern=command_id, mask=0xFFFFFFFF, property="command_echo")
-        )
+        matchers.append(Matcher(pattern=command_id, mask=0xFFFFFFFF))
 
         return matchers
 
-    def process_message(
-        self, msg: can.Message, matched_property: Optional[str]
-    ) -> None:
+    def process_message(self, msg: can.Message) -> None:
         """
         Process incoming CAN message.
 
+        Dispatches to outputs based on matcher-to-output mapping.
+
         Args:
             msg: CAN message
-            matched_property: Property name from matcher
         """
-        if not matched_property:
+        # Check if this is heartbeat (low-priority status)
+        heartbeat_pattern = 0x00000600 | ((self.device_id << 3) | 0x80)
+        if msg.arbitration_id == heartbeat_pattern:
+            self._process_status(msg)
             return
 
-        # Handle different message types
-        if matched_property in ("s1_s2_change", "s3_s4_change", "s5_s6_change"):
-            self._process_switch_change(msg, matched_property)
-        elif matched_property == "low_priority_status":
-            self._process_status(msg)
-        elif matched_property == "command_echo":
-            # Our own command echo, ignore
-            pass
+        # Check if this is command echo (ignore)
+        command_id = 0x02360600 | ((self.device_id << 3) | 0x80)
+        if msg.arbitration_id == command_id:
+            return
 
-    def _process_switch_change(self, msg: can.Message, property_name: str) -> None:
+        # Direct dispatch: look up outputs by arbitration ID
+        outputs = self._matcher_to_outputs.get(msg.arbitration_id, [])
+        if outputs:
+            self._process_switch_change(msg, outputs)
+        else:
+            self.logger.debug(
+                f"No outputs for arbitration_id 0x{msg.arbitration_id:08X}"
+            )
+
+    def _process_switch_change(self, msg: can.Message, outputs: List) -> None:
         """
-        Process switch state change message.
+        Process switch state change message and dispatch to matched outputs.
 
-        Format (8 bytes):
-            Bytes 0-3: Lower switch (S1/S3/S5)
-                - Byte 0: Brightness level
-                - Byte 3, bit 0: ON/OFF state
-            Bytes 4-7: Higher switch (S2/S4/S6)
-                - Byte 4: Brightness level
-                - Byte 7, bit 0: ON/OFF state
+        Uses direct dispatch: each output processes the CAN message itself.
         """
         if len(msg.data) < 8:
             self.logger.warning(
@@ -201,47 +206,13 @@ class Bloc9Device(ScheiberCanDevice):
             return
 
         # Log the actual CAN message being processed
-        self.logger.info(
-            f"Processing {property_name}: ID=0x{msg.arbitration_id:08X} Data={msg.data.hex()}"
+        self.logger.debug(
+            f"Processing state change: ID=0x{msg.arbitration_id:08X} Data={msg.data.hex()}"
         )
 
-        # Determine which switch numbers based on property
-        switch_nr_1 = 0  # Default S1
-        switch_nr_2 = 1  # Default S2
-
-        if property_name == "s1_s2_change":
-            switch_nr_1, switch_nr_2 = 0, 1  # S1, S2
-        elif property_name == "s3_s4_change":
-            switch_nr_1, switch_nr_2 = 2, 3  # S3, S4
-        elif property_name == "s5_s6_change":
-            switch_nr_1, switch_nr_2 = 4, 5  # S5, S6
-
-        # Parse lower switch (S1/S3/S5) from bytes 0-3
-        brightness1 = msg.data[0]
-        state1_bit = (msg.data[3] & 0x01) == 0x01
-        state1 = state1_bit or brightness1 > self.DIMMING_THRESHOLD
-
-        # Parse higher switch (S2/S4/S6) from bytes 4-7
-        brightness2 = msg.data[4]
-        state2_bit = (msg.data[7] & 0x01) == 0x01
-        state2 = state2_bit or brightness2 > self.DIMMING_THRESHOLD
-
-        # Update outputs if they're configured (check both lights and switches)
-        light1 = self._switch_nr_to_light.get(switch_nr_1)
-        if light1:
-            light1.update_state(state1, brightness1)
-        else:
-            switch1 = self._switch_nr_to_switch.get(switch_nr_1)
-            if switch1:
-                switch1.update_state(state1)
-
-        light2 = self._switch_nr_to_light.get(switch_nr_2)
-        if light2:
-            light2.update_state(state2, brightness2)
-        else:
-            switch2 = self._switch_nr_to_switch.get(switch_nr_2)
-            if switch2:
-                switch2.update_state(state2)
+        # Direct dispatch: each output knows how to process the message
+        for output in outputs:
+            output.process_matching_message(msg)
 
     def _process_status(self, msg: can.Message) -> None:
         """
@@ -250,21 +221,22 @@ class Bloc9Device(ScheiberCanDevice):
         This message is periodic and doesn't contain state changes.
         Use it to publish device info to MQTT.
         """
-
-        # Build output info dict
+        # Build output info dict - include all 6 outputs
         outputs = {}
-        for i in range(6):  # S1-S6
-            output_name = f"s{i+1}"
-            # Check if this output is configured as light or switch
-            light = self._switch_nr_to_light.get(i)
-            if light:
-                outputs[output_name] = light.name
-            else:
-                switch = self._switch_nr_to_switch.get(i)
-                if switch:
-                    outputs[output_name] = switch.name
-                else:
-                    outputs[output_name] = "unknown"
+
+        # Initialize all as unknown
+        for i in range(1, 7):
+            outputs[f"s{i}"] = "unknown"
+
+        # Fill in configured lights
+        for light in self.lights:
+            output_name = f"s{light.switch_nr + 1}"
+            outputs[output_name] = light.name
+
+        # Fill in configured switches
+        for switch in self.switches:
+            output_name = f"s{switch.switch_nr + 1}"
+            outputs[output_name] = switch.name
 
         # Notify observers with device info
         device_info = {

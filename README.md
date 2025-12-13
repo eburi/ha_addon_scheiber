@@ -34,6 +34,45 @@ This Home Assistant add-on provides a bridge between Scheiber devices on a CAN b
 - **Optimistic Updates**: Immediate UI feedback (may not reflect actual device state)
 - **Extensible Architecture**: YAML-based device configuration for future expansion
 - **Retained Message Handling**: Automatic cleanup of old MQTT commands (5-minute age limit)
+- **Direct Message Dispatch**: Efficient routing with zero cross-device pollution (v6.1.0+)
+
+## Architecture (v6.1.0+)
+
+### Message Routing
+
+The system uses a **direct dispatch architecture** where each output (Switch or DimmableLight) defines its own CAN message matchers:
+
+1. **Output-Owned Matchers**: Each Switch/DimmableLight creates matchers for its specific CAN messages
+   - Pattern includes full 32-bit arbitration ID (device_id encoded in low byte)
+   - Mask is 0xFFFFFFFF (all bits) to prevent cross-device message pollution
+
+2. **Direct Dispatch Mapping**: `_matcher_to_outputs` maps `arbitration_id → List[Output]`
+   - Multiple outputs can share the same matcher (e.g., S1 and S2 both use 0x02160600 pattern)
+   - Messages dispatched directly to matched outputs via `process_matching_message()`
+
+3. **Device ID Encoding**: All CAN messages use `(device_id << 3) | 0x80` in low byte
+   - Status messages: `0x021X0600 | ((device_id << 3) | 0x80)` where X = 6/8/A for S1/S2, S3/S4, S5/S6
+   - Heartbeat: `0x00000600 | ((device_id << 3) | 0x80)`
+   - Commands: `0x02360600 | ((device_id << 3) | 0x80)`
+
+### Output Base Class
+
+Switch and DimmableLight inherit from `Output` base class providing:
+- `get_matchers()`: Returns list of Matcher objects for this output's messages
+- `get_state_from_can_message()`: Decodes 8-byte CAN messages using switch_nr parity
+- Observer pattern: `subscribe()`, `unsubscribe()`, `_notify_observers()`
+- `process_matching_message()`: Called when a matched message arrives
+
+### Critical Bug Fix (v6.1.0)
+
+**Problem**: Switches on device 10 affected ALL Bloc9 devices (1-10)
+- Matcher mask was 0xFFFFFF00, ignoring device ID in low byte
+- Message 0x021806D0 (device 10) matched all devices
+
+**Solution**: Changed matcher mask to 0xFFFFFFFF
+- Now includes full 32-bit arbitration ID in matching
+- Each device only responds to its own messages
+- Verified by 6 comprehensive routing tests
 
 ## Supported Devices
 

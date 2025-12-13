@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.1.0] - 2024-12-13
+
+### Fixed
+- **CRITICAL BUG FIX**: Fixed cross-device message pollution where switches on one device affected ALL devices
+  - Root cause: Matcher mask was 0xFFFFFF00, ignoring device ID byte in low 8 bits
+  - Example: Message 0x021806D0 (device 10, S3/S4) matched all devices (1-10)
+  - Fix: Changed matcher mask to 0xFFFFFFFF to include full 32-bit arbitration ID
+  - Device ID encoding uses `(device_id << 3) | 0x80` for all message types
+  - Added comprehensive test suite (6 tests) verifying message routing isolation
+
+### Changed
+- **BREAKING ARCHITECTURE**: Removed `property` field from Matcher class
+  - Matchers now use only pattern/mask for matching
+  - Direct dispatch: `_matcher_to_outputs` maps arbitration_id → List[Output]
+  - Outputs (Switch/DimmableLight) define their own matchers via `get_matchers()`
+  - `process_message(msg)` signature changed from `process_message(msg, matched_property)`
+  - Cleaner architecture: outputs own their message patterns, not device
+- Created `Output` base class for Switch and DimmableLight
+  - Shared CAN message decoding via `get_state_from_can_message()`
+  - Common observer pattern implementation
+  - Each output defines its own matchers
+- Bloc9Device delegates matcher creation to individual outputs
+  - Removed hardcoded STATUS_MATCHERS constant
+  - Removed manual switch_nr lookups (_switch_nr_to_light, _switch_nr_to_switch)
+  - Direct dispatch more efficient than property-based routing
+- `get_matchers()` now called automatically in `Bloc9Device.__init__()`
+  - Ensures `_matcher_to_outputs` mapping is built before message processing
+  - Tests no longer need to manually call `get_matchers()`
+
+### Added
+- New test file `test_message_routing.py` with 6 comprehensive routing tests:
+  - `test_message_only_affects_target_device`: Core bug verification
+  - `test_multiple_devices_receive_own_messages`: Multiple device isolation
+  - `test_device_ignores_heartbeat_from_other_devices`: Heartbeat routing
+  - `test_command_echo_only_processed_by_sender`: Command echo handling
+  - `test_real_world_scenario_from_can_names_csv`: Real CAN ID validation
+  - `test_matcher_registration_isolation`: Matcher mapping verification
+- Debug utility `list_matchers.py`: Lists all matchers registered by system from config
+- Total test count increased from 99 to 105 tests
+
 ## [6.0.0] - 2024-12-13
 
 ### Changed

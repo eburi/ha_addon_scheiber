@@ -58,7 +58,7 @@ def test_can_to_mqtt_state_flow():
     )
 
     # Process the message through the device
-    device.process_message(can_message, "s5_s6_change")
+    device.process_message(can_message)
 
     # Verify MQTT publish was called with correct state
     assert mock_mqtt_client.publish.called

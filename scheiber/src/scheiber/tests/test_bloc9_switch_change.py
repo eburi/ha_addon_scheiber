@@ -39,7 +39,7 @@ class TestBloc9SwitchChange:
             is_extended_id=True,
         )
 
-        device.process_message(msg, "s5_s6_change")
+        device.process_message(msg)
 
         # Verify S5 state
         s5_state = light_s5.get_state()
@@ -73,7 +73,7 @@ class TestBloc9SwitchChange:
             is_extended_id=True,
         )
 
-        device.process_message(msg, "s5_s6_change")
+        device.process_message(msg)
 
         assert light_s5.get_state() == {"state": True, "brightness": 200}
         assert light_s6.get_state() == {"state": True, "brightness": 50}
@@ -100,7 +100,7 @@ class TestBloc9SwitchChange:
             is_extended_id=True,
         )
 
-        device.process_message(msg, "s5_s6_change")
+        device.process_message(msg)
 
         assert light_s5.get_state() == {"state": False, "brightness": 0}
         assert light_s6.get_state() == {"state": False, "brightness": 0}
@@ -127,7 +127,7 @@ class TestBloc9SwitchChange:
             is_extended_id=True,
         )
 
-        device.process_message(msg, "s1_s2_change")
+        device.process_message(msg)
 
         assert light_s1.get_state() == {"state": True, "brightness": 128}
         assert light_s2.get_state() == {"state": True, "brightness": 255}
@@ -154,7 +154,7 @@ class TestBloc9SwitchChange:
             is_extended_id=True,
         )
 
-        device.process_message(msg, "s3_s4_change")
+        device.process_message(msg)
 
         assert light_s3.get_state() == {"state": True, "brightness": 75}
         assert light_s4.get_state() == {"state": False, "brightness": 0}
@@ -177,7 +177,7 @@ class TestBloc9SwitchChange:
             is_extended_id=True,
         )
 
-        device.process_message(msg, "s5_s6_change")
+        device.process_message(msg)
 
         # Brightness 2 still results in ON (effective_brightness > 0)
         assert light_s5.get_state() == {"state": True, "brightness": 2}
@@ -200,7 +200,7 @@ class TestBloc9SwitchChange:
             is_extended_id=True,
         )
 
-        device.process_message(msg, "s5_s6_change")
+        device.process_message(msg)
 
         assert light_s5.get_state() == {"state": True, "brightness": 3}
 
@@ -222,7 +222,7 @@ class TestBloc9SwitchChange:
             is_extended_id=True,
         )
 
-        device.process_message(msg, "s5_s6_change")
+        device.process_message(msg)
 
         # Bloc9 quirk: state=ON + brightness=0 → brightness=255
         assert light_s5.get_state() == {"state": True, "brightness": 255}
@@ -247,7 +247,7 @@ class TestBloc9SwitchChange:
         )
 
         # Should not crash
-        device.process_message(msg, "s5_s6_change")
+        device.process_message(msg)
 
         # State should be unchanged
         assert light_s5.get_state() == initial_state
@@ -274,7 +274,7 @@ class TestBloc9SwitchChange:
             is_extended_id=True,
         )
 
-        device.process_message(msg, "s5_s6_change")
+        device.process_message(msg)
 
         assert switch_s5.get_state() == True
         assert switch_s6.get_state() == False
@@ -299,7 +299,7 @@ class TestBloc9SwitchChange:
             is_extended_id=True,
         )
 
-        device.process_message(msg, "s5_s6_change")
+        device.process_message(msg)
 
         assert light_s5.get_state() == {"state": True, "brightness": 150}
         assert switch_s6.get_state() == True
@@ -323,7 +323,7 @@ class TestBloc9SwitchChange:
         )
 
         # Should not crash even though S6 is not configured
-        device.process_message(msg, "s5_s6_change")
+        device.process_message(msg)
 
         assert light_s5.get_state() == {"state": True, "brightness": 100}
 
@@ -346,7 +346,7 @@ class TestBloc9SwitchChange:
         )
 
         # Should not crash even though S5 is not configured
-        device.process_message(msg, "s5_s6_change")
+        device.process_message(msg)
 
         assert light_s6.get_state() == {"state": True, "brightness": 200}
 
@@ -370,7 +370,7 @@ class TestBloc9SwitchChange:
             is_extended_id=True,
         )
 
-        device.process_message(msg, "s5_s6_change")
+        device.process_message(msg)
 
         # Observer should be called
         observer.assert_called_once()
@@ -395,7 +395,7 @@ class TestBloc9SwitchChange:
             data=bytes([100, 0x00, 0x00, 0x01, 0, 0x00, 0x00, 0x00]),
             is_extended_id=True,
         )
-        device.process_message(msg1, "s5_s6_change")
+        device.process_message(msg1)
 
         # Subscribe observer after initial state is set
         observer = Mock()
@@ -407,7 +407,7 @@ class TestBloc9SwitchChange:
             data=bytes([100, 0x00, 0x00, 0x01, 0, 0x00, 0x00, 0x00]),
             is_extended_id=True,
         )
-        device.process_message(msg2, "s5_s6_change")
+        device.process_message(msg2)
 
         # Observer should NOT be called
         observer.assert_not_called()
@@ -433,7 +433,7 @@ class TestBloc9SwitchChange:
             is_extended_id=True,
         )
 
-        device.process_message(msg, "s5_s6_change")
+        device.process_message(msg)
 
         # Should correctly parse S5 as ON with brightness 107
         assert light.get_state() == {"state": True, "brightness": 107}
