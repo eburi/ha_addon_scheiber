@@ -7,11 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.7.8] - 2024-12-13
+
+### Added
+- Comprehensive test suite for `_process_switch_change()` with 16 tests:
+  - Message format validation for S1/S2, S3/S4, S5/S6 pairs
+  - Brightness and state bit parsing from 8-byte messages
+  - Dimming threshold behavior
+  - Bloc9 hardware quirk (state=ON + brightness=0 → brightness=255)
+  - Mixed light/switch configurations
+  - Observer notification on state changes
+  - Short message handling
+  - Actual bug report message validation
+- All 100 tests passing (84 original + 16 new)
+
 ## [5.7.7] - 2024-12-13
+
+### Fixed
+- **CRITICAL**: Fixed switch state change message parsing to match actual 8-byte format
+  - Previously read bytes 0-1 for brightness/state, causing incorrect parsing
+  - Now correctly reads byte 0 for brightness and byte 3 bit 0 for state (lower switch)
+  - Now correctly reads byte 4 for brightness and byte 7 bit 0 for state (higher switch)
+  - This matches the format documented in device_types.yaml
+  - Fixes state updates being reset to OFF after commands
 
 ### Added
 - INFO-level logging for all switch state change messages showing CAN ID and data
-- This helps diagnose state update issues by showing exactly which CAN messages trigger state changes
+- Warning when switch change messages are too short (< 8 bytes)
 
 ## [5.7.6] - 2024-12-13
 

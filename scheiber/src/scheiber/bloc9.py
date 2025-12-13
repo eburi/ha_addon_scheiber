@@ -186,10 +186,18 @@ class Bloc9Device(ScheiberCanDevice):
         """
         Process switch state change message.
 
-        Format: Data[0-1] = S1/S3/S5 state/brightness
-                Data[2-3] = S2/S4/S6 state/brightness
+        Format (8 bytes):
+            Bytes 0-3: Lower switch (S1/S3/S5)
+                - Byte 0: Brightness level
+                - Byte 3, bit 0: ON/OFF state
+            Bytes 4-7: Higher switch (S2/S4/S6)
+                - Byte 4: Brightness level
+                - Byte 7, bit 0: ON/OFF state
         """
-        if len(msg.data) < 4:
+        if len(msg.data) < 8:
+            self.logger.warning(
+                f"Switch change message too short: {len(msg.data)} bytes, expected 8"
+            )
             return
 
         # Log the actual CAN message being processed
@@ -208,15 +216,15 @@ class Bloc9Device(ScheiberCanDevice):
         elif property_name == "s5_s6_change":
             switch_nr_1, switch_nr_2 = 4, 5  # S5, S6
 
-        # Parse first switch (odd-numbered: S1, S3, S5)
-        state1_byte = msg.data[0]
-        brightness1 = msg.data[1]
-        state1 = state1_byte == 0x01 or brightness1 > self.DIMMING_THRESHOLD
+        # Parse lower switch (S1/S3/S5) from bytes 0-3
+        brightness1 = msg.data[0]
+        state1_bit = (msg.data[3] & 0x01) == 0x01
+        state1 = state1_bit or brightness1 > self.DIMMING_THRESHOLD
 
-        # Parse second switch (even-numbered: S2, S4, S6)
-        state2_byte = msg.data[2]
-        brightness2 = msg.data[3]
-        state2 = state2_byte == 0x01 or brightness2 > self.DIMMING_THRESHOLD
+        # Parse higher switch (S2/S4/S6) from bytes 4-7
+        brightness2 = msg.data[4]
+        state2_bit = (msg.data[7] & 0x01) == 0x01
+        state2 = state2_bit or brightness2 > self.DIMMING_THRESHOLD
 
         # Update outputs if they're configured (check both lights and switches)
         light1 = self._switch_nr_to_light.get(switch_nr_1)

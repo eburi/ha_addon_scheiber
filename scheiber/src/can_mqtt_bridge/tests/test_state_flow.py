@@ -48,10 +48,12 @@ def test_can_to_mqtt_state_flow():
 
     # Simulate CAN message for S5/S6 change (switches 4 and 5)
     # S5 ON with brightness 200, S6 OFF
-    # Message format: [s5_state, s5_brightness, s6_state, s6_brightness]
+    # Message format: 8 bytes [s5_brightness, 0, 0, s5_state_bit, s6_brightness, 0, 0, s6_state_bit]
     can_message = can.Message(
         arbitration_id=0x021A06B8,  # S5/S6 change for device 7
-        data=bytes([0x01, 200, 0x00, 0]),
+        data=bytes(
+            [200, 0x00, 0x00, 0x01, 0, 0x00, 0x00, 0x00]
+        ),  # S5: brightness=200 ON, S6: OFF
         is_extended_id=True,
     )
 

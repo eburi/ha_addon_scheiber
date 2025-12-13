@@ -110,10 +110,12 @@ class TestBloc9Heartbeat:
         observer.reset_mock()
 
         # Simulate S5/S6 change message (0x021A0600)
-        # Format: [s5_state, s5_brightness, s6_state, s6_brightness]
+        # Format: 8 bytes [s5_brightness, 0, 0, s5_state_bit, s6_brightness, 0, 0, s6_state_bit]
         change_msg = can.Message(
             arbitration_id=0x021A06B8,  # 0x021A0600 | ((7 << 3) | 0x80)
-            data=bytes([0x11, 0x4C, 0x00, 0x00]),  # S5: PWM brightness=76, S6: OFF
+            data=bytes(
+                [0x4C, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]
+            ),  # S5: brightness=76 ON, S6: OFF
             is_extended_id=True,
         )
 
