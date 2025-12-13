@@ -498,7 +498,8 @@ class TestCommandHandling:
         mock_light.switch_nr = 0  # 0-based index
         mock_light.get_state.return_value = {"state": False, "brightness": 0}
         mock_light.subscribe = Mock()
-        mock_light.set_brightness = Mock()
+        mock_light.set = Mock()
+        mock_light._default_easing = "ease_in_out_sine"
 
         mock_device = MagicMock()
         mock_device.__class__.__name__ = "Bloc9Device"
@@ -527,7 +528,7 @@ class TestCommandHandling:
         bridge._on_mqtt_message(None, None, msg)
 
         # Verify command sent to light
-        mock_light.set_brightness.assert_called_once_with(150)
+        mock_light.set.assert_called_once_with(state=True, brightness=150, effect=None)
 
     @patch("can_mqtt_bridge.bridge.mqtt.Client")
     @patch("can_mqtt_bridge.bridge.create_scheiber_system")
@@ -624,6 +625,7 @@ class TestCommandHandling:
         mock_light.switch_nr = 0  # 0-based index
         mock_light.get_state.return_value = {"state": True, "brightness": 128}
         mock_light.subscribe = Mock()
+        mock_light._default_easing = "ease_in_out_sine"
 
         mock_device = MagicMock()
         mock_device.__class__.__name__ = "Bloc9Device"
@@ -669,6 +671,7 @@ class TestCommandHandling:
         mock_light.get_state.return_value = {"state": False, "brightness": 0}
         mock_light.subscribe = Mock()
         mock_light.fade_to = Mock()
+        mock_light._default_easing = "ease_in_out_sine"
 
         mock_device = MagicMock()
         mock_device.__class__.__name__ = "Bloc9Device"

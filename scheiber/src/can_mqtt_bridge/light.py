@@ -199,13 +199,25 @@ class MQTTLight:
                     else (255 if state == "ON" else 0)
                 )
                 duration = transition
-                easing = effect if effect else "ease_in_out_sine"
+                easing = effect if effect else self.hardware_light._default_easing
                 self.logger.info(f"Fading to {target} over {duration}s with {easing}")
                 self.hardware_light.fade_to(target, duration=duration, easing=easing)
-            elif brightness is not None:
-                # Set brightness
-                self.logger.info(f"Setting brightness to {brightness}")
-                self.hardware_light.set_brightness(brightness)
+            elif brightness is not None or effect:
+                # Set brightness with optional effect (used as transition easing)
+                if effect and brightness is not None:
+                    self.logger.info(
+                        f"Setting brightness to {brightness} with effect {effect}"
+                    )
+                elif effect:
+                    self.logger.info(f"Setting default effect to {effect}")
+                elif brightness is not None:
+                    self.logger.info(f"Setting brightness to {brightness}")
+
+                self.hardware_light.set(
+                    state=state == "ON",
+                    brightness=brightness,
+                    effect=effect,
+                )
             else:
                 # Simple ON/OFF
                 target = 255 if state == "ON" else 0

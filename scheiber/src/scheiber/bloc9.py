@@ -250,7 +250,6 @@ class Bloc9Device(ScheiberCanDevice):
         This message is periodic and doesn't contain state changes.
         Use it to publish device info to MQTT.
         """
-        self.logger.debug(f"Heartbeat: {msg.data.hex()}")
 
         # Build output info dict
         outputs = {}

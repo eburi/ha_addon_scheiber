@@ -50,6 +50,9 @@ class DimmableLight:
         self._state = False
         self._brightness = 0
 
+        # Default easing for transitions (can be set via effect parameter)
+        self._default_easing = "ease_in_out_sine"
+
         # Controllers
         self.transition_controller = TransitionController(self)
         self.flash_controller = FlashController(self)
@@ -64,7 +67,8 @@ class DimmableLight:
         flash: float = 0.0,
         fade_to: Optional[int] = None,
         fade_duration: float = 1.0,
-        fade_easing: str = "ease_in_out_sine",
+        fade_easing: Optional[str] = None,
+        effect: Optional[str] = None,
     ) -> None:
         """
         Control light with multiple options.
@@ -75,8 +79,19 @@ class DimmableLight:
             flash: Flash duration in seconds (overrides other params)
             fade_to: Target brightness for fade (None=no fade)
             fade_duration: Fade duration in seconds
-            fade_easing: Easing function name
+            fade_easing: Easing function name (overrides effect)
+            effect: Effect name (stores as default easing for future transitions)
         """
+        # Store effect as default easing if provided
+        if effect:
+            self._default_easing = effect
+            self.logger.debug(f"Default easing set to: {effect}")
+
+        # Determine easing: explicit fade_easing > effect > stored default
+        easing = (
+            fade_easing if fade_easing else (effect if effect else self._default_easing)
+        )
+
         # Flash takes priority
         if flash > 0:
             self.flash(flash)
@@ -84,7 +99,19 @@ class DimmableLight:
 
         # Fade takes priority over immediate set
         if fade_to is not None:
-            self.fade_to(fade_to, fade_duration, fade_easing)
+            self.fade_to(fade_to, fade_duration, easing)
+            return
+
+        # If effect is sent with brightness, use it for transition
+        if effect and brightness is not None:
+            # Use effect as easing for transition to new brightness
+            self.fade_to(brightness, fade_duration, easing)
+            return
+
+        # If only effect with state=ON (no brightness), just store it - don't change light
+        if effect and brightness is None and state:
+            # Effect stored above, don't change light state
+            self.logger.debug(f"Stored effect '{effect}' without changing light state")
             return
 
         # Immediate brightness change
