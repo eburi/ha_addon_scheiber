@@ -48,13 +48,21 @@ class SensorOutput(Output):
     """Base class for a sensor output (e.g., Voltage, Level)."""
 
     def __init__(
-        self, name: str, matcher: Matcher, value_config: ValueConfig, unit: str
+        self,
+        name: str,
+        entity_id: str,
+        matcher: Matcher,
+        value_config: ValueConfig,
+        unit: str,
     ):
         super().__init__(name, matcher)
+        self.entity_id = entity_id
         self.value_config = value_config
         self.unit_of_measurement = unit
         self.value = None
         self.observers: List[Any] = []
+        self.device_class = None
+        self.icon = None
 
     def process_message(self, msg: Any) -> bool:
         """Process a CAN message and update the sensor value if it matches."""
@@ -69,29 +77,39 @@ class SensorOutput(Output):
                 return True
         return False
 
+    def get_value(self):
+        """Get current sensor value."""
+        return self.value
+
     def subscribe(self, callback):
         if callback not in self.observers:
             self.observers.append(callback)
 
     def notify_observers(self):
         for callback in self.observers:
-            callback(self)
+            callback({"value": self.value})
 
 
 class Voltage(SensorOutput):
     """Represents a voltage sensor."""
 
-    def __init__(self, name: str, matcher: Matcher, value_config: ValueConfig):
-        super().__init__(name, matcher, value_config, "V")
+    def __init__(
+        self, name: str, entity_id: str, matcher: Matcher, value_config: ValueConfig
+    ):
+        super().__init__(name, entity_id, matcher, value_config, "V")
         self.type = "voltage"
+        self.device_class = "voltage"
 
 
 class Level(SensorOutput):
     """Represents a tank level sensor."""
 
-    def __init__(self, name: str, matcher: Matcher, value_config: ValueConfig):
-        super().__init__(name, matcher, value_config, "%")
+    def __init__(
+        self, name: str, entity_id: str, matcher: Matcher, value_config: ValueConfig
+    ):
+        super().__init__(name, entity_id, matcher, value_config, "%")
         self.type = "level"
+        self.icon = "mdi:gauge"
 
 
 class Bloc7Device(ScheiberCanDevice):
@@ -109,12 +127,22 @@ class Bloc7Device(ScheiberCanDevice):
         for v_conf in config.get("voltages", []):
             matcher = Matcher(v_conf["matcher"])
             value_config = ValueConfig(**v_conf["value_config"])
-            self._sensors.append(Voltage(v_conf["name"], matcher, value_config))
+            entity_id = v_conf.get(
+                "entity_id", v_conf["name"].lower().replace(" ", "_")
+            )
+            self._sensors.append(
+                Voltage(v_conf["name"], entity_id, matcher, value_config)
+            )
 
         for l_conf in config.get("levels", []):
             matcher = Matcher(l_conf["matcher"])
             value_config = ValueConfig(**l_conf["value_config"])
-            self._sensors.append(Level(l_conf["name"], matcher, value_config))
+            entity_id = l_conf.get(
+                "entity_id", l_conf["name"].lower().replace(" ", "_")
+            )
+            self._sensors.append(
+                Level(l_conf["name"], entity_id, matcher, value_config)
+            )
 
     def get_matchers(self) -> List[Matcher]:
         """Return all matchers from configured sensors."""

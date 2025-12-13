@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.2.3] - 2024-12-13
+
+### Fixed
+- **Module Import Error**: Removed non-existent `helpers` module dependency from `sensor.py`
+- Refactored `MQTTSensor` to use inline implementations matching `MQTTLight` and `MQTTSwitch` patterns
+- Added missing `entity_id`, `get_value()`, `device_class`, and `icon` attributes to Bloc7 sensor classes
+- Updated sensor observer pattern to pass state dictionary instead of sensor instance
+- Fixed sensor constructor signatures to accept `entity_id` parameter
+- All 74 unit tests passing
+
 ## [6.2.2] - 2024-12-13
 
 ### Fixed
