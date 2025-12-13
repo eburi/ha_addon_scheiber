@@ -63,7 +63,19 @@ source .venv/bin/activate
 
 # Check which version to run
 if [ "${RUN_DEV_VERSION}" = "true" ]; then
-    bashio::log.info "Running PREVIEW can-mqtt-bridge (version 5.4.0-preview)"
+    bashio::log.info "Running LEGACY mqtt_bridge.py (version 5.7.8 - archived)"
+    exec python3 archive/mqtt_bridge.py \
+         --mqtt-host "${MQTT_HOST}" \
+         --mqtt-port "${MQTT_PORT}" \
+         --mqtt-user "${MQTT_USER}" \
+         --mqtt-password "${MQTT_PASSWORD}" \
+         --mqtt-topic-prefix "${MQTT_TOPIC_PREFIX}" \
+         --log-level "${LOG_LEVEL}" \
+         --can-interface "${CAN_INTERFACE}" \
+         --data-dir "${DATA_DIR}" \
+         --config-file "${CONFIG_FILE}"
+else
+    bashio::log.info "Running can-mqtt-bridge (version 6.0.0)"
     exec python3 can-mqtt-bridge \
          --can-interface "${CAN_INTERFACE}" \
          --mqtt-host "${MQTT_HOST}" \
@@ -74,16 +86,4 @@ if [ "${RUN_DEV_VERSION}" = "true" ]; then
          --log-level "${LOG_LEVEL}" \
          --config "${CONFIG_FILE}" \
          --data-dir "${DATA_DIR}"
-else
-    bashio::log.info "Running OLD mqtt_bridge.py (version 5.3.6)"
-    exec python3 mqtt_bridge.py \
-         --mqtt-host "${MQTT_HOST}" \
-         --mqtt-port "${MQTT_PORT}" \
-         --mqtt-user "${MQTT_USER}" \
-         --mqtt-password "${MQTT_PASSWORD}" \
-         --mqtt-topic-prefix "${MQTT_TOPIC_PREFIX}" \
-         --log-level "${LOG_LEVEL}" \
-         --can-interface "${CAN_INTERFACE}" \
-         --data-dir "${DATA_DIR}" \
-         --config-file "${CONFIG_FILE}"
 fi

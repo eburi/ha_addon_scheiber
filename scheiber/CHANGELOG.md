@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.0.0] - 2024-12-13
+
+### Changed
+- **BREAKING**: New modular architecture (can-mqtt-bridge) is now the default
+- V5 code moved to `src/archive/` directory
+- V5 (mqtt_bridge.py) now runs only when `run_dev_version: true` is set
+
+### Added
+- Effect storage: Home Assistant effect selection now stored as default easing for transitions
+  - Sending `{"state":"ON","effect":"ease_in_cubic"}` stores the effect without changing light state
+  - Subsequent brightness changes use stored effect as easing function
+  - Effect parameter with brightness creates smooth transition: `{"brightness":150,"effect":"ease_out_quad"}`
+  - Explicit transition parameter overrides stored effect
+- `_default_easing` attribute in `DimmableLight` (defaults to "ease_in_out_sine")
+- Optional `effect` parameter in `DimmableLight.set()` method
+
 ## [5.7.8] - 2024-12-13
 
 ### Added
