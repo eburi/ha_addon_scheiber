@@ -79,13 +79,16 @@ class MQTTSwitch:
             "availability_topic": self.availability_topic,
             "optimistic": False,
             "device_class": "switch",
+            "payload_on": "ON",
+            "payload_off": "OFF",
+            "state_on": "ON",
+            "state_off": "OFF",
             "device": {
                 "identifiers": ["scheiber_system"],
                 "name": "Scheiber",
                 "model": "Marine Lighting Control System",
                 "manufacturer": "Scheiber",
             },
-            "schema": "json",
         }
 
         self.mqtt_client.publish(
@@ -116,8 +119,7 @@ class MQTTSwitch:
             state_dict: State dictionary from hardware switch
         """
         if "state" in state_dict:
-            json_state = {"state": "ON" if state_dict["state"] else "OFF"}
-            payload = json.dumps(json_state)
+            payload = "ON" if state_dict["state"] else "OFF"
             self.mqtt_client.publish(self.state_topic, payload, retain=True, qos=1)
             self.logger.info(f"Published state to {self.state_topic}: {payload}")
 
@@ -148,17 +150,10 @@ class MQTTSwitch:
                 return
 
         try:
-            # Parse JSON command
-            try:
-                command = json.loads(payload)
-            except json.JSONDecodeError:
-                # Simple ON/OFF command
-                command = {"state": payload}
+            # Parse command (expect plain ON/OFF)
+            state_bool = payload.strip().upper() == "ON"
 
-            state = command.get("state", "ON")
-            state_bool = state == "ON"
-
-            self.logger.info(f"Setting to {state}")
+            self.logger.info(f"Setting to {'ON' if state_bool else 'OFF'}")
             self.hardware_switch.set(state_bool)
 
             # Clear retained command after successful execution

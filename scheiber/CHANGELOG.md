@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.2.5] - 2024-12-13
+
+### Fixed
+- **Switch MQTT Format**: Corrected switch entity MQTT schema for Home Assistant compatibility
+  - Removed `"schema": "json"` from discovery config (switches use simple payload format)
+  - Added `payload_on`, `payload_off`, `state_on`, `state_off` fields
+  - State now published as plain "ON"/"OFF" instead of JSON `{"state": "ON"}`
+  - Commands parsed as plain "ON"/"OFF" strings
+  - Matches Home Assistant standard switch format
+- **Non-optimistic Updates**: Switch state now only updates after CAN confirmation
+  - Removed optimistic state update from `Switch.set()` method
+  - State changes only occur when CAN message confirms the change
+  - Ensures physical button presses update MQTT correctly
+  - Observer notifications only on actual state changes from CAN bus
+- Updated tests to reflect non-optimistic behavior
+- All 74 unit tests passing
+
 ## [6.2.4] - 2024-12-13
 
 ### Fixed

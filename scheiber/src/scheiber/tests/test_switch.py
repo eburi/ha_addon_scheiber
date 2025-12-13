@@ -40,13 +40,13 @@ class TestSwitch:
         observer = Mock()
         switch.subscribe(observer)
 
-        # Turn ON
-        switch.set(True)
+        # Turn ON via CAN state update
+        switch.update_state(True)
         observer.assert_called_with({"state": True})
 
-        # Turn OFF
+        # Turn OFF via CAN state update
         observer.reset_mock()
-        switch.set(False)
+        switch.update_state(False)
         observer.assert_called_with({"state": False})
 
     def test_multiple_observers(self, mock_scheiber_can_bus):
@@ -66,7 +66,8 @@ class TestSwitch:
         switch.subscribe(observer1)
         switch.subscribe(observer2)
 
-        switch.set(True)
+        # Update state via CAN message
+        switch.update_state(True)
 
         observer1.assert_called_with({"state": True})
         observer2.assert_called_with({"state": True})

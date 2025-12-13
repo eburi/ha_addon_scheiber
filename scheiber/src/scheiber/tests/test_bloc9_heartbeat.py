@@ -246,8 +246,13 @@ class TestBloc9Heartbeat:
         observer = Mock()
         switch.subscribe(observer)
 
-        # Turn switch ON
-        switch.set(True)
+        # Turn switch ON via CAN state change message (S3/S4 message)
+        state_change_msg = can.Message(
+            arbitration_id=0x021806B8,  # S3/S4 state change
+            data=bytes([0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00]),  # S3 ON
+            is_extended_id=True,
+        )
+        device.process_message(state_change_msg)
         assert switch.get_state() == True
         observer.reset_mock()
 

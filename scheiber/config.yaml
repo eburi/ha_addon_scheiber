@@ -1,6 +1,6 @@
 name: scheiber
 slug: scheiber
-version: "6.2.4"
+version: "6.2.5"
 description: >
   MQTT Bridge to connect Scheiber CAN devices to Home Assistant via MQTT.
 

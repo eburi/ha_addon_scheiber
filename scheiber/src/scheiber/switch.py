@@ -54,12 +54,14 @@ class Switch(Output):
         """
         Turn switch ON or OFF.
 
+        Sends command to hardware. State will be updated when CAN confirmation
+        message is received via update_state().
+
         Args:
             state: True for ON, False for OFF
         """
-        self._state = state
         self._send_command(state)
-        self._notify_observers({"state": state})
+        # Don't update _state here - wait for CAN confirmation via update_state()
 
     def process_matching_message(self, msg: can.Message) -> None:
         """
