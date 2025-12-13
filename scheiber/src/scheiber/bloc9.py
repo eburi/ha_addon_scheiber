@@ -211,8 +211,6 @@ class Bloc9Device(ScheiberCanDevice):
     def _process_status(self, msg: can.Message) -> None:
         """
         Process low-priority status message.
-
-        These contain overall device status.
         """
         # For now, just log
         self.logger.debug(f"Status message: {msg.data.hex()}")

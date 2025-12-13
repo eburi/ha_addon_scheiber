@@ -4,12 +4,13 @@ Low-level CAN bus wrapper.
 Handles CAN socket I/O, statistics tracking, and observer notifications.
 """
 
-import can
 import logging
 import threading
 import time
-from typing import Any, Callable, Dict, Optional, List
 from collections import defaultdict
+from typing import Any, Callable, Dict, List, Optional
+
+import can
 
 
 class ScheiberCanBus:
@@ -77,9 +78,7 @@ class ScheiberCanBus:
         if not self.bus:
             raise RuntimeError("CAN bus not initialized")
 
-        msg = can.Message(
-            arbitration_id=arbitration_id, data=data, is_extended_id=False
-        )
+        msg = can.Message(arbitration_id=arbitration_id, data=data, is_extended_id=True)
         try:
             self.bus.send(msg)
             with self.stats_lock:

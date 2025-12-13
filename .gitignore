@@ -149,3 +149,5 @@ scheiber/src/.state_cache/
 **/state_cache/
 
 scratch*.txt
+
+mqtt_snapshot*.json

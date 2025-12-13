@@ -114,7 +114,7 @@ class MQTTLight:
     def publish_availability(self, available: bool = True):
         """Publish availability status."""
         payload = "online" if available else "offline"
-        self.mqtt_client.publish(self.availability_topic, payload, retain=True)
+        self.mqtt_client.publish(self.availability_topic, payload, retain=True, qos=1)
 
     def subscribe_to_commands(self):
         """Subscribe to command topic."""
@@ -141,7 +141,7 @@ class MQTTLight:
 
         if json_state:
             payload = json.dumps(json_state)
-            self.mqtt_client.publish(self.state_topic, payload, retain=True)
+            self.mqtt_client.publish(self.state_topic, payload, retain=True, qos=1)
             self.logger.debug(f"Published state: {payload}")
 
     def handle_command(self, payload: str):

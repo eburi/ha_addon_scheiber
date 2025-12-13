@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.7.2] - 2025-12-13
+
+### Fixed
+- **CAN Extended ID Support**: Fixed CAN message creation to use extended 29-bit arbitration IDs
+  - Changed `is_extended_id=False` to `is_extended_id=True` in `ScheiberCanBus.send_message()`
+  - Previously, 29-bit IDs like `0x023606B8` were truncated to 11 bits (`0x000006B8`)
+  - CAN commands now correctly reach Bloc9 devices on the bus
+  - Added `qos=1, retain=True` to all V6 MQTT publish calls for message persistence
+  - Added comprehensive test suite for Bloc9 CAN command generation (10 tests)
+  - Added integration test to verify `is_extended_id=True` flag on actual CAN messages
+
 ## [5.7.1] - 2025-12-12
 
 ### Fixed
