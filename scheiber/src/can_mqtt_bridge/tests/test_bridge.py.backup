@@ -557,9 +557,9 @@ class TestCommandHandling:
         bridge = MQTTBridge(can_interface="can0", mqtt_host="localhost")
         bridge.start()
 
-        msg = create_mock_mqtt_message(
-            "homeassistant/scheiber/bloc9/7/s1/set", b'{"state": "ON"}'
-        )
+        msg = MagicMock()
+        msg.topic = "homeassistant/scheiber/bloc9/7/s1/set"
+        msg.payload = b'{"state": "ON"}'
 
         bridge._on_mqtt_message(None, None, msg)
 
@@ -604,9 +604,9 @@ class TestCommandHandling:
 
         # Find the message callback and invoke it
         on_message = mock_client.on_message
-        msg = create_mock_mqtt_message(
-            "homeassistant/scheiber/bloc9/7/s1/set", command_payload.encode()
-        )
+        msg = MagicMock()
+        msg.topic = "homeassistant/scheiber/bloc9/7/s1/set"
+        msg.payload = command_payload.encode()
         on_message(mock_client, None, msg)
 
         # Verify fade_to was called with correct easing
@@ -648,9 +648,9 @@ class TestCommandHandling:
 
         # Find the message callback and invoke it
         on_message = mock_client.on_message
-        msg = create_mock_mqtt_message(
-            "homeassistant/scheiber/bloc9/7/s1/set", command_payload.encode()
-        )
+        msg = MagicMock()
+        msg.topic = "homeassistant/scheiber/bloc9/7/s1/set"
+        msg.payload = command_payload.encode()
         on_message(mock_client, None, msg)
 
         # Verify fade_to was called with default easing
@@ -686,10 +686,9 @@ class TestCommandHandling:
         bridge = MQTTBridge(can_interface="can0", mqtt_host="localhost")
         bridge.start()
 
-        msg = create_mock_mqtt_message(
-            "homeassistant/scheiber/bloc9/7/s1/set",
-            b'{"brightness": 200, "transition": 2}',
-        )
+        msg = MagicMock()
+        msg.topic = "homeassistant/scheiber/bloc9/7/s1/set"
+        msg.payload = b'{"brightness": 200, "transition": 2}'
 
         bridge._on_mqtt_message(None, None, msg)
 
@@ -755,9 +754,9 @@ class TestCommandHandling:
                 }
             )
 
-            msg = create_mock_mqtt_message(
-                "homeassistant/scheiber/bloc9/7/s1/set", command_payload.encode()
-            )
+            msg = MagicMock()
+            msg.topic = "homeassistant/scheiber/bloc9/7/s1/set"
+            msg.payload = command_payload.encode()
             on_message(mock_client, None, msg)
 
             # Verify correct easing was passed to hardware
@@ -793,9 +792,9 @@ class TestCommandHandling:
         bridge = MQTTBridge(can_interface="can0", mqtt_host="localhost")
         bridge.start()
 
-        msg = create_mock_mqtt_message(
-            "homeassistant/scheiber/bloc9/7/s1/set", b'{"flash": "short"}'
-        )
+        msg = MagicMock()
+        msg.topic = "homeassistant/scheiber/bloc9/7/s1/set"
+        msg.payload = b'{"flash": "short"}'
 
         bridge._on_mqtt_message(None, None, msg)
 
@@ -829,9 +828,9 @@ class TestCommandHandling:
         bridge = MQTTBridge(can_interface="can0", mqtt_host="localhost")
         bridge.start()
 
-        msg = create_mock_mqtt_message(
-            "homeassistant/scheiber/bloc9/7/s1/set", b'{"state": "ON"}'
-        )
+        msg = MagicMock()
+        msg.topic = "homeassistant/scheiber/bloc9/7/s1/set"
+        msg.payload = b'{"state": "ON"}'
 
         bridge._on_mqtt_message(None, None, msg)
 
@@ -866,9 +865,9 @@ class TestCommandHandling:
         bridge = MQTTBridge(can_interface="can0", mqtt_host="localhost", read_only=True)
         bridge.start()
 
-        msg = create_mock_mqtt_message(
-            "homeassistant/scheiber/bloc9/7/s1/set", b'{"brightness": 150}'
-        )
+        msg = MagicMock()
+        msg.topic = "homeassistant/scheiber/bloc9/7/s1/set"
+        msg.payload = b'{"brightness": 150}'
 
         bridge._on_mqtt_message(None, None, msg)
 

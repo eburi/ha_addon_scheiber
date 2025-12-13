@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.7.5] - 2025-12-13
+
+### Changed
+- **Improved State Update Logging**: State updates from CAN bus to MQTT now log at INFO level instead of DEBUG
+  - Light state updates: `Published state to homeassistant/scheiber/bloc9/7/s5/state: {"state": "ON", "brightness": 200}`
+  - Switch state updates: `Published state to homeassistant/scheiber/bloc9/7/s1/state: {"state": "ON"}`
+  - Makes it easier to verify that CAN messages are being received and processed
+  - Helps diagnose issues with state synchronization between hardware and Home Assistant
+
+### Added
+- **State Flow Test**: Added comprehensive test verifying CAN → Hardware → MQTT state propagation
+  - Confirms observer pattern working correctly
+  - Validates state updates are published with correct topics and payloads
+
+## [5.7.4] - 2025-12-13
+
+### Added
+- **Retained Message Safety**: V6 MQTT bridge now validates retained commands to prevent stale command execution
+  - Checks age of retained MQTT messages (5-minute threshold)
+  - Ignores and clears commands older than 5 minutes
+  - Prevents old commands from executing after server restart
+  - Clears retained commands after successful execution
+  - Added comprehensive test suite for retained message handling (8 tests)
+  - Bridge passes `is_retained` and `timestamp` to command handlers
+  - Both lights and switches implement message age validation
+
 ## [5.7.3] - 2025-12-13
 
 ### Fixed
@@ -210,7 +236,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v5.3.6...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v5.7.5...HEAD
+[5.7.5]: https://github.com/eburi/ha_addon_scheiber/compare/v5.7.4...v5.7.5
+[5.7.4]: https://github.com/eburi/ha_addon_scheiber/compare/v5.7.3...v5.7.4
+[5.7.3]: https://github.com/eburi/ha_addon_scheiber/compare/v5.7.2...v5.7.3
+[5.7.2]: https://github.com/eburi/ha_addon_scheiber/compare/v5.7.1...v5.7.2
+[5.7.1]: https://github.com/eburi/ha_addon_scheiber/compare/v5.7.0...v5.7.1
+[5.7.0]: https://github.com/eburi/ha_addon_scheiber/compare/v5.3.6...v5.7.0
 [5.3.6]: https://github.com/eburi/ha_addon_scheiber/compare/v5.3.5...v5.3.6
 [5.3.5]: https://github.com/eburi/ha_addon_scheiber/compare/v5.3.4...v5.3.5
 [5.3.4]: https://github.com/eburi/ha_addon_scheiber/compare/v5.3.3...v5.3.4

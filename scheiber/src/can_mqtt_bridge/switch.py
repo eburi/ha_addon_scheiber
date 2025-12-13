@@ -6,7 +6,8 @@ Handles MQTT discovery, state publishing, and command handling for switches.
 
 import json
 import logging
-from typing import Dict, Any
+import time
+from typing import Dict, Any, Optional
 import paho.mqtt.client as mqtt
 
 
@@ -117,18 +118,33 @@ class MQTTSwitch:
             json_state = {"state": "ON" if state_dict["state"] else "OFF"}
             payload = json.dumps(json_state)
             self.mqtt_client.publish(self.state_topic, payload, retain=True, qos=1)
-            self.logger.debug(f"Published state: {payload}")
+            self.logger.info(f"Published state to {self.state_topic}: {payload}")
 
-    def handle_command(self, payload: str):
+    def handle_command(
+        self, payload: str, is_retained: bool = False, timestamp: Optional[float] = None
+    ):
         """
         Handle incoming MQTT command.
 
         Args:
             payload: JSON command payload
+            is_retained: Whether this is a retained message
+            timestamp: Message timestamp (for age checking)
         """
         if self.read_only:
             self.logger.debug("Ignoring command (read-only mode)")
             return
+
+        # Check for old retained messages (>5 minutes)
+        if is_retained and timestamp is not None:
+            message_age = time.time() - timestamp
+            if message_age > 300:  # 5 minutes
+                self.logger.info(
+                    f"Ignoring old retained command (age: {message_age:.1f}s)"
+                )
+                # Clear the old retained message
+                self.mqtt_client.publish(self.command_topic, None, retain=True)
+                return
 
         try:
             # Parse JSON command
@@ -143,6 +159,11 @@ class MQTTSwitch:
 
             self.logger.info(f"Setting to {state}")
             self.hardware_switch.set(state_bool)
+
+            # Clear retained command after successful execution
+            if is_retained:
+                self.logger.debug("Clearing retained command")
+                self.mqtt_client.publish(self.command_topic, None, retain=True)
 
         except Exception as e:
             self.logger.error(f"Error handling command: {e}")

@@ -200,13 +200,17 @@ class MQTTBridge:
         """
         topic = msg.topic
         payload = msg.payload.decode("utf-8")
+        is_retained = msg.retain
+        timestamp = msg.timestamp
 
-        self.logger.debug(f"MQTT message: {topic} = {payload}")
+        self.logger.debug(f"MQTT message: {topic} = {payload} (retained={is_retained})")
 
         # Find the entity that handles this topic
         for entity in self._mqtt_entities:
             if entity.matches_topic(topic):
-                entity.handle_command(payload)
+                entity.handle_command(
+                    payload, is_retained=is_retained, timestamp=timestamp
+                )
                 return
 
         self.logger.warning(f"No entity found for topic: {topic}")
