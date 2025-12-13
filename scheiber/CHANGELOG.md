@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.2.10] - 2025-12-13
+
+### Changed
+- Smart initial state publishing: System now checks existing MQTT retained state before publishing on startup
+- Only publishes initial state if: (1) no retained message exists, (2) retained message is old (>60s), or (3) state differs from hardware
+- Reduces unnecessary MQTT traffic on restarts when state already matches
+- Added detailed logging to track initial state decisions (retained match, stale state, missing state, state mismatch)
+- Timeout after 2 seconds ensures state is published even if MQTT broker doesn't respond with retained message
+
+### Technical Details
+- Uses `message_callback_add()` to temporarily subscribe to state topic during initialization
+- Compares hardware state with MQTT retained state before deciding to publish
+- Logs explain clearly what decision was made and why (matching, old, missing, or different)
+- Maintains compatibility with existing callback architecture (doesn't break tests)
+
+## [6.2.9] - 2025-12-13
+
+### Changed
+- **BREAKING: State-First Initialization Architecture**: Complete redesign of startup sequence
+  - Persisted state now loaded BEFORE device creation (not after)
+  - Devices initialize with correct state from the beginning
+  - MQTT handlers no longer publish initial state on creation
+  - State only published when CAN messages arrive (natural ~1 second delay)
+  - Prevents spurious "all OFF" state on restart
+  - Eliminates unnecessary MQTT traffic during startup
+
+### Fixed
+- **Startup Behavior**: System no longer publishes all entities as OFF then restores
+  - Previous flow: Create devices (OFF) → publish OFF → restore state → republish
+  - New flow: Load state → create devices with state → publish only on CAN updates
+  - Logs show: "Initialized {name} from persisted state: brightness=X, state=Y"
+  - Discovery and availability still published immediately
+  - Actual state waits for CAN confirmation (heartbeat messages)
+
+### Technical Details
+- `create_scheiber_system()` now calls `_load_state()` before `_create_devices()`
+- `Bloc9Device.__init__()` accepts `initial_state` parameter
+- Lights and switches initialize internal `_state` and `_brightness` from persisted data
+- No CAN commands sent during initialization (unless `initial_brightness` in config)
+- State keys changed from "s1-s6" to entity_id for consistency
+- `ScheiberSystem.start()` no longer calls `_load_state()` (already loaded)
+- All 109 tests passing with new architecture
+
 ## [6.2.8] - 2024-12-13
 
 ### Fixed

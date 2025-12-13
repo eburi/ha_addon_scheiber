@@ -159,6 +159,7 @@ class MQTTBridge:
             mqtt_light.publish_discovery()
             mqtt_light.publish_availability(True)
             mqtt_light.subscribe_to_commands()
+            # Check MQTT retained state and publish if needed (missing/old/different)
             mqtt_light.publish_initial_state()
             self._mqtt_entities.append(mqtt_light)
 
@@ -175,6 +176,7 @@ class MQTTBridge:
             mqtt_switch.publish_discovery()
             mqtt_switch.publish_availability(True)
             mqtt_switch.subscribe_to_commands()
+            # Check MQTT retained state and publish if needed (missing/old/different)
             mqtt_switch.publish_initial_state()
             self._mqtt_entities.append(mqtt_switch)
 

@@ -40,6 +40,7 @@ class Bloc9Device(ScheiberCanDevice):
         can_bus,
         lights_config: Optional[Dict[str, Dict[str, Any]]] = None,
         switches_config: Optional[Dict[str, Dict[str, Any]]] = None,
+        initial_state: Optional[Dict[str, Any]] = None,
         logger: Optional[logging.Logger] = None,
     ):
         """
@@ -50,9 +51,13 @@ class Bloc9Device(ScheiberCanDevice):
             can_bus: ScheiberCanBus instance
             lights_config: Dict mapping output names (s1-s6) to light config
             switches_config: Dict mapping output names (s1-s6) to switch config
+            initial_state: Previously persisted state dictionary (outputs -> state)
             logger: Optional logger
         """
         super().__init__(device_id, "bloc9", can_bus, logger)
+
+        # Extract persisted state for outputs
+        self._initial_state = initial_state or {}
 
         # Track all outputs (mix of switches and lights)
         self.switches: List[Switch] = []
@@ -75,7 +80,14 @@ class Bloc9Device(ScheiberCanDevice):
 
                 name = config.get("name", output_name)
                 entity_id = config.get("entity_id", name.lower().replace(" ", "_"))
-                initial_brightness = config.get("initial_brightness")  # None if not set
+
+                # Get persisted state for this output
+                output_state = self._initial_state.get(entity_id, {})
+                persisted_brightness = output_state.get("brightness")
+                persisted_state = output_state.get("state")
+
+                # Config-based initial_brightness (DANGEROUS - sends CAN on startup)
+                config_brightness = config.get("initial_brightness")
 
                 light = DimmableLight(
                     device_id=device_id,
@@ -85,20 +97,30 @@ class Bloc9Device(ScheiberCanDevice):
                     send_command_func=self._send_switch_command,
                     logger=logging.getLogger(f"Bloc9.{device_id}.{output_name}"),
                 )
-                # Only set initial brightness if explicitly configured (DANGEROUS)
-                # Otherwise brightness/state will be restored from saved state or remain at 0
-                if initial_brightness is not None:
+
+                # Initialize with persisted state (no CAN command sent)
+                if persisted_brightness is not None:
+                    light._brightness = persisted_brightness
+                    light._state = (
+                        persisted_state
+                        if persisted_state is not None
+                        else (persisted_brightness > 0)
+                    )
+                    self.logger.info(
+                        f"Initialized {name} from persisted state: brightness={persisted_brightness}, state={light._state}"
+                    )
+                # Fallback to config-based initial brightness (DANGEROUS - will send CAN)
+                elif config_brightness is not None:
                     self.logger.warning(
-                        f"Setting initial_brightness={initial_brightness} for {name} "
+                        f"Using config initial_brightness={config_brightness} for {name} "
                         f"(this will send CAN command on startup)"
                     )
-                    light._brightness = initial_brightness
-                    light._state = initial_brightness > 0
+                    light._brightness = config_brightness
+                    light._state = config_brightness > 0
+                else:
+                    self.logger.debug(f"Initialized {name} with default state: OFF")
 
                 self.lights.append(light)
-                self.logger.debug(
-                    f"Created light {name} on {output_name} (brightness={initial_brightness})"
-                )
 
         # Create switches for configured outputs
         if switches_config:
@@ -111,6 +133,10 @@ class Bloc9Device(ScheiberCanDevice):
                 name = config.get("name", output_name)
                 entity_id = config.get("entity_id", name.lower().replace(" ", "_"))
 
+                # Get persisted state for this output
+                output_state = self._initial_state.get(entity_id, {})
+                persisted_state = output_state.get("state")
+
                 switch = Switch(
                     device_id=device_id,
                     switch_nr=switch_nr,
@@ -119,8 +145,17 @@ class Bloc9Device(ScheiberCanDevice):
                     send_command_func=self._send_switch_command,
                     logger=logging.getLogger(f"Bloc9.{device_id}.{output_name}"),
                 )
+
+                # Initialize with persisted state (no CAN command sent)
+                if persisted_state is not None:
+                    switch._state = persisted_state
+                    self.logger.info(
+                        f"Initialized {name} from persisted state: state={persisted_state}"
+                    )
+                else:
+                    self.logger.debug(f"Initialized {name} with default state: OFF")
+
                 self.switches.append(switch)
-                self.logger.debug(f"Created switch {name} on {output_name}")
 
         # Build matcher-to-outputs mapping for message dispatch
         self.get_matchers()
@@ -297,24 +332,25 @@ class Bloc9Device(ScheiberCanDevice):
         """
         Restore device state from persisted data.
 
+        NOTE: This method is now deprecated since state is loaded BEFORE device creation.
+        Kept for backward compatibility.
+
         Delegates to individual lights and switches.
 
         Args:
-            state: Dictionary with output states keyed by output identifier (s1-s6)
+            state: Dictionary with output states keyed by entity_id
         """
         # Restore lights
         for light in self.lights:
-            output_key = f"s{light.switch_nr + 1}"
-            if output_key in state:
-                light.restore_from_state(state[output_key])
-                self.logger.debug(f"Restored light {output_key}")
+            if light.entity_id in state:
+                light.restore_from_state(state[light.entity_id])
+                self.logger.debug(f"Restored light {light.entity_id}")
 
         # Restore switches
         for switch in self.switches:
-            output_key = f"s{switch.switch_nr + 1}"
-            if output_key in state:
-                switch.restore_from_state(state[output_key])
-                self.logger.debug(f"Restored switch {output_key}")
+            if switch.entity_id in state:
+                switch.restore_from_state(state[switch.entity_id])
+                self.logger.debug(f"Restored switch {switch.entity_id}")
 
     def store_to_state(self) -> Dict[str, Any]:
         """
@@ -323,18 +359,16 @@ class Bloc9Device(ScheiberCanDevice):
         Delegates to individual lights and switches.
 
         Returns:
-            Dictionary with output states keyed by output identifier (s1-s6)
+            Dictionary with output states keyed by entity_id
         """
         state = {}
 
         # Store lights
         for light in self.lights:
-            output_key = f"s{light.switch_nr + 1}"
-            state[output_key] = light.store_to_state()
+            state[light.entity_id] = light.store_to_state()
 
         # Store switches
         for switch in self.switches:
-            output_key = f"s{switch.switch_nr + 1}"
-            state[output_key] = switch.store_to_state()
+            state[switch.entity_id] = switch.store_to_state()
 
         return state

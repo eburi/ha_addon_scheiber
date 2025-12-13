@@ -61,6 +61,9 @@ def create_scheiber_system(
     # Parse configuration
     config = _load_config(config_path, logger)
 
+    # Load persisted state BEFORE creating devices
+    initial_state = _load_state(state_file, logger)
+
     # Create CAN bus
     can_bus = ScheiberCanBus(
         interface=can_interface,
@@ -68,8 +71,8 @@ def create_scheiber_system(
         logger=logging.getLogger("ScheiberCanBus"),
     )
 
-    # Create devices from configuration
-    devices = _create_devices(config, can_bus, logger)
+    # Create devices from configuration with initial state
+    devices = _create_devices(config, can_bus, initial_state, logger)
 
     # Validate unique device IDs per type
     _validate_unique_ids(devices)
@@ -86,6 +89,37 @@ def create_scheiber_system(
         f"Created Scheiber system with {len(devices)} devices on {can_interface}"
     )
     return system
+
+
+def _load_state(state_file: Optional[str], logger: logging.Logger) -> dict:
+    """
+    Load persisted state from JSON file.
+
+    Args:
+        state_file: Path to state file (None = no state)
+        logger: Logger instance
+
+    Returns:
+        State dictionary (device_key -> device_state) or empty dict
+    """
+    if not state_file:
+        return {}
+
+    state_path = Path(state_file)
+    if not state_path.exists():
+        logger.info(f"No state file found: {state_file} (starting fresh)")
+        return {}
+
+    try:
+        import json
+
+        with open(state_path, "r") as f:
+            state_data = json.load(f)
+        logger.info(f"Loaded persisted state from: {state_file}")
+        return state_data
+    except Exception as e:
+        logger.error(f"Failed to load state file: {e} (starting fresh)")
+        return {}
 
 
 def _load_config(config_path: Optional[str], logger: logging.Logger) -> dict:
@@ -117,14 +151,15 @@ def _load_config(config_path: Optional[str], logger: logging.Logger) -> dict:
 
 
 def _create_devices(
-    config: dict, can_bus: ScheiberCanBus, logger: logging.Logger
+    config: dict, can_bus: ScheiberCanBus, initial_state: dict, logger: logging.Logger
 ) -> list:
     """
-    Create device instances from configuration.
+    Create device instances from configuration with initial state.
 
     Args:
         config: Configuration dictionary
         can_bus: CAN bus instance
+        initial_state: Persisted state dictionary (device_key -> device_state)
         logger: Logger instance
 
     Returns:
@@ -141,6 +176,10 @@ def _create_devices(
             logger.warning(f"Invalid device config: {device_config}")
             continue
 
+        # Extract device-specific state
+        device_key = f"{device_type}_{device_id}"
+        device_state = initial_state.get(device_key, {})
+
         # Create device based on type
         if device_type == "bloc9":
             # Extract lights and switches configuration
@@ -152,6 +191,7 @@ def _create_devices(
                 can_bus=can_bus,
                 lights_config=lights_config,
                 switches_config=switches_config,
+                initial_state=device_state,
                 logger=logging.getLogger(f"Bloc9.{device_id}"),
             )
             devices.append(device)

@@ -139,9 +139,9 @@ class ScheiberSystem:
 
         self._running = True
 
-        # Load state if available
-        if self.state_file:
-            self._load_state()
+        # NOTE: State is now loaded BEFORE system creation and passed to device constructors
+        # This prevents publishing OFF state on startup, then restoring correct state
+        # The old _load_state() call here is removed
 
         # Start CAN bus listening
         self.can_bus.start_listening(self._on_can_message)
