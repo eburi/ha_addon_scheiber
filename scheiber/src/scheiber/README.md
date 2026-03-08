@@ -20,7 +20,7 @@ from scheiber import create_scheiber_system
 # Create system from config file
 system = create_scheiber_system(
     can_interface='can0',
-    config_path='scheiber.yaml',
+    config_path='scheiber-config.yaml',
     state_file='scheiber_state.json'
 )
 
@@ -57,7 +57,7 @@ The `scheiber-cli` command-line tool provides easy access to Scheiber devices:
 ./scheiber-cli listen can0
 
 # Use a specific config file
-./scheiber-cli listen can0 --config /path/to/scheiber.yaml
+./scheiber-cli listen can0 --config /path/to/scheiber-config.yaml
 
 # Save/restore state
 ./scheiber-cli listen can0 --state scheiber_state.json
@@ -71,7 +71,7 @@ The `scheiber-cli` command-line tool provides easy access to Scheiber devices:
 
 ## Configuration
 
-Create a `scheiber.yaml` file to define your devices:
+Create a `scheiber-config.yaml` file to define your devices:
 
 ```yaml
 devices:
@@ -87,7 +87,7 @@ devices:
         initial_brightness: 0
 ```
 
-See `scheiber.example.yaml` in the repository root for a complete example.
+See `docs/examples/scheiber-config.yaml` in the repository root for a complete example.
 
 ## Architecture
 

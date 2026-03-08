@@ -31,7 +31,7 @@ def create_scheiber_system(
 
     Args:
         can_interface: CAN interface name (e.g., 'can0', 'can1')
-        config_path: Path to scheiber.yaml configuration file (optional)
+        config_path: Path to scheiber-config.yaml configuration file (optional)
         state_file: Path to state persistence file (optional)
         log_level: Logging level ('debug', 'info', 'warning', 'error')
         read_only: If True, no CAN messages will be sent

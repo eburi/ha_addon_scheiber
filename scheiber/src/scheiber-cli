@@ -105,7 +105,9 @@ def main():
     # Listen command
     listen_parser = subparsers.add_parser("listen", help="Listen to CAN bus")
     listen_parser.add_argument("interface", help="CAN interface (e.g., can0, can1)")
-    listen_parser.add_argument("--config", help="Path to scheiber.yaml config file")
+    listen_parser.add_argument(
+        "--config", help="Path to scheiber-config.yaml config file"
+    )
     listen_parser.add_argument("--state", help="Path to state file")
     listen_parser.add_argument(
         "--log-level",

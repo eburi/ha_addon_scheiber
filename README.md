@@ -8,7 +8,7 @@ Experimental bridge for Scheiber CAN devices with MQTT integration.
 
 This Home Assistant add-on provides a bridge between Scheiber devices on a CAN bus and MQTT, enabling integration with Home Assistant through MQTT Discovery. It monitors CAN traffic, decodes device messages, and publishes state updates to MQTT.
 
-**Explicit entity configuration for safety and control:** You must define which outputs to expose via a `scheiber.yaml` configuration file placed in Home Assistant's `/config/` directory.
+**Explicit entity configuration for safety and control:** You must define which outputs to expose via a `scheiber-config.yaml` configuration file placed in Home Assistant's `/config/` directory.
 
 **Device Structure (v4.0.0+):** All entities belong to a single unified "Scheiber" device:
 - Single "Scheiber - Marine Lighting Control System" device in Home Assistant
@@ -312,11 +312,13 @@ See:
 
 ## Configuration
 
-### Entity Configuration (`scheiber.yaml`) — **REQUIRED**
+### Entity Configuration (`scheiber-config.yaml`) — **REQUIRED**
 
-You must create a `scheiber.yaml` configuration file to expose entities via MQTT Discovery. This adds safety by preventing accidental control of critical systems.
+You must create a `scheiber-config.yaml` configuration file to expose entities via MQTT Discovery. This adds safety by preventing accidental control of critical systems.
 
-**Location**: Place this file in Home Assistant's `/config/` directory (e.g., `/config/scheiber.yaml`)
+**Important**: The legacy `scheiber.yaml` (v5) format is no longer supported.
+
+**Location**: Place this file in Home Assistant's `/config/` directory (e.g., `/config/scheiber-config.yaml`)
 
 **Purpose**: Explicitly define which Bloc9 outputs to expose to Home Assistant, their entity names, and whether they should appear as lights or switches.
 
@@ -505,16 +507,16 @@ bloc9:
 
 **Old behavior (v2.x)**: All 6 outputs on every detected Bloc9 device were automatically exposed as lights.
 
-**New behavior (v3.0.0+)**: Only outputs explicitly configured in `scheiber.yaml` are exposed.
+**New behavior (v3.0.0+)**: Only outputs explicitly configured in `scheiber-config.yaml` are exposed.
 
 **Migration steps**:
-1. Create `/config/scheiber.yaml` in your Home Assistant configuration directory
+1. Create `/config/scheiber-config.yaml` in your Home Assistant configuration directory
 2. List all Bloc9 devices you want to integrate (use bus IDs from v2.x discovery)
 3. For each device, list only the outputs you want to control
 4. Choose `lights:` or `switches:` based on the load type
 5. Restart the addon
 
-**Without scheiber.yaml**: The bridge will still monitor CAN traffic and publish to MQTT, but **no entities will appear in Home Assistant** via discovery.
+**Without scheiber-config.yaml**: The bridge will still monitor CAN traffic and publish to MQTT, but **no entities will appear in Home Assistant** via discovery.
 
 ## Troubleshooting MQTT Discovery Updates
 
@@ -609,7 +611,7 @@ This design is generally beneficial but requires manual cleanup during major ver
 - [MQTT Discovery Payload Updates](https://www.home-assistant.io/integrations/mqtt/#discovery-payload)
 - Home Assistant Community discussions on discovery updates
 
-**Without scheiber.yaml**: The bridge will still monitor CAN traffic and publish to MQTT, but **no entities will appear in Home Assistant** via discovery.
+**Without scheiber-config.yaml**: The bridge will still monitor CAN traffic and publish to MQTT, but **no entities will appear in Home Assistant** via discovery.
 
 ### Add-on Options
 
@@ -1180,7 +1182,7 @@ When reporting issues, include:
 - Breaking: MQTT topic structure changed - requires Home Assistant entity reconfiguration
 
 **Migration from v4.0.0 to v5.0.0:**
-1. **Optional**: Update `scheiber.yaml` to dict format for better duplicate prevention
+1. **Optional**: Update `scheiber-config.yaml` to dict format for better duplicate prevention
 2. **Required**: Restart addon to publish new JSON schema discovery configs
 3. Home Assistant will auto-discover updated entities (may require clearing old configs)
 
@@ -1198,7 +1200,7 @@ When reporting issues, include:
 - Heartbeat now updates on ANY CAN message, even if data unchanged
 
 ### v3.x Series (December 2025)
-- Explicit entity configuration via `scheiber.yaml`
+- Explicit entity configuration via `scheiber-config.yaml`
 - Safety controls: only expose configured outputs
 - Config integrity checks (duplicate detection)
 - Choice of lights vs switches per output

@@ -57,7 +57,7 @@ class MQTTBridge:
             mqtt_user: MQTT username (optional)
             mqtt_password: MQTT password (optional)
             mqtt_topic_prefix: Topic prefix (default: 'homeassistant')
-            config_path: Path to scheiber.yaml config file
+            config_path: Path to scheiber-config.yaml config file
             state_file: Path to state persistence file
             log_level: Logging level
             read_only: Read-only mode (no CAN commands)

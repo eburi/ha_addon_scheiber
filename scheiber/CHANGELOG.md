@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.2.12] - 2026-03-08
+
+### Changed
+- Standardized configuration filename to `scheiber-config.yaml` in docs, CLI help text, and add-on defaults
+- Moved sample config from repository root to `docs/examples/scheiber-config.yaml`
+
+### Removed
+- Removed legacy root `scheiber.yaml` file to avoid format confusion
+
 ## [6.2.11] - 2025-12-13
 
 ### Added
@@ -560,7 +569,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v5.7.5...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.2.12...HEAD
+[6.2.12]: https://github.com/eburi/ha_addon_scheiber/compare/v6.2.11...v6.2.12
 [5.7.5]: https://github.com/eburi/ha_addon_scheiber/compare/v5.7.4...v5.7.5
 [5.7.4]: https://github.com/eburi/ha_addon_scheiber/compare/v5.7.3...v5.7.4
 [5.7.3]: https://github.com/eburi/ha_addon_scheiber/compare/v5.7.2...v5.7.3

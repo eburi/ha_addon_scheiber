@@ -39,7 +39,7 @@ def main():
     )
 
     # Configuration options
-    parser.add_argument("--config", help="Path to scheiber.yaml config file")
+    parser.add_argument("--config", help="Path to scheiber-config.yaml config file")
     parser.add_argument("--state-file", help="Path to state persistence file")
     parser.add_argument("--data-dir", help="Data directory for state persistence")
 

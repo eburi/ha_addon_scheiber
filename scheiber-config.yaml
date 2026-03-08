@@ -1,5 +1,4 @@
 # Scheiber v6 Configuration
-# Converted from scheiber.yaml (v5 format)
 #
 # This file defines the devices on your CAN bus using the v6 format
 # Compatible with the new scheiber module and can-mqtt-bridge
