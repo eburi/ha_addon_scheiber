@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.2.13] - 2026-05-14
+
+### Fixed
+- Added `build_from` architecture mapping in add-on manifest so Home Assistant provides `BUILD_FROM` during Docker builds
+- Fixes add-on installation failure with `FROM $BUILD_FROM` resolving to a blank base image
+
 ## [6.2.12] - 2026-03-08
 
 ### Changed
@@ -569,7 +575,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.2.12...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.2.13...HEAD
+[6.2.13]: https://github.com/eburi/ha_addon_scheiber/compare/v6.2.12...v6.2.13
 [6.2.12]: https://github.com/eburi/ha_addon_scheiber/compare/v6.2.11...v6.2.12
 [5.7.5]: https://github.com/eburi/ha_addon_scheiber/compare/v5.7.4...v5.7.5
 [5.7.4]: https://github.com/eburi/ha_addon_scheiber/compare/v5.7.3...v5.7.4
