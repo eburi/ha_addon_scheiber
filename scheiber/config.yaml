@@ -1,6 +1,6 @@
 name: scheiber
 slug: scheiber
-version: "6.2.14"
+version: "6.2.15"
 description: >
   MQTT Bridge to connect Scheiber CAN devices to Home Assistant via MQTT.
 
@@ -8,11 +8,6 @@ arch:
   - amd64
   - armv7
   - aarch64
-
-build_from:
-  amd64: ghcr.io/home-assistant/amd64-base:3.19
-  armv7: ghcr.io/home-assistant/armv7-base:3.19
-  aarch64: ghcr.io/home-assistant/aarch64-base:3.19
 
 startup: services
 init: false
