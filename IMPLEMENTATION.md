@@ -621,17 +621,12 @@ can-mqtt-bridge \
 ```
 
 **Home Assistant Addon:**
-- Config option: `run_dev_version: true` enables new bridge
-- Config option: `run_dev_version: false` uses old mqtt_bridge.py (v5.3.6)
-- Seamless transition - no breaking changes for users
+- The add-on always runs `can-mqtt-bridge`.
+- The legacy bridge selector has been removed.
 
 **run.sh Logic:**
 ```bash
-if [ "${RUN_DEV_VERSION}" = "true" ]; then
-    exec python3 can-mqtt-bridge ...  # Version 6.0.0
-else
-    exec python3 mqtt_bridge.py ...   # Version 5.3.6
-fi
+exec python3 can-mqtt-bridge ...
 ```
 
 ### State Flow
@@ -661,32 +656,11 @@ fi
 6. **State Persistence**: Handled by scheiber system, not MQTT bridge
 7. **Unified Device**: All entities in Home Assistant belong to single device
 
-### Migration Path
-
-**Phase 1 (Current):**
-- Both bridges coexist in codebase
-- Users opt-in via `run_dev_version` flag
-- Default remains old bridge (v5.3.6)
-
-**Phase 2 (Future):**
-- After testing, flip default to new bridge
-- Old bridge remains available with `run_dev_version: false`
-
-**Phase 3 (Long-term):**
-- Remove old bridge code after stable period
-- New bridge becomes only option
-
 ### Configuration
 
-**Old Bridge (mqtt_bridge.py):**
-- Uses environment variables or command-line args
-- No scheiber.yaml config file
-- Device IDs hardcoded or discovered
-
-**New Bridge (can-mqtt-bridge):**
-- Requires `scheiber.yaml` config file (optional for auto-discovery)
+**Bridge (can-mqtt-bridge):**
+- Requires `scheiber-config.yaml` config file (optional for auto-discovery)
 - Clean YAML-based device configuration
-- Example: `scheiber.example.yaml` in repo root
+- Example: `scheiber-config.yaml` in repo root
 
 ---
-

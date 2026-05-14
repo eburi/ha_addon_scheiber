@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.2.16] - 2026-05-14
+
+### Removed
+- Removed the `run_dev_version` add-on option and the dead legacy bridge startup branch
+
 ## [6.2.15] - 2026-05-14
 
 ### Changed
@@ -586,7 +591,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.2.15...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.2.16...HEAD
+[6.2.16]: https://github.com/eburi/ha_addon_scheiber/compare/v6.2.15...v6.2.16
 [6.2.15]: https://github.com/eburi/ha_addon_scheiber/compare/v6.2.14...v6.2.15
 [6.2.14]: https://github.com/eburi/ha_addon_scheiber/compare/v6.2.13...v6.2.14
 [6.2.13]: https://github.com/eburi/ha_addon_scheiber/compare/v6.2.12...v6.2.13

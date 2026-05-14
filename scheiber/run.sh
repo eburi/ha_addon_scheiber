@@ -14,7 +14,6 @@ MQTT_TOPIC_PREFIX=$(bashio::config 'mqtt_topic_prefix')
 LOG_LEVEL=$(bashio::config 'log_level')
 DATA_DIR=$(bashio::config 'data_dir')
 CONFIG_FILE=$(bashio::config 'config_file')
-RUN_DEV_VERSION=$(bashio::config 'run_dev_version')
 
 bashio::log.info "---------------------------------------------------------------------------"
 bashio::log.info "Configuration Values:"
@@ -25,7 +24,6 @@ bashio::log.info "MQTT topic prefix: ${MQTT_TOPIC_PREFIX}"
 bashio::log.info "Log level: ${LOG_LEVEL}"
 bashio::log.info "Data directory: ${DATA_DIR}"   
 bashio::log.info "Configuration File: ${CONFIG_FILE}"
-bashio::log.info "Dev version: ${RUN_DEV_VERSION}"
 
 # Export variables for use in the python script
 export CAN_INTERFACE="${CAN_IFACE}"
@@ -104,29 +102,14 @@ fi
 bashio::log.info "---------------------------------------------------------------------------"
 bashio::log.info "Starting actual bridge..."
 
-# Check which version to run
-if [ "${RUN_DEV_VERSION}" = "true" ]; then
-    bashio::log.info "Running LEGACY mqtt_bridge.py (version 5.7.8 - archived)"
-    exec python3 archive/mqtt_bridge.py \
-         --mqtt-host "${MQTT_HOST}" \
-         --mqtt-port "${MQTT_PORT}" \
-         --mqtt-user "${MQTT_USER}" \
-         --mqtt-password "${MQTT_PASSWORD}" \
-         --mqtt-topic-prefix "${MQTT_TOPIC_PREFIX}" \
-         --log-level "${LOG_LEVEL}" \
-         --can-interface "${CAN_INTERFACE}" \
-         --data-dir "${DATA_DIR}" \
-         --config-file "${CONFIG_FILE}"
-else
-    bashio::log.info "Running can-mqtt-bridge (version 6.0.0)"
-    exec python3 can-mqtt-bridge \
-         --can-interface "${CAN_INTERFACE}" \
-         --mqtt-host "${MQTT_HOST}" \
-         --mqtt-port "${MQTT_PORT}" \
-         --mqtt-user "${MQTT_USER}" \
-         --mqtt-password "${MQTT_PASSWORD}" \
-         --mqtt-topic-prefix "${MQTT_TOPIC_PREFIX}" \
-         --log-level "${LOG_LEVEL}" \
-         --config "${CONFIG_FILE}" \
-         --data-dir "${DATA_DIR}"
-fi
+bashio::log.info "Running can-mqtt-bridge"
+exec python3 can-mqtt-bridge \
+     --can-interface "${CAN_INTERFACE}" \
+     --mqtt-host "${MQTT_HOST}" \
+     --mqtt-port "${MQTT_PORT}" \
+     --mqtt-user "${MQTT_USER}" \
+     --mqtt-password "${MQTT_PASSWORD}" \
+     --mqtt-topic-prefix "${MQTT_TOPIC_PREFIX}" \
+     --log-level "${LOG_LEVEL}" \
+     --config "${CONFIG_FILE}" \
+     --data-dir "${DATA_DIR}"

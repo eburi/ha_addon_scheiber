@@ -123,11 +123,11 @@ find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
 
 [tool.poe.tasks.run-bridge]
 help = "Run MQTT bridge with default settings"
-cmd = "python scheiber/src/mqtt_bridge.py --log-level info"
+cmd = "python scheiber/src/can-mqtt-bridge --can-interface can1 --mqtt-host localhost --log-level info"
 
 [tool.poe.tasks.run-bridge-debug]
 help = "Run MQTT bridge with debug logging"
-cmd = "python scheiber/src/mqtt_bridge.py --log-level debug"
+cmd = "python scheiber/src/can-mqtt-bridge --can-interface can1 --mqtt-host localhost --log-level debug"
 
 [tool.poe.tasks.canlistener]
 help = "Run CAN listener tool (usage: poe canlistener can1)"
