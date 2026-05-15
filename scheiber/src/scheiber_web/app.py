@@ -60,6 +60,30 @@ def create_app(
     app.config["RUNTIME_CONTROLLER"] = runtime_controller
     app.config["DISCOVERY_SERVICE"] = discovery_service
 
+    @app.before_request
+    def handle_options_preflight():
+        """Return early for OPTIONS preflights (Chrome Private Network Access)."""
+        if request.method == "OPTIONS":
+            return "", 204
+
+    @app.after_request
+    def add_private_network_access(response):
+        """Add headers required for Chrome's Private Network Access policy.
+
+        Chrome treats HTTP (non-secure) pages as 'public' context and .local
+        mDNS addresses as 'local' — public→local fetches are blocked unless the
+        server responds with Access-Control-Allow-Private-Network: true.
+        """
+        origin = request.headers.get("Origin", "*")
+        if request.method == "OPTIONS":
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = (
+                "Content-Type, Access-Control-Request-Private-Network"
+            )
+        response.headers["Access-Control-Allow-Private-Network"] = "true"
+        return response
+
     @app.get("/")
     def index():
         return render_template("index.html")
