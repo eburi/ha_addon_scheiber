@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.3.2] - 2026-05-15
+
+### Fixed
+- Fixed static asset paths under HA ingress: replaced the `before_request` hook (which ran after Flask's URL adapter was created) with a WSGI middleware that sets `SCRIPT_NAME` from `X-Ingress-Path` before the request context is pushed, so `url_for('static', ...)` generates correctly prefixed URLs
+
 ## [6.3.1] - 2026-05-15
 
 ### Fixed

@@ -20,6 +20,29 @@ from .discovery import Bloc9DiscoveryService
 from .runtime import BridgeRuntimeController, RuntimeSettings
 
 
+class _IngressPathMiddleware:
+    """WSGI middleware that reads HA's X-Ingress-Path header and sets SCRIPT_NAME.
+
+    Flask creates its URL adapter (used by url_for) when the request context is
+    pushed, before before_request hooks run.  SCRIPT_NAME must therefore be set
+    at the WSGI layer so that url_for('static', ...) generates correctly prefixed
+    URLs like /0289ae68_scheiber/static/styles.css instead of /static/styles.css.
+    """
+
+    def __init__(self, wsgi_app):
+        self._wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        ingress_path = environ.get("HTTP_X_INGRESS_PATH", "").rstrip("/")
+        if ingress_path:
+            environ["SCRIPT_NAME"] = ingress_path
+            # Strip the prefix from PATH_INFO if HA hasn't already done so.
+            path_info = environ.get("PATH_INFO", "")
+            if path_info.startswith(ingress_path):
+                environ["PATH_INFO"] = path_info[len(ingress_path) :] or "/"
+        return self._wsgi_app(environ, start_response)
+
+
 def create_app(
     settings: RuntimeSettings,
     runtime_controller: Optional[BridgeRuntimeController] = None,
@@ -28,6 +51,7 @@ def create_app(
     """Create the Scheiber web application."""
     app = Flask(__name__)
     app.logger.setLevel(getattr(logging, settings.log_level.upper(), logging.INFO))
+    app.wsgi_app = _IngressPathMiddleware(app.wsgi_app)
 
     runtime_controller = runtime_controller or BridgeRuntimeController(settings)
     discovery_service = discovery_service or Bloc9DiscoveryService(runtime_controller)
@@ -35,18 +59,6 @@ def create_app(
     app.config["SCHEIBER_SETTINGS"] = settings
     app.config["RUNTIME_CONTROLLER"] = runtime_controller
     app.config["DISCOVERY_SERVICE"] = discovery_service
-
-    @app.before_request
-    def set_ingress_script_name():
-        """Set SCRIPT_NAME from the X-Ingress-Path header injected by HA ingress.
-
-        Without this, url_for('static', ...) generates paths like /static/styles.css
-        which the browser resolves against the HA root, not the ingress prefix.
-        With SCRIPT_NAME set, Flask generates /0289ae68_scheiber/static/styles.css.
-        """
-        ingress_path = request.headers.get("X-Ingress-Path", "").rstrip("/")
-        if ingress_path:
-            request.environ["SCRIPT_NAME"] = ingress_path
 
     @app.get("/")
     def index():
