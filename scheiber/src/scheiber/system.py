@@ -4,16 +4,17 @@ High-level device manager for Scheiber CAN system.
 Manages device instances, routes CAN messages, coordinates state persistence.
 """
 
+import json
 import logging
 import threading
 import time
-import json
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
 import can
 
-from .can_bus import ScheiberCanBus
 from .base_device import ScheiberCanDevice
+from .can_bus import ScheiberCanBus
 
 
 class ScheiberSystem:
@@ -178,6 +179,16 @@ class ScheiberSystem:
             callback: Function called with statistics dict
         """
         self.can_bus.subscribe_to_stats(callback)
+
+    def subscribe_to_messages(self, callback: Callable[[can.Message], None]) -> None:
+        """Subscribe to raw CAN messages from the shared CAN runtime."""
+        self.can_bus.subscribe_to_messages(callback)
+
+    def unsubscribe_from_messages(
+        self, callback: Callable[[can.Message], None]
+    ) -> None:
+        """Unsubscribe from raw CAN messages."""
+        self.can_bus.unsubscribe_from_messages(callback)
 
     def _on_can_message(self, msg: can.Message) -> None:
         """

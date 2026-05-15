@@ -8,6 +8,11 @@ Experimental bridge for Scheiber CAN devices with MQTT integration.
 
 This Home Assistant add-on provides a bridge between Scheiber devices on a CAN bus and MQTT, enabling integration with Home Assistant through MQTT Discovery. It monitors CAN traffic, decodes device messages, and publishes state updates to MQTT.
 
+It now also includes a built-in **Scheiber setup web interface** exposed through Home Assistant ingress for:
+- editing `scheiber-config.yaml` with a Bloc9-focused form UI,
+- discovering Bloc9 candidates from live CAN traffic,
+- validating and applying configuration changes without hand-editing YAML.
+
 **Explicit entity configuration for safety and control:** You must define which outputs to expose via a `scheiber-config.yaml` configuration file placed in Home Assistant's `/config/` directory.
 
 **Device Structure (v4.0.0+):** All entities belong to a single unified "Scheiber" device:
@@ -26,6 +31,8 @@ This Home Assistant add-on provides a bridge between Scheiber devices on a CAN b
 ### Current Features
 
 - **CAN-MQTT Bridge**: Translates CAN messages to MQTT topics
+- **Ingress Web Setup UI**: Edit Bloc9 mappings and apply config changes from Home Assistant
+- **Bloc9 Discovery Mode**: Watch live CAN traffic for likely Bloc9 bus IDs and output groups
 - **Bloc9 Switch Support**: ON/OFF control and brightness (0-255) for 6-switch panels
 - **Explicit Entity Configuration**: Define which outputs to expose as lights or switches
 - **MQTT Discovery**: Automatic Home Assistant entity creation for configured outputs

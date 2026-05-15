@@ -16,7 +16,8 @@ authors = [
 dependencies = [
     "python-can==4.3.1",
     "paho-mqtt==2.1.0",
-    "PyYAML==6.0.1",
+    "PyYAML==6.0.3",
+    "Flask==3.1.0",
 ]
 
 [project.optional-dependencies]
@@ -48,7 +49,7 @@ skip_gitignore = true
 extend_skip = [".venv", "__pycache__"]
 
 [tool.pytest.ini_options]
-testpaths = ["scheiber/src/scheiber/tests", "scheiber/src/can_mqtt_bridge/tests"]
+testpaths = ["scheiber/src/scheiber/tests", "scheiber/src/can_mqtt_bridge/tests", "scheiber/src/scheiber_web/tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -73,12 +74,12 @@ cmd = "pip install pytest black isort poethepoet"
 [tool.poe.tasks.test]
 help = "Run all tests"
 cwd = "${POE_ROOT}"
-shell = "python -m pytest scheiber/src/scheiber/tests scheiber/src/can_mqtt_bridge/tests -v"
+shell = "python -m pytest scheiber/src/scheiber/tests scheiber/src/can_mqtt_bridge/tests scheiber/src/scheiber_web/tests -v"
 
 [tool.poe.tasks.test-coverage]
 help = "Run tests with coverage report"
 cwd = "${POE_ROOT}"
-shell = "python -m pytest scheiber/src/scheiber/tests scheiber/src/can_mqtt_bridge/tests -v --cov=scheiber/src --cov-report=term-missing"
+shell = "python -m pytest scheiber/src/scheiber/tests scheiber/src/can_mqtt_bridge/tests scheiber/src/scheiber_web/tests -v --cov=scheiber/src --cov-report=term-missing"
 
 [tool.poe.tasks.format]
 help = "Format code with black and isort"

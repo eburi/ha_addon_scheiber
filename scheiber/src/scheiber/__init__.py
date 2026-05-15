@@ -5,15 +5,15 @@ Public API for creating and managing Scheiber CAN devices.
 """
 
 import logging
-import yaml
 from pathlib import Path
 from typing import Optional
 
-from .can_bus import ScheiberCanBus
-from .system import ScheiberSystem
-from .bloc9 import Bloc9Device
 from .base_device import ScheiberCanDevice
+from .bloc9 import Bloc9Device
+from .can_bus import ScheiberCanBus
+from .config import load_runtime_config
 from .matchers import Matcher
+from .system import ScheiberSystem
 
 __version__ = "5.0.0"
 __all__ = ["create_scheiber_system", "ScheiberSystem", "ScheiberCanBus", "Bloc9Device"]
@@ -59,7 +59,7 @@ def create_scheiber_system(
     logger = logging.getLogger(__name__)
 
     # Parse configuration
-    config = _load_config(config_path, logger)
+    config = load_runtime_config(config_path)
 
     # Load persisted state BEFORE creating devices
     initial_state = _load_state(state_file, logger)
@@ -120,34 +120,6 @@ def _load_state(state_file: Optional[str], logger: logging.Logger) -> dict:
     except Exception as e:
         logger.error(f"Failed to load state file: {e} (starting fresh)")
         return {}
-
-
-def _load_config(config_path: Optional[str], logger: logging.Logger) -> dict:
-    """
-    Load configuration from YAML file.
-
-    Args:
-        config_path: Path to config file (None = use defaults)
-        logger: Logger instance
-
-    Returns:
-        Configuration dictionary
-    """
-    if not config_path:
-        logger.info("No config file provided, using auto-discovery mode")
-        return {"devices": []}
-
-    config_file = Path(config_path)
-    if not config_file.exists():
-        raise FileNotFoundError(f"Configuration file not found: {config_path}")
-
-    try:
-        with open(config_file, "r") as f:
-            config = yaml.safe_load(f)
-        logger.info(f"Loaded configuration from: {config_path}")
-        return config
-    except Exception as e:
-        raise ValueError(f"Failed to parse configuration: {e}")
 
 
 def _create_devices(

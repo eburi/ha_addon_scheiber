@@ -1,6 +1,6 @@
 name: scheiber
 slug: scheiber
-version: "6.2.16"
+version: "6.3.0"
 description: >
   MQTT Bridge to connect Scheiber CAN devices to Home Assistant via MQTT.
 
@@ -12,6 +12,10 @@ arch:
 startup: services
 init: false
 host_network: true
+ingress: true
+ingress_port: 8099
+panel_title: Scheiber Setup
+panel_icon: mdi:lightbulb-group
 
 privileged:
   - NET_ADMIN

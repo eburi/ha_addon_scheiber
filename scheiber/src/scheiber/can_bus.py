@@ -41,7 +41,8 @@ class ScheiberCanBus:
 
         self.bus: Optional[can.BusABC] = None
         self.notifier: Optional[can.Notifier] = None
-        self._message_callback: Optional[Callable[[can.Message], None]] = None
+        self._message_callbacks: List[Callable[[can.Message], None]] = []
+        self._message_lock = threading.Lock()
         self._running = False
 
         # Statistics tracking
@@ -103,7 +104,8 @@ class ScheiberCanBus:
         if self._running:
             raise RuntimeError("Already listening")
 
-        self._message_callback = on_message_callback
+        with self._message_lock:
+            self._message_callbacks = [on_message_callback]
 
         try:
             # Open CAN bus
@@ -130,6 +132,8 @@ class ScheiberCanBus:
     def stop(self) -> None:
         """Stop listening and close CAN bus."""
         self._running = False
+        with self._message_lock:
+            self._message_callbacks = []
 
         # Cancel statistics timer
         if self._stats_timer:
@@ -180,6 +184,20 @@ class ScheiberCanBus:
         if callback not in self._stats_observers:
             self._stats_observers.append(callback)
 
+    def subscribe_to_messages(self, callback: Callable[[can.Message], None]) -> None:
+        """Subscribe to raw CAN messages from the shared listener."""
+        with self._message_lock:
+            if callback not in self._message_callbacks:
+                self._message_callbacks.append(callback)
+
+    def unsubscribe_from_messages(
+        self, callback: Callable[[can.Message], None]
+    ) -> None:
+        """Unsubscribe from raw CAN messages."""
+        with self._message_lock:
+            if callback in self._message_callbacks:
+                self._message_callbacks.remove(callback)
+
     def unsubscribe_from_stats(
         self, callback: Callable[[Dict[str, Any]], None]
     ) -> None:
@@ -199,10 +217,13 @@ class ScheiberCanBus:
             self.stats["messages_received"] += 1
             self.stats["unique_ids"].add(msg.arbitration_id)
 
-        # Forward to user callback
-        if self._message_callback:
+        # Forward to subscribers
+        with self._message_lock:
+            callbacks = self._message_callbacks.copy()
+
+        for callback in callbacks:
             try:
-                self._message_callback(msg)
+                callback(msg)
             except Exception as e:
                 self.logger.error(f"Error in message callback: {e}", exc_info=True)
 

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.3.0] - 2026-05-15
+
+### Added
+- Added a built-in Home Assistant ingress web interface for Scheiber setup and configuration
+- Added a Bloc9 discovery mode that watches live CAN traffic for known state-update arbitration IDs and suggests candidate bus IDs
+- Added a structured config editor API and setup UI for creating and editing Bloc9 device mappings
+
+### Changed
+- The add-on now starts the web interface as the primary process and manages the MQTT bridge as a shared runtime behind it
+- Configuration loading now uses strict validation and canonical YAML serialization for `scheiber-config.yaml`
+
 ## [6.2.16] - 2026-05-14
 
 ### Removed

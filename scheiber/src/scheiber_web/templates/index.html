@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Scheiber Setup</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <div>
+          <h1>Scheiber setup</h1>
+          <p>Edit Bloc9 devices, discover panels on the CAN bus, and apply changes without leaving Home Assistant.</p>
+        </div>
+        <div class="hero-actions">
+          <button id="add-device-button" class="primary">Add Bloc9 device</button>
+          <button id="apply-button">Validate &amp; apply</button>
+        </div>
+      </header>
+
+      <section class="card">
+        <h2>System status</h2>
+        <div id="runtime-status" class="status-grid"></div>
+        <div id="config-status" class="status-grid"></div>
+        <div id="flash-message" class="flash-message hidden"></div>
+      </section>
+
+      <section class="layout">
+        <section class="card">
+          <div class="section-header">
+            <h2>Configured devices</h2>
+            <span id="device-count" class="pill">0 devices</span>
+          </div>
+          <div id="diagnostics" class="diagnostics"></div>
+          <div id="devices-list" class="device-list empty-state">No devices configured yet.</div>
+        </section>
+
+        <section class="card">
+          <div class="section-header">
+            <h2>Bloc9 discovery</h2>
+            <div class="inline-actions">
+              <button id="start-discovery-button" class="primary">Start discovery</button>
+              <button id="stop-discovery-button">Stop</button>
+            </div>
+          </div>
+          <p class="muted">Discovery is read-only. It looks for live Bloc9 state update frames and suggests bus IDs to add.</p>
+          <div id="discovery-status" class="status-grid"></div>
+          <div id="discovery-list" class="device-list empty-state">Discovery has not found any Bloc9 candidates yet.</div>
+        </section>
+      </section>
+
+      <section class="card hidden" id="editor-card">
+        <div class="section-header">
+          <h2 id="editor-title">Add Bloc9 device</h2>
+          <button id="cancel-edit-button" class="secondary">Cancel</button>
+        </div>
+        <form id="device-form">
+          <div class="form-grid">
+            <label>
+              <span>Bus ID</span>
+              <input type="number" min="0" max="31" id="device-bus-id" required>
+            </label>
+            <label>
+              <span>Name</span>
+              <input type="text" id="device-name" placeholder="Optional display name">
+            </label>
+            <label class="full-width">
+              <span>Description</span>
+              <input type="text" id="device-description" placeholder="Optional description">
+            </label>
+          </div>
+
+          <h3>Outputs</h3>
+          <div id="outputs-editor" class="outputs-grid"></div>
+
+          <div class="form-actions">
+            <button type="submit" class="primary">Save device</button>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+  </body>
+</html>

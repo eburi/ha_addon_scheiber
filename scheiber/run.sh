@@ -102,8 +102,8 @@ fi
 bashio::log.info "---------------------------------------------------------------------------"
 bashio::log.info "Starting actual bridge..."
 
-bashio::log.info "Running can-mqtt-bridge"
-exec python3 can-mqtt-bridge \
+bashio::log.info "Running Scheiber web interface"
+exec python3 -m scheiber_web \
      --can-interface "${CAN_INTERFACE}" \
      --mqtt-host "${MQTT_HOST}" \
      --mqtt-port "${MQTT_PORT}" \
@@ -112,4 +112,6 @@ exec python3 can-mqtt-bridge \
      --mqtt-topic-prefix "${MQTT_TOPIC_PREFIX}" \
      --log-level "${LOG_LEVEL}" \
      --config "${CONFIG_FILE}" \
-     --data-dir "${DATA_DIR}"
+     --data-dir "${DATA_DIR}" \
+     --host "0.0.0.0" \
+     --port 8099
