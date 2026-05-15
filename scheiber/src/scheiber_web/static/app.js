@@ -218,6 +218,12 @@ async function loadConfig() {
 function renderDiscovery() {
   const container = document.getElementById("discovery-list");
   const status = document.getElementById("discovery-status");
+  const toggleBtn = document.getElementById("discovery-toggle-button");
+  const isRunning = state.discovery.status === "running";
+
+  toggleBtn.textContent = isRunning ? "Stop discovery" : "Start discovery";
+  toggleBtn.className = isRunning ? "secondary" : "primary";
+
   status.innerHTML = `
     <div class="status-item"><span class="label">State</span><span class="value">${state.discovery.status || "idle"}</span></div>
     <div class="status-item"><span class="label">State updates</span><span class="value">${state.discovery.message_counts?.state_update || 0}</span></div>
@@ -255,27 +261,23 @@ async function refreshDiscovery() {
   renderDiscovery();
 }
 
-async function startDiscovery() {
-  const response = await fetch("./api/discovery/start", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ timeout_seconds: 60 }),
-  });
-  const payload = await response.json();
-  if (!response.ok) {
-    showMessage(payload.error || "Failed to start discovery", "error");
-    return;
+async function toggleDiscovery() {
+  if (state.discovery.status === "running") {
+    const response = await fetch("./api/discovery/stop", { method: "POST" });
+    state.discovery = await response.json();
+    renderDiscovery();
+    showMessage("Bloc9 discovery stopped", "success");
+  } else {
+    const response = await fetch("./api/discovery/start", { method: "POST" });
+    const payload = await response.json();
+    if (!response.ok) {
+      showMessage(payload.error || "Failed to start discovery", "error");
+      return;
+    }
+    state.discovery = payload;
+    renderDiscovery();
+    showMessage("Bloc9 discovery started", "success");
   }
-  state.discovery = payload;
-  renderDiscovery();
-  showMessage("Bloc9 discovery started", "success");
-}
-
-async function stopDiscovery() {
-  const response = await fetch("./api/discovery/stop", { method: "POST" });
-  state.discovery = await response.json();
-  renderDiscovery();
-  showMessage("Bloc9 discovery stopped", "success");
 }
 
 async function validateAndApply() {
@@ -338,8 +340,7 @@ document.addEventListener("click", (event) => {
 document.getElementById("add-device-button").addEventListener("click", () => openEditor());
 document.getElementById("cancel-edit-button").addEventListener("click", closeEditor);
 document.getElementById("apply-button").addEventListener("click", validateAndApply);
-document.getElementById("start-discovery-button").addEventListener("click", startDiscovery);
-document.getElementById("stop-discovery-button").addEventListener("click", stopDiscovery);
+document.getElementById("discovery-toggle-button").addEventListener("click", toggleDiscovery);
 
 document.getElementById("device-form").addEventListener("submit", async (event) => {
   event.preventDefault();

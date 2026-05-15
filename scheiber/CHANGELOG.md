@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.3.4] - 2026-05-15
+
+### Changed
+- Discovery now runs indefinitely until explicitly stopped (no timeout)
+- Replaced Start/Stop discovery buttons with a single toggle button that shows "Start discovery" or "Stop discovery" based on the current state
+
 ## [6.3.3] - 2026-05-15
 
 ### Changed

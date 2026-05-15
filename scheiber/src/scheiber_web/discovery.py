@@ -14,15 +14,14 @@ from scheiber.discovery import classify_bloc9_message
 class Bloc9DiscoveryService:
     """Observe raw CAN traffic and aggregate Bloc9 discovery candidates."""
 
-    def __init__(self, runtime_controller, default_timeout_seconds: int = 60):
+    def __init__(self, runtime_controller):
         self.runtime_controller = runtime_controller
-        self.default_timeout_seconds = default_timeout_seconds
         self._lock = threading.RLock()
         self._active = False
         self._session: Optional[Dict[str, Any]] = None
 
-    def start(self, timeout_seconds: Optional[int] = None) -> Dict[str, Any]:
-        """Start or reset discovery."""
+    def start(self) -> Dict[str, Any]:
+        """Start or reset discovery. Runs until stop() is called."""
         if not self.runtime_controller.has_live_runtime():
             raise RuntimeError("The bridge must be running before discovery can start")
 
@@ -30,14 +29,11 @@ class Bloc9DiscoveryService:
             if self._active:
                 self.runtime_controller.unsubscribe_from_messages(self._handle_message)
 
-            timeout = int(timeout_seconds or self.default_timeout_seconds)
             now = time.time()
             self._session = {
                 "status": "running",
                 "started_at": now,
                 "last_message_at": None,
-                "timeout_seconds": timeout,
-                "expires_at": now + timeout,
                 "message_counts": {"state_update": 0, "heartbeat": 0},
                 "candidates": {},
             }
@@ -60,13 +56,6 @@ class Bloc9DiscoveryService:
     def snapshot(self) -> Dict[str, Any]:
         """Return a JSON-serializable discovery snapshot."""
         with self._lock:
-            if (
-                self._active
-                and self._session
-                and time.time() >= self._session["expires_at"]
-            ):
-                self.stop()
-
             if self._session is None:
                 return self._empty_snapshot("idle")
 
@@ -92,7 +81,6 @@ class Bloc9DiscoveryService:
                 "status": self._session["status"],
                 "started_at": self._session["started_at"],
                 "last_message_at": self._session["last_message_at"],
-                "timeout_seconds": self._session["timeout_seconds"],
                 "message_counts": self._session["message_counts"],
                 "candidates": candidates,
             }
@@ -169,7 +157,6 @@ class Bloc9DiscoveryService:
             "status": status,
             "started_at": None,
             "last_message_at": None,
-            "timeout_seconds": self.default_timeout_seconds,
             "message_counts": {"state_update": 0, "heartbeat": 0},
             "candidates": [],
         }

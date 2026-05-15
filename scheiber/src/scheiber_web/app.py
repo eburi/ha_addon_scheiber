@@ -180,10 +180,8 @@ def create_app(
 
     @app.post("/api/discovery/start")
     def start_discovery():
-        payload = request.get_json(silent=True) or {}
-        timeout_seconds = payload.get("timeout_seconds")
         try:
-            snapshot = discovery_service.start(timeout_seconds=timeout_seconds)
+            snapshot = discovery_service.start()
         except RuntimeError as exc:
             return jsonify({"error": str(exc), "code": "runtime_not_running"}), 409
         return jsonify(snapshot)
