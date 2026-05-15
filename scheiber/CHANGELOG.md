@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.3.1] - 2026-05-15
+
+### Fixed
+- Fixed static assets (CSS, JS) returning 404 under Home Assistant ingress by reading the `X-Ingress-Path` header and setting Flask's `SCRIPT_NAME` accordingly, so `url_for('static', ...)` generates correctly prefixed URLs
+
 ## [6.3.0] - 2026-05-15
 
 ### Added

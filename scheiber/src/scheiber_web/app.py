@@ -36,6 +36,18 @@ def create_app(
     app.config["RUNTIME_CONTROLLER"] = runtime_controller
     app.config["DISCOVERY_SERVICE"] = discovery_service
 
+    @app.before_request
+    def set_ingress_script_name():
+        """Set SCRIPT_NAME from the X-Ingress-Path header injected by HA ingress.
+
+        Without this, url_for('static', ...) generates paths like /static/styles.css
+        which the browser resolves against the HA root, not the ingress prefix.
+        With SCRIPT_NAME set, Flask generates /0289ae68_scheiber/static/styles.css.
+        """
+        ingress_path = request.headers.get("X-Ingress-Path", "").rstrip("/")
+        if ingress_path:
+            request.environ["SCRIPT_NAME"] = ingress_path
+
     @app.get("/")
     def index():
         return render_template("index.html")
