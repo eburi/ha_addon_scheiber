@@ -57,6 +57,7 @@ Important Bloc9 protocol details:
 ## Development workflow
 
 - Prefer small, focused changes that preserve layer boundaries.
+- Run Python commands inside the repository virtualenv (`scheiber/src/.venv`); activate it first or invoke that interpreter directly instead of the system Python.
 - Use the existing Poe tasks from `pyproject.toml` when available:
   - `poe test`
   - `poe lint`
