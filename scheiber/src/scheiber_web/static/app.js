@@ -241,6 +241,7 @@ function renderDiscovery() {
           </div>
           <button data-action="promote-candidate" data-bus-id="${candidate.bus_id}">Use as device</button>
         </div>
+        <div class="muted">Bus ID: <strong>${candidate.bus_id}</strong></div>
         <div class="muted">Groups seen: ${candidate.groups_seen.join(", ") || "heartbeat only"}</div>
         <div class="muted">Arbitration IDs: ${candidate.sample_arbitration_ids.join(", ")}</div>
       </article>

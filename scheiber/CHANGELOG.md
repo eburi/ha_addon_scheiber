@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.3.3] - 2026-05-15
+
+### Changed
+- Discovery UI now shows an explicit **Bus ID** label for each discovered Bloc9 candidate, extracted from the arbitration ID low byte
+
 ## [6.3.2] - 2026-05-15
 
 ### Fixed
