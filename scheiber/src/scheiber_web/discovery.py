@@ -60,12 +60,18 @@ class Bloc9DiscoveryService:
                 return self._empty_snapshot("idle")
 
             candidates = []
-            for bus_id, candidate in sorted(self._session["candidates"].items()):
+            for _candidate_key, candidate in sorted(
+                self._session["candidates"].items(),
+                key=lambda item: (item[1]["bus_id"], item[1]["segment_suffix"]),
+            ):
                 groups_seen = sorted(candidate["groups_seen"])
                 confidence = self._build_confidence(candidate)
                 candidates.append(
                     {
-                        "bus_id": bus_id,
+                        "candidate_key": candidate["candidate_key"],
+                        "bus_id": candidate["bus_id"],
+                        "segment_suffix": candidate["segment_suffix"],
+                        "is_segmented": candidate["segment_suffix"] != 0,
                         "first_seen_at": candidate["first_seen_at"],
                         "last_seen_at": candidate["last_seen_at"],
                         "groups_seen": groups_seen,
@@ -100,10 +106,13 @@ class Bloc9DiscoveryService:
             kind = observation["kind"]
             self._session["message_counts"][kind] += 1
 
-            bus_id = observation["bus_id"]
+            candidate_key = observation["candidate_key"]
             candidate = self._session["candidates"].setdefault(
-                bus_id,
+                candidate_key,
                 {
+                    "candidate_key": candidate_key,
+                    "bus_id": observation["bus_id"],
+                    "segment_suffix": observation["segment_suffix"],
                     "first_seen_at": timestamp,
                     "last_seen_at": timestamp,
                     "groups_seen": set(),

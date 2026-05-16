@@ -9,6 +9,7 @@ class FakeRuntimeController:
         self.fail_reload = fail_reload
         self.reload_calls = 0
         self.running = True
+        self.sent_commands = []
 
     def get_status(self):
         return {
@@ -38,6 +39,20 @@ class FakeRuntimeController:
 
     def unsubscribe_from_messages(self, _callback):
         return None
+
+    def send_bloc9_command(
+        self, bus_id, switch_nr, on, brightness=None, segment_suffix=0
+    ):
+        self.sent_commands.append(
+            {
+                "bus_id": bus_id,
+                "switch_nr": switch_nr,
+                "on": on,
+                "brightness": brightness,
+                "segment_suffix": segment_suffix,
+            }
+        )
+        return 0x02360600 | (0x80 | (bus_id << 3) | segment_suffix)
 
 
 class FakeDiscoveryService:
@@ -162,3 +177,31 @@ def test_discovery_start_returns_conflict_when_runtime_is_unavailable(tmp_path):
 
     assert response.status_code == 409
     assert response.get_json()["code"] == "runtime_not_running"
+
+
+def test_discovery_control_accepts_segment_suffix(tmp_path):
+    runtime = FakeRuntimeController()
+    client, _config_path = create_test_client(tmp_path, runtime_controller=runtime)
+
+    response = client.post(
+        "/api/discovery/control",
+        json={
+            "bus_id": 3,
+            "segment_suffix": 2,
+            "switch_nr": 0,
+            "on": True,
+            "brightness": 255,
+        },
+    )
+
+    assert response.status_code == 200
+    assert runtime.sent_commands == [
+        {
+            "bus_id": 3,
+            "switch_nr": 0,
+            "on": True,
+            "brightness": 255,
+            "segment_suffix": 2,
+        }
+    ]
+    assert response.get_json()["can_id"] == "0x0236069A"

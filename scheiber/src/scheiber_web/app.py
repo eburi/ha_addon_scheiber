@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from flask import Flask, jsonify, render_template, request, abort
+from flask import Flask, abort, jsonify, render_template, request
 
 from scheiber.config import (
     ConfigRevisionConflictError,
@@ -222,12 +222,15 @@ def create_app(
         """Send a live CAN command to a Bloc9 output for testing purposes."""
         if not runtime_controller.has_live_runtime():
             return (
-                jsonify({"error": "Bridge is not running", "code": "runtime_not_running"}),
+                jsonify(
+                    {"error": "Bridge is not running", "code": "runtime_not_running"}
+                ),
                 409,
             )
 
         payload = request.get_json(silent=True) or {}
         bus_id = payload.get("bus_id")
+        segment_suffix = payload.get("segment_suffix", 0)
         switch_nr = payload.get("switch_nr")
         on = payload.get("on", False)
         brightness = payload.get("brightness")
@@ -236,18 +239,29 @@ def create_app(
             return jsonify({"error": "bus_id and switch_nr are required"}), 400
 
         try:
-            runtime_controller.send_bloc9_command(
+            can_id = runtime_controller.send_bloc9_command(
                 int(bus_id),
                 int(switch_nr),
                 bool(on),
                 int(brightness) if brightness is not None else None,
+                int(segment_suffix),
             )
         except RuntimeError as exc:
             return jsonify({"error": str(exc), "code": "runtime_not_running"}), 409
+        except ValueError as exc:
+            return jsonify({"error": str(exc), "code": "invalid_request"}), 400
         except Exception as exc:
             return jsonify({"error": str(exc), "code": "send_failed"}), 500
 
-        return jsonify({"sent": True, "bus_id": bus_id, "switch_nr": switch_nr})
+        return jsonify(
+            {
+                "sent": True,
+                "bus_id": int(bus_id),
+                "segment_suffix": int(segment_suffix),
+                "switch_nr": int(switch_nr),
+                "can_id": f"0x{can_id:08X}",
+            }
+        )
 
     @app.get("/inspect")
     def inspect_page():
@@ -261,7 +275,9 @@ def create_app(
     def start_inspect():
         if not runtime_controller.has_live_runtime():
             return (
-                jsonify({"error": "Bridge is not running", "code": "runtime_not_running"}),
+                jsonify(
+                    {"error": "Bridge is not running", "code": "runtime_not_running"}
+                ),
                 409,
             )
         return jsonify(inspector.start())

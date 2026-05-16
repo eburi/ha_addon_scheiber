@@ -10,6 +10,20 @@ const state = {
 
 const outputs = ["s1", "s2", "s3", "s4", "s5", "s6"];
 
+function candidateLabel(candidate) {
+  if ((candidate.segment_suffix || 0) === 0) {
+    return `Bloc9 #${candidate.bus_id} (local/native)`;
+  }
+  return `Bloc9 #${candidate.bus_id} (suffix ${candidate.segment_suffix})`;
+}
+
+function candidateRouteDescription(candidate) {
+  if ((candidate.segment_suffix || 0) === 0) {
+    return "Native local-bus arbitration IDs";
+  }
+  return `Forwarded/segmented arbitration IDs using low-bit suffix ${candidate.segment_suffix}`;
+}
+
 function blankOutput() {
   return {
     enabled: false,
@@ -217,8 +231,8 @@ async function loadConfig() {
   renderDevices();
 }
 
-function getControlState(busId) {
-  const key = String(busId);
+function getControlState(candidateKey) {
+  const key = String(candidateKey);
   if (!state.controlState[key]) {
     state.controlState[key] = {};
     for (const name of outputs) {
@@ -228,8 +242,11 @@ function getControlState(busId) {
   return state.controlState[key];
 }
 
-function renderOutputControls(busId) {
-  const ctrl = getControlState(busId);
+function renderOutputControls(candidate) {
+  const candidateKey = String(candidate.candidate_key);
+  const busId = Number(candidate.bus_id);
+  const segmentSuffix = Number(candidate.segment_suffix || 0);
+  const ctrl = getControlState(candidateKey);
   const rows = outputs
     .map((name, switchNr) => {
       const s = ctrl[name];
@@ -245,19 +262,19 @@ function renderOutputControls(busId) {
         const dimControls =
           s.role === "light"
             ? `<input type="range" class="brightness-slider" min="0" max="255" value="${s.brightness}"
-                data-action="set-brightness" data-bus-id="${busId}" data-output="${name}">
+                data-action="set-brightness" data-candidate-key="${candidateKey}" data-output="${name}">
                <span class="brightness-value">${s.brightness}</span>`
             : "";
         controlWidget = `
-          <button data-action="send-control" data-bus-id="${busId}" data-switch-nr="${switchNr}" data-on="1" class="primary">On</button>
-          <button data-action="send-control" data-bus-id="${busId}" data-switch-nr="${switchNr}" data-on="0">Off</button>
+          <button data-action="send-control" data-bus-id="${busId}" data-segment-suffix="${segmentSuffix}" data-candidate-key="${candidateKey}" data-switch-nr="${switchNr}" data-on="1" class="primary">On</button>
+          <button data-action="send-control" data-bus-id="${busId}" data-segment-suffix="${segmentSuffix}" data-candidate-key="${candidateKey}" data-switch-nr="${switchNr}" data-on="0">Off</button>
           ${dimControls}`;
       }
 
       return `
         <div class="output-control-row">
           <span class="output-label">${name.toUpperCase()}</span>
-          <select data-action="set-output-role" data-bus-id="${busId}" data-output="${name}">${roleOptions}</select>
+          <select data-action="set-output-role" data-candidate-key="${candidateKey}" data-output="${name}">${roleOptions}</select>
           <div class="control-widget">${controlWidget}</div>
         </div>`;
     })
@@ -265,21 +282,23 @@ function renderOutputControls(busId) {
 
   return `
     <div class="output-controls">
-      <div class="control-hint">Live test — commands are sent to the CAN bus but not saved.</div>
+      <div class="control-hint">Live test — commands are sent with bus ID ${busId} and suffix ${segmentSuffix}; nothing is saved.</div>
       ${rows}
     </div>`;
 }
 
-async function sendControl(busId, switchNr, on, brightness) {
+async function sendControl(busId, switchNr, on, brightness, segmentSuffix) {
   const response = await fetch("./api/discovery/control", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ bus_id: busId, switch_nr: switchNr, on, brightness }),
+    body: JSON.stringify({ bus_id: busId, segment_suffix: segmentSuffix, switch_nr: switchNr, on, brightness }),
   });
+  const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
     showMessage(payload.error || "Failed to send CAN command", "error");
+    return;
   }
+  showMessage(`Sent ${payload.can_id || "CAN command"} to Bloc9 #${payload.bus_id} suffix ${payload.segment_suffix}`, "success");
 }
 
 function renderDiscovery() {
@@ -306,25 +325,29 @@ function renderDiscovery() {
   container.className = "device-list";
   container.innerHTML = state.discovery.candidates
     .map((candidate) => {
-      const busId = String(candidate.bus_id);
-      const expanded = !!state.expandedCandidates[busId];
+      const candidateKey = String(candidate.candidate_key);
+      const expanded = !!state.expandedCandidates[candidateKey];
       const expandLabel = expanded ? "▲ Hide controls" : "▼ Test outputs";
+      const canPromote = (candidate.segment_suffix || 0) === 0;
       return `
         <article class="discovery-card">
           <div class="device-card-header">
             <div>
-              <h3>Bloc9 candidate #${candidate.bus_id}</h3>
+              <h3>${candidateLabel(candidate)}</h3>
               <div class="muted">Confidence: ${candidate.confidence.level} (${candidate.confidence.score})</div>
             </div>
             <div class="inline-actions">
-              <button data-action="toggle-expand" data-bus-id="${busId}">${expandLabel}</button>
-              <button data-action="promote-candidate" data-bus-id="${candidate.bus_id}">Use as device</button>
+              <button data-action="toggle-expand" data-candidate-key="${candidateKey}">${expandLabel}</button>
+              ${canPromote
+                ? `<button data-action="promote-candidate" data-bus-id="${candidate.bus_id}">Use as device</button>`
+                : `<button disabled title="Forwarded/segmented candidates are not writable in saved config yet">Use as device</button>`}
             </div>
           </div>
           <div class="muted">Bus ID: <strong>${candidate.bus_id}</strong></div>
+          <div class="muted">Route: ${candidateRouteDescription(candidate)}</div>
           <div class="muted">Groups seen: ${candidate.groups_seen.join(", ") || "heartbeat only"}</div>
           <div class="muted">Arbitration IDs: ${candidate.sample_arbitration_ids.join(", ")}</div>
-          ${expanded ? renderOutputControls(busId) : ""}
+          ${expanded ? renderOutputControls(candidate) : ""}
         </article>`;
     })
     .join("");
@@ -412,19 +435,21 @@ document.addEventListener("click", async (event) => {
   }
 
   if (action === "toggle-expand") {
-    const busId = event.target.dataset.busId;
-    state.expandedCandidates[busId] = !state.expandedCandidates[busId];
+    const candidateKey = event.target.dataset.candidateKey;
+    state.expandedCandidates[candidateKey] = !state.expandedCandidates[candidateKey];
     renderDiscovery();
   }
 
   if (action === "send-control") {
     const busId = Number(event.target.dataset.busId);
+    const segmentSuffix = Number(event.target.dataset.segmentSuffix || 0);
+    const candidateKey = event.target.dataset.candidateKey;
     const switchNr = Number(event.target.dataset.switchNr);
     const on = event.target.dataset.on === "1";
     const output = outputs[switchNr];
-    const ctrl = getControlState(String(busId));
+    const ctrl = getControlState(candidateKey);
     const brightness = on && ctrl[output]?.role === "light" ? ctrl[output].brightness : null;
-    await sendControl(busId, switchNr, on, brightness);
+    await sendControl(busId, switchNr, on, brightness, segmentSuffix);
   }
 });
 
@@ -432,9 +457,9 @@ document.getElementById("add-device-button").addEventListener("click", () => ope
 
 document.addEventListener("change", (event) => {
   if (event.target.dataset.action === "set-output-role") {
-    const busId = event.target.dataset.busId;
+    const candidateKey = event.target.dataset.candidateKey;
     const output = event.target.dataset.output;
-    const ctrl = getControlState(busId);
+    const ctrl = getControlState(candidateKey);
     ctrl[output].role = event.target.value;
     renderDiscovery();
   }
@@ -442,10 +467,10 @@ document.addEventListener("change", (event) => {
 
 document.addEventListener("input", (event) => {
   if (event.target.dataset.action === "set-brightness") {
-    const busId = event.target.dataset.busId;
+    const candidateKey = event.target.dataset.candidateKey;
     const output = event.target.dataset.output;
     const value = Number(event.target.value);
-    const ctrl = getControlState(busId);
+    const ctrl = getControlState(candidateKey);
     ctrl[output].brightness = value;
     const label = event.target.closest(".output-control-row")?.querySelector(".brightness-value");
     if (label) label.textContent = value;

@@ -12,6 +12,8 @@ from typing import Callable, List, Optional
 import can
 from can_mqtt_bridge import MQTTBridge
 
+from scheiber.discovery import build_bloc9_address_byte
+
 
 @dataclass
 class RuntimeSettings:
@@ -133,11 +135,12 @@ class BridgeRuntimeController:
         switch_nr: int,
         on: bool,
         brightness: Optional[int] = None,
-    ) -> None:
+        segment_suffix: int = 0,
+    ) -> int:
         """Send a CAN command to a Bloc9 output for live testing via the web UI.
 
         Uses the same protocol as Bloc9Device._send_switch_command:
-        - can_id = 0x02360600 | ((bus_id << 3) | 0x80)
+        - can_id = 0x02360600 | (0x80 | (bus_id << 3) | segment_suffix)
         - data = [switch_nr, mode, 0x00, brightness_byte]
         - mode: 0x00=OFF, 0x01=ON (full), 0x11=PWM dim
         - switch_nr is 0-indexed (S1=0 … S6=5)
@@ -145,8 +148,14 @@ class BridgeRuntimeController:
         with self._lock:
             if self._bridge is None:
                 raise RuntimeError("Bridge is not running")
+            if self.settings.read_only:
+                raise RuntimeError("Bridge is running in read-only mode")
+            if not 0 <= switch_nr <= 5:
+                raise ValueError("switch_nr must be between 0 and 5")
+            if brightness is not None and not 0 <= brightness <= 255:
+                raise ValueError("brightness must be between 0 and 255")
 
-            can_id = 0x02360600 | ((bus_id << 3) | 0x80)
+            can_id = 0x02360600 | build_bloc9_address_byte(bus_id, segment_suffix)
 
             if not on or (brightness is not None and brightness <= 2):
                 mode = 0x00
@@ -160,6 +169,7 @@ class BridgeRuntimeController:
 
             data = bytes([switch_nr, mode, 0x00, brightness_byte])
             self._bridge.system.can_bus.send_message(can_id, data)
+            return can_id
 
     def has_live_runtime(self) -> bool:
         """Return whether the bridge is active."""

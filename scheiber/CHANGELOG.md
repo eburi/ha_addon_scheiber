@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.4.5] - 2026-05-16
+
+### Added
+- Discovery now exposes a **segment suffix** for Bloc9 candidates when the arbitration ID uses non-zero low bits, so forwarded or bridged targets can be distinguished from native local-bus devices during setup
+
+### Changed
+- The setup UI labels native vs suffix-routed Bloc9 candidates explicitly and sends live test commands with the same suffix bits seen in discovery traffic
+- Forwarded or suffix-routed discovery candidates remain testable in the UI but are not yet promotable into saved config, avoiding misleading single-bus configuration entries
+
+### Fixed
+- Bloc9 discovery and live test control now understand remote status frames such as `0x0216069A`, preserving the normal payload decode while treating the low 3 arbitration-ID bits as a routing suffix
+- Live discovery keeps local and routed variants of the same Bloc9 bus ID separate instead of collapsing them into one candidate
+
 ## [6.4.4] - 2026-05-16
 
 ### Added
