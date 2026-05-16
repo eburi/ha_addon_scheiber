@@ -1,5 +1,6 @@
 const state = {
   status: "stopped",
+  canInterface: "can0",
   entries: [],
   selectedId: null,        // hex string like "0x023606C0"
   selectedIdInt: null,     // integer
@@ -275,6 +276,7 @@ async function fetchSnapshot() {
     if (!resp.ok) return;
     const data = await resp.json();
     state.status = data.status;
+    state.canInterface = data.can_interface || "can0";
     state.entries = data.entries || [];
     state.startedAt = data.started_at;
     updateStatusBar(data);
@@ -319,11 +321,15 @@ async function startCapture() {
       return;
     }
     state.status = "running";
+    state.canInterface = payload.can_interface || "can0";
     state.entries = payload.entries || [];
     state.startedAt = payload.started_at;
     updateStatusBar(payload);
     renderTable();
     startPolling();
+    if (state.selectedIdInt !== null && !state.detailInterval) {
+      state.detailInterval = setInterval(fetchDetail, 1000);
+    }
   } catch (err) {
     const el = document.getElementById("inspect-error-msg");
     el.textContent = err.message || "Network error";
@@ -348,9 +354,37 @@ async function stopCapture() {
 }
 
 async function clearCapture() {
-  closeDetail();
+  const savedId = state.selectedIdInt;
   await stopCapture();
   await startCapture();
+  // Re-open detail for same arb ID if one was selected — history is now empty
+  if (savedId !== null) {
+    state.selectedIdInt = savedId;
+    document.getElementById("inspect-detail-card").classList.remove("hidden");
+    fetchDetail();
+  }
+}
+
+function downloadHistory() {
+  if (!state.detail || !state.detail.history?.length) return;
+
+  const iface = state.canInterface;
+  // Candump log format: (timestamp.ffffff) interface ARBID#HEXDATA
+  // Example: (1716890400.123456) can0 021A0688#6B00110100000101
+  const arbHex = state.detail.arbitration_id.replace(/^0x/i, "").toUpperCase();
+  const lines = state.detail.history.map((h) => {
+    const ts = h.timestamp.toFixed(6);
+    const dataHex = (h.data || []).map((b) => b.toString(16).padStart(2, "0").toUpperCase()).join("");
+    return `(${ts}) ${iface} ${arbHex}#${dataHex}`;
+  });
+
+  const blob = new Blob([lines.join("\n") + "\n"], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `candump_${arbHex}.log`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // -----------------------------------------------------------------------
@@ -399,6 +433,7 @@ document.getElementById("inspect-detail-close").addEventListener("click", () => 
   closeDetail();
   renderTable();
 });
+document.getElementById("inspect-detail-download").addEventListener("click", downloadHistory);
 
 // -----------------------------------------------------------------------
 // Init: load current snapshot (may already be running)
@@ -410,6 +445,7 @@ document.getElementById("inspect-detail-close").addEventListener("click", () => 
     if (resp.ok) {
       const data = await resp.json();
       state.status = data.status;
+      state.canInterface = data.can_interface || "can0";
       state.entries = data.entries || [];
       state.startedAt = data.started_at;
       updateStatusBar(data);

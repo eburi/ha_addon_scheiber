@@ -56,6 +56,10 @@ class CanInspector:
         # keyed by int arbitration_id
         self._table: Dict[int, Dict[str, Any]] = {}
 
+    @property
+    def _can_interface(self) -> str:
+        return self.runtime_controller.settings.can_interface
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -109,6 +113,7 @@ class CanInspector:
                 )
             return {
                 "status": "running" if self._active else "stopped",
+                "can_interface": self._can_interface,
                 "started_at": self._started_at,
                 "last_message_at": self._last_message_at,
                 "total_messages": self._total_messages,

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.4.4] - 2026-05-16
+
+### Added
+- **Download history**: "⬇ Download" button in the message detail panel exports the history as a candump log file (`candump_<ARBID>.log`), format `(timestamp.ffffff) <interface> <ARBID>#<HEXDATA>`, ready for offline analysis
+
+### Changed
+- Clear button now keeps the detail panel open for the selected arbitration ID; history is cleared but the panel stays visible so the user can immediately see new traffic for that ID
+- Inspector snapshot API now includes `can_interface` field (used as the channel name in downloaded candump logs)
+
 ## [6.4.3] - 2026-05-16
 
 ### Fixed
