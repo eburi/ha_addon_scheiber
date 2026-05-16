@@ -4,6 +4,8 @@ const state = {
   editingIndex: null,
   diagnostics: { errors: [], warnings: [] },
   discovery: { status: "idle", candidates: [] },
+  expandedCandidates: {},
+  controlState: {},
 };
 
 const outputs = ["s1", "s2", "s3", "s4", "s5", "s6"];
@@ -215,10 +217,72 @@ async function loadConfig() {
   renderDevices();
 }
 
+function getControlState(busId) {
+  const key = String(busId);
+  if (!state.controlState[key]) {
+    state.controlState[key] = {};
+    for (const name of outputs) {
+      state.controlState[key][name] = { role: "none", brightness: 128 };
+    }
+  }
+  return state.controlState[key];
+}
+
+function renderOutputControls(busId) {
+  const ctrl = getControlState(busId);
+  const rows = outputs
+    .map((name, switchNr) => {
+      const s = ctrl[name];
+      const roleOptions = ["none", "switch", "light"]
+        .map(
+          (r) =>
+            `<option value="${r}" ${s.role === r ? "selected" : ""}>${r === "none" ? "—" : r.charAt(0).toUpperCase() + r.slice(1)}</option>`
+        )
+        .join("");
+
+      let controlWidget = "";
+      if (s.role !== "none") {
+        const dimControls =
+          s.role === "light"
+            ? `<input type="range" class="brightness-slider" min="0" max="255" value="${s.brightness}"
+                data-action="set-brightness" data-bus-id="${busId}" data-output="${name}">
+               <span class="brightness-value">${s.brightness}</span>`
+            : "";
+        controlWidget = `
+          <button data-action="send-control" data-bus-id="${busId}" data-switch-nr="${switchNr}" data-on="1" class="primary">On</button>
+          <button data-action="send-control" data-bus-id="${busId}" data-switch-nr="${switchNr}" data-on="0">Off</button>
+          ${dimControls}`;
+      }
+
+      return `
+        <div class="output-control-row">
+          <span class="output-label">${name.toUpperCase()}</span>
+          <select data-action="set-output-role" data-bus-id="${busId}" data-output="${name}">${roleOptions}</select>
+          <div class="control-widget">${controlWidget}</div>
+        </div>`;
+    })
+    .join("");
+
+  return `
+    <div class="output-controls">
+      <div class="control-hint">Live test — commands are sent to the CAN bus but not saved.</div>
+      ${rows}
+    </div>`;
+}
+
+async function sendControl(busId, switchNr, on, brightness) {
+  const response = await fetch("./api/discovery/control", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ bus_id: busId, switch_nr: switchNr, on, brightness }),
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    showMessage(payload.error || "Failed to send CAN command", "error");
+  }
+}
+
 function renderDiscovery() {
-  const container = document.getElementById("discovery-list");
-  const status = document.getElementById("discovery-status");
-  const toggleBtn = document.getElementById("discovery-toggle-button");
   const isRunning = state.discovery.status === "running";
 
   toggleBtn.textContent = isRunning ? "Stop discovery" : "Start discovery";
@@ -238,20 +302,28 @@ function renderDiscovery() {
 
   container.className = "device-list";
   container.innerHTML = state.discovery.candidates
-    .map((candidate) => `
-      <article class="discovery-card">
-        <div class="device-card-header">
-          <div>
-            <h3>Bloc9 candidate #${candidate.bus_id}</h3>
-            <div class="muted">Confidence: ${candidate.confidence.level} (${candidate.confidence.score})</div>
+    .map((candidate) => {
+      const busId = String(candidate.bus_id);
+      const expanded = !!state.expandedCandidates[busId];
+      const expandLabel = expanded ? "▲ Hide controls" : "▼ Test outputs";
+      return `
+        <article class="discovery-card">
+          <div class="device-card-header">
+            <div>
+              <h3>Bloc9 candidate #${candidate.bus_id}</h3>
+              <div class="muted">Confidence: ${candidate.confidence.level} (${candidate.confidence.score})</div>
+            </div>
+            <div class="inline-actions">
+              <button data-action="toggle-expand" data-bus-id="${busId}">${expandLabel}</button>
+              <button data-action="promote-candidate" data-bus-id="${candidate.bus_id}">Use as device</button>
+            </div>
           </div>
-          <button data-action="promote-candidate" data-bus-id="${candidate.bus_id}">Use as device</button>
-        </div>
-        <div class="muted">Bus ID: <strong>${candidate.bus_id}</strong></div>
-        <div class="muted">Groups seen: ${candidate.groups_seen.join(", ") || "heartbeat only"}</div>
-        <div class="muted">Arbitration IDs: ${candidate.sample_arbitration_ids.join(", ")}</div>
-      </article>
-    `)
+          <div class="muted">Bus ID: <strong>${candidate.bus_id}</strong></div>
+          <div class="muted">Groups seen: ${candidate.groups_seen.join(", ") || "heartbeat only"}</div>
+          <div class="muted">Arbitration IDs: ${candidate.sample_arbitration_ids.join(", ")}</div>
+          ${expanded ? renderOutputControls(busId) : ""}
+        </article>`;
+    })
     .join("");
 }
 
@@ -316,7 +388,7 @@ function promoteCandidate(busId) {
   openEditor(device, null);
 }
 
-document.addEventListener("click", (event) => {
+document.addEventListener("click", async (event) => {
   const action = event.target.dataset.action;
   if (!action) return;
 
@@ -335,9 +407,48 @@ document.addEventListener("click", (event) => {
   if (action === "promote-candidate") {
     promoteCandidate(event.target.dataset.busId);
   }
+
+  if (action === "toggle-expand") {
+    const busId = event.target.dataset.busId;
+    state.expandedCandidates[busId] = !state.expandedCandidates[busId];
+    renderDiscovery();
+  }
+
+  if (action === "send-control") {
+    const busId = Number(event.target.dataset.busId);
+    const switchNr = Number(event.target.dataset.switchNr);
+    const on = event.target.dataset.on === "1";
+    const output = outputs[switchNr];
+    const ctrl = getControlState(String(busId));
+    const brightness = on && ctrl[output]?.role === "light" ? ctrl[output].brightness : null;
+    await sendControl(busId, switchNr, on, brightness);
+  }
 });
 
 document.getElementById("add-device-button").addEventListener("click", () => openEditor());
+
+document.addEventListener("change", (event) => {
+  if (event.target.dataset.action === "set-output-role") {
+    const busId = event.target.dataset.busId;
+    const output = event.target.dataset.output;
+    const ctrl = getControlState(busId);
+    ctrl[output].role = event.target.value;
+    renderDiscovery();
+  }
+});
+
+document.addEventListener("input", (event) => {
+  if (event.target.dataset.action === "set-brightness") {
+    const busId = event.target.dataset.busId;
+    const output = event.target.dataset.output;
+    const value = Number(event.target.value);
+    const ctrl = getControlState(busId);
+    ctrl[output].brightness = value;
+    const label = event.target.closest(".output-control-row")?.querySelector(".brightness-value");
+    if (label) label.textContent = value;
+  }
+});
+
 document.getElementById("cancel-edit-button").addEventListener("click", closeEditor);
 document.getElementById("apply-button").addEventListener("click", validateAndApply);
 document.getElementById("discovery-toggle-button").addEventListener("click", toggleDiscovery);

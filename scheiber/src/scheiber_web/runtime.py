@@ -127,6 +127,40 @@ class BridgeRuntimeController:
                 if self._bridge is not None:
                     self._bridge.system.unsubscribe_from_messages(callback)
 
+    def send_bloc9_command(
+        self,
+        bus_id: int,
+        switch_nr: int,
+        on: bool,
+        brightness: Optional[int] = None,
+    ) -> None:
+        """Send a CAN command to a Bloc9 output for live testing via the web UI.
+
+        Uses the same protocol as Bloc9Device._send_switch_command:
+        - can_id = 0x02360600 | ((bus_id << 3) | 0x80)
+        - data = [switch_nr, mode, 0x00, brightness_byte]
+        - mode: 0x00=OFF, 0x01=ON (full), 0x11=PWM dim
+        - switch_nr is 0-indexed (S1=0 … S6=5)
+        """
+        with self._lock:
+            if self._bridge is None:
+                raise RuntimeError("Bridge is not running")
+
+            can_id = 0x02360600 | ((bus_id << 3) | 0x80)
+
+            if not on or (brightness is not None and brightness <= 2):
+                mode = 0x00
+                brightness_byte = 0x00
+            elif brightness is None or brightness >= 253:
+                mode = 0x01
+                brightness_byte = 0x00
+            else:
+                mode = 0x11
+                brightness_byte = brightness
+
+            data = bytes([switch_nr, mode, 0x00, brightness_byte])
+            self._bridge.system.can_bus.send_message(can_id, data)
+
     def has_live_runtime(self) -> bool:
         """Return whether the bridge is active."""
         with self._lock:

@@ -214,4 +214,36 @@ def create_app(
     def stop_discovery():
         return jsonify(discovery_service.stop())
 
+    @app.post("/api/discovery/control")
+    def discovery_control():
+        """Send a live CAN command to a Bloc9 output for testing purposes."""
+        if not runtime_controller.has_live_runtime():
+            return (
+                jsonify({"error": "Bridge is not running", "code": "runtime_not_running"}),
+                409,
+            )
+
+        payload = request.get_json(silent=True) or {}
+        bus_id = payload.get("bus_id")
+        switch_nr = payload.get("switch_nr")
+        on = payload.get("on", False)
+        brightness = payload.get("brightness")
+
+        if bus_id is None or switch_nr is None:
+            return jsonify({"error": "bus_id and switch_nr are required"}), 400
+
+        try:
+            runtime_controller.send_bloc9_command(
+                int(bus_id),
+                int(switch_nr),
+                bool(on),
+                int(brightness) if brightness is not None else None,
+            )
+        except RuntimeError as exc:
+            return jsonify({"error": str(exc), "code": "runtime_not_running"}), 409
+        except Exception as exc:
+            return jsonify({"error": str(exc), "code": "send_failed"}), 500
+
+        return jsonify({"sent": True, "bus_id": bus_id, "switch_nr": switch_nr})
+
     return app

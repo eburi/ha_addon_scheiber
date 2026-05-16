@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [6.3.5] - 2026-05-16
+## [6.3.6] - 2026-05-16
+
+### Added
+- Expandable output controls on discovered Bloc9 candidates: click "▼ Test outputs" to reveal S1–S6 rows
+- Each output row has a function selector (—, Switch, Light) and On/Off buttons; Light also shows a brightness slider (0–255)
+- Commands are sent live to the CAN bus so admins can identify and validate outputs before configuring them; nothing is persisted
+- New `POST /api/discovery/control` endpoint and `BridgeRuntimeController.send_bloc9_command()` method backing the controls
+
+
 
 ### Fixed
 - Fixed all fetch requests being blocked by Chrome's Private Network Access (PNA) policy when HA is accessed over HTTP on a `.local` mDNS hostname; Flask now responds with `Access-Control-Allow-Private-Network: true` on all responses and handles OPTIONS preflights correctly
