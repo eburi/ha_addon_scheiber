@@ -27,8 +27,7 @@ def _compute_bit_diff(
         changed = prev_byte != curr_byte
         changed_positions = []
         for bit in range(8):
-            shift = 7 - bit  # bit 0 = MSB
-            if ((prev_byte >> shift) & 1) != ((curr_byte >> shift) & 1):
+            if ((prev_byte >> bit) & 1) != ((curr_byte >> bit) & 1):
                 changed_positions.append(bit)
         result.append(
             {

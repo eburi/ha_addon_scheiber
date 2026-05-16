@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.4.1] - 2026-05-16
+
+### Fixed
+- Inspector bit change positions now use standard LSB=0 convention; previously bit 0 was treated as MSB, so a change from `0x10` to `0x20` was reported as `B4[2,3]` instead of the correct `B4[4,5]`
+
 ## [6.4.0] - 2026-05-16
 
 ### Added
