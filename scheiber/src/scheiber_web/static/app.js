@@ -283,6 +283,9 @@ async function sendControl(busId, switchNr, on, brightness) {
 }
 
 function renderDiscovery() {
+  const container = document.getElementById("discovery-list");
+  const status = document.getElementById("discovery-status");
+  const toggleBtn = document.getElementById("discovery-toggle-button");
   const isRunning = state.discovery.status === "running";
 
   toggleBtn.textContent = isRunning ? "Stop discovery" : "Start discovery";
