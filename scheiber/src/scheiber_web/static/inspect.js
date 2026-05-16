@@ -348,7 +348,7 @@ async function stopCapture() {
 }
 
 async function clearCapture() {
-  // Stop then start to reset
+  closeDetail();
   await stopCapture();
   await startCapture();
 }
