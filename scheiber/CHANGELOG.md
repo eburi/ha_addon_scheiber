@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.4.2] - 2026-05-16
+
+### Fixed
+- Inspector no longer polls for updates while capture is stopped; the table and detail panel are now static (selectable/copyable) once stopped. Polling resumes only when capture is restarted.
+
 ## [6.4.1] - 2026-05-16
 
 ### Fixed

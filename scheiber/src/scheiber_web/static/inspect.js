@@ -240,7 +240,7 @@ function openDetail(arbIdInt) {
   state.selectedIdInt = arbIdInt;
   document.getElementById("inspect-detail-card").classList.remove("hidden");
   fetchDetail();
-  if (!state.detailInterval) {
+  if (!state.detailInterval && state.status === "running") {
     state.detailInterval = setInterval(fetchDetail, 1000);
   }
 }
@@ -333,6 +333,10 @@ async function startCapture() {
 
 async function stopCapture() {
   stopPolling();
+  if (state.detailInterval) {
+    clearInterval(state.detailInterval);
+    state.detailInterval = null;
+  }
   try {
     const resp = await fetch("./api/inspect/stop", { method: "POST" });
     const payload = await resp.json();
