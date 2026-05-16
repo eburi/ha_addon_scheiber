@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CAN Bus Inspector – Scheiber</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  </head>
+  <body>
+    <main class="page">
+      <a href="{{ url_for('index') }}" class="back-link">← Back to Setup</a>
+
+      <header class="hero">
+        <div>
+          <h1>CAN Bus Inspector</h1>
+          <p>Live CAN bus capture for reverse engineering and protocol discovery.</p>
+        </div>
+        <div class="hero-actions">
+          <button id="inspect-start-btn" class="primary">Start</button>
+          <button id="inspect-stop-btn" disabled>Stop</button>
+          <button id="inspect-clear-btn" disabled>Clear</button>
+        </div>
+      </header>
+
+      <div id="inspect-bridge-warning" class="flash-message error hidden">
+        The bridge must be running before capture can start. Start the bridge on the Setup page first.
+      </div>
+      <div id="inspect-error-msg" class="flash-message error hidden"></div>
+
+      <section class="card">
+        <div class="status-grid">
+          <div class="status-item">
+            <span class="label">Status</span>
+            <span class="value" id="inspect-status-value">Stopped</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Total messages</span>
+            <span class="value" id="inspect-total-msgs">0</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Unique IDs</span>
+            <span class="value" id="inspect-unique-ids">0</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Duration</span>
+            <span class="value" id="inspect-duration">—</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-header">
+          <h2>Arbitration IDs</h2>
+          <div class="filter-row">
+            <input type="text" id="inspect-filter" placeholder="Filter by ID…">
+            <label class="toggle-label">
+              <input type="checkbox" id="inspect-changes-only">
+              Changes only
+            </label>
+          </div>
+        </div>
+
+        <div class="inspect-table-container">
+          <table class="inspect-table">
+            <thead>
+              <tr>
+                <th data-sort="arbitration_id_int">Arbitration ID ▲</th>
+                <th data-sort="count">Count</th>
+                <th data-sort="freq_hz" class="hide-mobile">Freq (Hz)</th>
+                <th data-sort="last_seen">Last seen</th>
+                <th data-sort="dlc" class="hide-mobile">DLC</th>
+                <th>Last data</th>
+              </tr>
+            </thead>
+            <tbody id="inspect-tbody">
+            </tbody>
+          </table>
+          <div id="inspect-empty-state" class="muted" style="padding:16px 0">
+            No messages captured. Click Start to begin.
+          </div>
+        </div>
+      </section>
+
+      <section class="card hidden" id="inspect-detail-card">
+        <div class="section-header">
+          <h2 id="inspect-detail-title">ID 0x00000000</h2>
+          <button id="inspect-detail-close">×</button>
+        </div>
+
+        <div class="status-grid" id="inspect-detail-stats" style="margin-bottom:16px"></div>
+
+        <h3>Bit-level diff (prev → curr)</h3>
+        <div id="inspect-bit-diff" class="bit-diff-view"></div>
+
+        <h3>Message history (last 30)</h3>
+        <div class="history-table-container">
+          <div id="inspect-history"></div>
+        </div>
+      </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='inspect.js') }}"></script>
+  </body>
+</html>

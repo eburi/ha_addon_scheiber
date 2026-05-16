@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, abort
 
 from scheiber.config import (
     ConfigRevisionConflictError,
@@ -17,6 +17,7 @@ from scheiber.config import (
 )
 
 from .discovery import Bloc9DiscoveryService
+from .inspector import CanInspector
 from .runtime import BridgeRuntimeController, RuntimeSettings
 
 
@@ -55,10 +56,12 @@ def create_app(
 
     runtime_controller = runtime_controller or BridgeRuntimeController(settings)
     discovery_service = discovery_service or Bloc9DiscoveryService(runtime_controller)
+    inspector = CanInspector(runtime_controller)
 
     app.config["SCHEIBER_SETTINGS"] = settings
     app.config["RUNTIME_CONTROLLER"] = runtime_controller
     app.config["DISCOVERY_SERVICE"] = discovery_service
+    app.config["INSPECTOR"] = inspector
 
     @app.before_request
     def handle_options_preflight():
@@ -245,5 +248,37 @@ def create_app(
             return jsonify({"error": str(exc), "code": "send_failed"}), 500
 
         return jsonify({"sent": True, "bus_id": bus_id, "switch_nr": switch_nr})
+
+    @app.get("/inspect")
+    def inspect_page():
+        return render_template("inspect.html")
+
+    @app.get("/api/inspect")
+    def get_inspect():
+        return jsonify(inspector.snapshot())
+
+    @app.post("/api/inspect/start")
+    def start_inspect():
+        if not runtime_controller.has_live_runtime():
+            return (
+                jsonify({"error": "Bridge is not running", "code": "runtime_not_running"}),
+                409,
+            )
+        return jsonify(inspector.start())
+
+    @app.post("/api/inspect/stop")
+    def stop_inspect():
+        return jsonify(inspector.stop())
+
+    @app.get("/api/inspect/detail/<hex_id>")
+    def get_inspect_detail(hex_id):
+        try:
+            arb_id = int(hex_id, 16)
+        except ValueError:
+            abort(400)
+        result = inspector.detail(arb_id)
+        if result is None:
+            abort(404)
+        return jsonify(result)
 
     return app

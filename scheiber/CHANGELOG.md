@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.4.0] - 2026-05-16
+
+### Added
+- **CAN Bus Inspector**: new `/inspect` page for reverse engineering and protocol discovery
+  - Captures all raw CAN messages (not just Bloc9) while the bridge is running
+  - Summary table of every arbitration ID seen, with message count, frequency (Hz), relative last-seen time, DLC, and last data bytes (changed bytes highlighted in amber)
+  - Sortable columns (click any header) and a live text filter; "Changes only" checkbox to focus on IDs whose data is actively changing
+  - Click any row to open a detail panel showing bit-level diff (prev → curr) for every byte with individual changed bits marked, plus a 30-message history table with timestamps and per-entry bit annotations
+  - Start / Stop / Clear controls; clear resets the session without leaving the page
+  - New `CanInspector` service (`scheiber_web/inspector.py`) and REST endpoints: `GET /api/inspect`, `POST /api/inspect/start`, `POST /api/inspect/stop`, `GET /api/inspect/detail/<hex_id>`
+- **Inspect button** in the Setup page hero header, linking to the new inspector
+- **Mobile-optimised UI** across both the Setup and Inspector pages
+  - Minimum 44 px touch targets on all buttons, inputs, and selects
+  - Hero and section headers stack vertically on ≤ 880 px; actions wrap instead of overflow
+  - Device card headers and inline action buttons wrap and stretch on phones
+  - Filter row stacks and goes full-width on narrow screens
+  - "Freq (Hz)" and "DLC" columns hidden on phones to keep the inspector table readable without horizontal scroll
+  - History table gets an `overflow-x: auto` scroll container with momentum scrolling on iOS
+  - Reduced page and card padding on phones; scaled-down heading sizes
+
 ## [6.3.6] - 2026-05-16
 
 ### Added
@@ -636,7 +656,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.2.16...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.4.0...HEAD
+[6.4.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.3.6...v6.4.0
 [6.2.16]: https://github.com/eburi/ha_addon_scheiber/compare/v6.2.15...v6.2.16
 [6.2.15]: https://github.com/eburi/ha_addon_scheiber/compare/v6.2.14...v6.2.15
 [6.2.14]: https://github.com/eburi/ha_addon_scheiber/compare/v6.2.13...v6.2.14
