@@ -119,18 +119,28 @@ dmypy.json
 # pyright
 typings/
 
+# Ruff / Python type tooling
+.ruff_cache/
+.pytype/
+
 # VS Code
 .vscode/
 
 # IDEs
 .idea/
 *.iml
+*.code-workspace
 *.swp
 *.swo
 *~
 
+# Local shell environment
+.direnv/
+.envrc
+
 # macOS
 .DS_Store
+._*
 
 # Windows
 Thumbs.db
@@ -141,9 +151,26 @@ credentials.json
 
 # Misc
 *.sqlite3
+*.sqlite3-*
+*.sqlite
+*.sqlite-*
+*.db-shm
+*.db-wal
+*.sqlite-shm
+*.sqlite-wal
+
+# Home Assistant local runtime data
+home-assistant_v2.db
+home-assistant_v2.db-*
+
+# Frontend dependencies
+node_modules/
 
 # Project specific
 scheiber/src/.venv/
+docs/doc_/
+
+
 scheiber/src/.state_cache/
 # State cache anywhere (Docker uses /data/state_cache)
 **/state_cache/
