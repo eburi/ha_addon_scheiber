@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.5.0] - 2026-05-16
+
+### Added
+- Bloc9 configuration files can now persist saved output labels under `outputs:` even before an output is assigned as a light or switch
+
+### Changed
+- The setup editor now keeps named-but-unassigned Bloc9 outputs in the saved draft so a newly added device can be documented before each output gets its final role
+- Config validation now requires `entity_id` only after an output is assigned as a light or switch, while still preserving the saved output name for unassigned outputs
+- Device summaries in the setup UI now show saved unassigned outputs instead of dropping them from view
+
 ## [6.4.5] - 2026-05-16
 
 ### Added
@@ -693,7 +703,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.4.0...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.5.0...HEAD
+[6.5.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.4.5...v6.5.0
 [6.4.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.3.6...v6.4.0
 [6.2.16]: https://github.com/eburi/ha_addon_scheiber/compare/v6.2.15...v6.2.16
 [6.2.15]: https://github.com/eburi/ha_addon_scheiber/compare/v6.2.14...v6.2.15

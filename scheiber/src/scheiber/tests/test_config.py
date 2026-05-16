@@ -38,6 +38,60 @@ def test_runtime_to_editor_config_converts_bloc9_sections():
     assert normalized["devices"][0]["outputs"]["s6"]["entity_id"] == "fan_switch"
 
 
+def test_runtime_to_editor_config_preserves_unassigned_output_names():
+    runtime_config = {
+        "devices": [
+            {
+                "type": "bloc9",
+                "bus_id": 7,
+                "outputs": {
+                    "s2": {"name": "Future light"},
+                },
+            }
+        ]
+    }
+
+    editor_config = runtime_to_editor_config(runtime_config)
+    normalized, warnings = validate_editor_config(editor_config)
+
+    assert warnings == []
+    assert normalized["devices"][0]["outputs"]["s2"] == {
+        "enabled": False,
+        "role": None,
+        "name": "Future light",
+        "entity_id": "",
+        "initial_brightness": None,
+    }
+
+
+def test_validate_editor_config_allows_named_disabled_outputs():
+    config = {
+        "schema_version": 1,
+        "devices": [
+            {
+                "type": "bloc9",
+                "bus_id": 11,
+                "name": "Panel",
+                "outputs": {
+                    "s4": {
+                        "enabled": False,
+                        "role": None,
+                        "name": "Spare output",
+                        "entity_id": "",
+                        "initial_brightness": None,
+                    }
+                },
+            }
+        ],
+    }
+
+    normalized, warnings = validate_editor_config(config)
+
+    assert warnings == []
+    assert normalized["devices"][0]["outputs"]["s4"]["name"] == "Spare output"
+    assert normalized["devices"][0]["outputs"]["s4"]["enabled"] is False
+
+
 def test_validate_editor_config_rejects_duplicate_entity_id():
     config = {
         "schema_version": 1,
@@ -118,6 +172,51 @@ def test_save_editor_config_writes_and_enforces_revision(tmp_path):
         expected_revision=first_save["revision"],
     )
     assert second_save["revision"] == first_save["revision"]
+
+
+def test_save_editor_config_persists_output_metadata_for_disabled_outputs(tmp_path):
+    config_path = tmp_path / "scheiber-config.yaml"
+    config = {
+        "schema_version": 1,
+        "devices": [
+            {
+                "type": "bloc9",
+                "bus_id": 9,
+                "name": "Panel",
+                "description": "Cabin",
+                "outputs": {
+                    "s1": {
+                        "enabled": True,
+                        "role": "light",
+                        "name": "Main light",
+                        "entity_id": "main_light",
+                        "initial_brightness": None,
+                    },
+                    "s2": {
+                        "enabled": False,
+                        "role": None,
+                        "name": "Unused reading light",
+                        "entity_id": "",
+                        "initial_brightness": None,
+                    },
+                },
+            }
+        ],
+    }
+
+    save_editor_config(str(config_path), config)
+
+    saved_text = config_path.read_text(encoding="utf-8")
+    assert "outputs:" in saved_text
+    assert "Unused reading light" in saved_text
+    assert "lights:" in saved_text
+    assert "main_light" in saved_text
+
+    state = load_editor_state(str(config_path))
+    assert (
+        state["config"]["devices"][0]["outputs"]["s2"]["name"] == "Unused reading light"
+    )
+    assert state["config"]["devices"][0]["outputs"]["s2"]["enabled"] is False
 
 
 def test_load_editor_state_returns_missing_for_absent_file(tmp_path):

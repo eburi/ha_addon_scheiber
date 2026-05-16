@@ -78,14 +78,19 @@ devices:
   - type: bloc9
     bus_id: 3
     name: "Saloon Lights"
+    outputs:
+      s6:
+        name: "Future fan"
     lights:
-      S1:
+      s1:
         name: "Overhead Light"
         initial_brightness: 128
-      S2:
+      s2:
         name: "Reading Light"
         initial_brightness: 0
 ```
+
+You can also save names for unassigned outputs under `outputs:` and assign their role later in the setup UI.
 
 See `docs/examples/scheiber-config.yaml` in the repository root for a complete example.
 

@@ -148,6 +148,39 @@ def test_apply_config_saves_and_reloads_runtime(tmp_path):
     assert "pump_switch" in saved_text
 
 
+def test_apply_config_preserves_named_disabled_outputs(tmp_path):
+    runtime = FakeRuntimeController()
+    client, config_path = create_test_client(tmp_path, runtime_controller=runtime)
+
+    payload = client.get("/api/config").get_json()
+    config = payload["config"]
+    config["devices"][0]["outputs"]["s2"] = {
+        "enabled": False,
+        "role": None,
+        "name": "Future cabin light",
+        "entity_id": "",
+        "initial_brightness": None,
+    }
+
+    response = client.post(
+        "/api/config/apply",
+        json={"config": config, "base_revision": payload["revision"]},
+    )
+
+    assert response.status_code == 200
+    saved_text = Path(config_path).read_text(encoding="utf-8")
+    assert "outputs:" in saved_text
+    assert "Future cabin light" in saved_text
+    assert "lights:" in saved_text
+
+    refreshed = client.get("/api/config").get_json()
+    assert (
+        refreshed["config"]["devices"][0]["outputs"]["s2"]["name"]
+        == "Future cabin light"
+    )
+    assert refreshed["config"]["devices"][0]["outputs"]["s2"]["enabled"] is False
+
+
 def test_apply_config_rolls_back_when_reload_fails(tmp_path):
     runtime = FakeRuntimeController(fail_reload=True)
     client, config_path = create_test_client(tmp_path, runtime_controller=runtime)

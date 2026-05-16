@@ -39,6 +39,9 @@ devices:
     bus_id: 7  # Another Bloc9 on the same bus
     name: "Cabin Lights"
     description: "Forward cabin lighting"
+    outputs:
+      s6:
+        name: "Future fan or courtesy light"
     lights:
       s1:
         name: "Overhead"
@@ -70,6 +73,10 @@ devices:
 # - bus_id: Device ID on CAN bus (0-31)
 # - name: Human-readable device name
 # - description: Optional description
+# - outputs: Optional saved output metadata, including names for outputs that are not
+#   assigned to lights or switches yet
+#   - s1-s6:
+#     - name: Saved setup label shown in the editor even before an output gets a role
 # - lights: Dict mapping output names (s1-s6) to light config
 #   - name: Display name in Home Assistant
 #   - entity_id: Entity ID (without 'light.' prefix)

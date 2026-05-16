@@ -88,13 +88,24 @@ function renderDiagnostics() {
 function summarizeOutputs(outputsMap) {
   const rows = [];
   for (const [name, output] of Object.entries(outputsMap)) {
-    if (!output.enabled || !output.role) continue;
-    rows.push(`
-      <div class="status-item">
-        <div><strong>${name.toUpperCase()}</strong> <span class="pill secondary">${output.role}</span></div>
-        <div class="muted">${output.name} &middot; ${output.entity_id}</div>
-      </div>
-    `);
+    if (output.enabled && output.role) {
+      rows.push(`
+        <div class="status-item">
+          <div><strong>${name.toUpperCase()}</strong> <span class="pill secondary">${output.role}</span></div>
+          <div class="muted">${output.name} &middot; ${output.entity_id}</div>
+        </div>
+      `);
+      continue;
+    }
+
+    if (output.name) {
+      rows.push(`
+        <div class="status-item">
+          <div><strong>${name.toUpperCase()}</strong> <span class="pill secondary">unassigned</span></div>
+          <div class="muted">${output.name}</div>
+        </div>
+      `);
+    }
   }
   return rows.length ? rows.join("") : `<div class="muted">No outputs configured.</div>`;
 }
@@ -136,6 +147,9 @@ function renderOutputEditor(device) {
   container.innerHTML = outputs
     .map((name) => {
       const output = device.outputs[name] || blankOutput();
+      const role = output.enabled ? output.role : "";
+      const entityDisabled = !role;
+      const brightnessDisabled = role !== "light";
       return `
         <div class="output-row">
           <label>
@@ -145,9 +159,9 @@ function renderOutputEditor(device) {
           <label>
             <span>Role</span>
             <select data-output="${name}" data-field="role">
-              <option value="">Disabled</option>
-              <option value="light" ${output.role === "light" && output.enabled ? "selected" : ""}>Light</option>
-              <option value="switch" ${output.role === "switch" && output.enabled ? "selected" : ""}>Switch</option>
+              <option value="">Not configured yet</option>
+              <option value="light" ${role === "light" ? "selected" : ""}>Light</option>
+              <option value="switch" ${role === "switch" ? "selected" : ""}>Switch</option>
             </select>
           </label>
           <label>
@@ -156,11 +170,11 @@ function renderOutputEditor(device) {
           </label>
           <label>
             <span>Entity ID</span>
-            <input type="text" data-output="${name}" data-field="entity_id" value="${output.entity_id || ""}">
+            <input type="text" data-output="${name}" data-field="entity_id" value="${output.entity_id || ""}" placeholder="Required once a role is selected" ${entityDisabled ? "disabled" : ""}>
           </label>
           <label>
             <span>Initial brightness</span>
-            <input type="number" min="0" max="255" data-output="${name}" data-field="initial_brightness" value="${output.initial_brightness ?? ""}">
+            <input type="number" min="0" max="255" data-output="${name}" data-field="initial_brightness" value="${output.initial_brightness ?? ""}" ${brightnessDisabled ? "disabled" : ""}>
           </label>
         </div>
       `;
@@ -206,9 +220,14 @@ function readDeviceForm() {
 
   for (const outputName of outputs) {
     const output = device.outputs[outputName];
+    output.name = (output.name || "").trim();
+    output.entity_id = (output.entity_id || "").trim();
     output.enabled = Boolean(output.role);
     if (!output.enabled) {
-      device.outputs[outputName] = blankOutput();
+      device.outputs[outputName] = {
+        ...blankOutput(),
+        name: output.name,
+      };
     }
   }
 
@@ -454,6 +473,10 @@ document.addEventListener("click", async (event) => {
 });
 
 document.getElementById("add-device-button").addEventListener("click", () => openEditor());
+document.getElementById("outputs-editor").addEventListener("change", (event) => {
+  if (event.target.dataset.field !== "role") return;
+  renderOutputEditor(readDeviceForm());
+});
 
 document.addEventListener("change", (event) => {
   if (event.target.dataset.action === "set-output-role") {

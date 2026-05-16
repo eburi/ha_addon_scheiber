@@ -22,6 +22,7 @@ except ImportError:  # pragma: no cover
 ENTITY_ID_RE = re.compile(r"^[a-z0-9_]+$")
 BLOC9_OUTPUT_KEYS = tuple(f"s{i}" for i in range(1, 7))
 SUPPORTED_DEVICE_TYPES = {"bloc9"}
+OUTPUT_METADATA_KEYS = {"name"}
 
 
 class ConfigValidationError(ValueError):
@@ -43,6 +44,17 @@ class ConfigRevisionConflictError(ValueError):
 def empty_editor_config() -> Dict[str, Any]:
     """Return an empty editor config."""
     return {"schema_version": 1, "devices": []}
+
+
+def empty_editor_output() -> Dict[str, Any]:
+    """Return the default editor state for a Bloc9 output."""
+    return {
+        "enabled": False,
+        "role": None,
+        "name": "",
+        "entity_id": "",
+        "initial_brightness": None,
+    }
 
 
 def compute_revision(raw_yaml: str) -> str:
@@ -280,13 +292,7 @@ def validate_editor_config(
         for output_name in BLOC9_OUTPUT_KEYS:
             output = outputs.get(output_name)
             if output is None:
-                normalized_outputs[output_name] = {
-                    "enabled": False,
-                    "role": None,
-                    "name": "",
-                    "entity_id": "",
-                    "initial_brightness": None,
-                }
+                normalized_outputs[output_name] = empty_editor_output()
                 continue
 
             output_path = device_path + ["outputs", output_name]
@@ -319,10 +325,23 @@ def validate_editor_config(
 
             enabled = bool(output.get("enabled", True))
             role = output.get("role")
+            output_label = output.get("name", "")
+            if output_label is None:
+                output_label = ""
+            if not isinstance(output_label, str):
+                errors.append(
+                    make_error(
+                        "invalid_output_name",
+                        "name must be a string",
+                        output_path + ["name"],
+                    )
+                )
+                output_label = ""
+
             normalized_output = {
                 "enabled": enabled,
                 "role": role if enabled else None,
-                "name": output.get("name", "") if enabled else "",
+                "name": output_label.strip(),
                 "entity_id": output.get("entity_id", "") if enabled else "",
                 "initial_brightness": (
                     output.get("initial_brightness") if enabled else None
@@ -342,8 +361,7 @@ def validate_editor_config(
                     )
                 )
 
-            output_label = normalized_output["name"]
-            if not isinstance(output_label, str) or not output_label.strip():
+            if not normalized_output["name"]:
                 errors.append(
                     make_error(
                         "missing_output_name",
@@ -351,8 +369,6 @@ def validate_editor_config(
                         output_path + ["name"],
                     )
                 )
-            else:
-                normalized_output["name"] = output_label.strip()
 
             entity_id = normalized_output["entity_id"]
             if not isinstance(entity_id, str) or not entity_id.strip():
@@ -476,15 +492,59 @@ def runtime_to_editor_config(runtime_config: Dict[str, Any]) -> Dict[str, Any]:
             )
 
         outputs = {
-            output_name: {
-                "enabled": False,
-                "role": None,
-                "name": "",
-                "entity_id": "",
-                "initial_brightness": None,
-            }
-            for output_name in BLOC9_OUTPUT_KEYS
+            output_name: empty_editor_output() for output_name in BLOC9_OUTPUT_KEYS
         }
+
+        output_metadata = device.get("outputs", {})
+        if output_metadata is None:
+            output_metadata = {}
+        if not isinstance(output_metadata, dict):
+            raise ConfigValidationError(
+                [
+                    make_error(
+                        "invalid_section",
+                        "'outputs' must be an object",
+                        ["devices", device_index, "outputs"],
+                    )
+                ]
+            )
+
+        for output_name, output_config in output_metadata.items():
+            if output_name not in BLOC9_OUTPUT_KEYS:
+                raise ConfigValidationError(
+                    [
+                        make_error(
+                            "invalid_output",
+                            f"Unsupported Bloc9 output '{output_name}'",
+                            ["devices", device_index, "outputs", output_name],
+                        )
+                    ]
+                )
+
+            if not isinstance(output_config, dict):
+                raise ConfigValidationError(
+                    [
+                        make_error(
+                            "invalid_output",
+                            f"{output_name} must be an object",
+                            ["devices", device_index, "outputs", output_name],
+                        )
+                    ]
+                )
+
+            for key in output_config.keys():
+                if key not in OUTPUT_METADATA_KEYS:
+                    raise ConfigValidationError(
+                        [
+                            make_error(
+                                "unknown_output_key",
+                                f"Unsupported output key '{key}'",
+                                ["devices", device_index, "outputs", output_name, key],
+                            )
+                        ]
+                    )
+
+            outputs[output_name]["name"] = output_config.get("name", "")
 
         for role, section_name in (("light", "lights"), ("switch", "switches")):
             section = device.get(section_name, {})
@@ -502,6 +562,17 @@ def runtime_to_editor_config(runtime_config: Dict[str, Any]) -> Dict[str, Any]:
                 )
 
             for output_name, output_config in section.items():
+                if output_name not in BLOC9_OUTPUT_KEYS:
+                    raise ConfigValidationError(
+                        [
+                            make_error(
+                                "invalid_output",
+                                f"Unsupported Bloc9 output '{output_name}'",
+                                ["devices", device_index, section_name, output_name],
+                            )
+                        ]
+                    )
+
                 if not isinstance(output_config, dict):
                     raise ConfigValidationError(
                         [
@@ -516,7 +587,9 @@ def runtime_to_editor_config(runtime_config: Dict[str, Any]) -> Dict[str, Any]:
                 outputs[output_name] = {
                     "enabled": True,
                     "role": role,
-                    "name": output_config.get("name", ""),
+                    "name": output_config.get(
+                        "name", outputs[output_name].get("name", "")
+                    ),
                     "entity_id": output_config.get("entity_id", ""),
                     "initial_brightness": (
                         output_config.get("initial_brightness")
@@ -551,9 +624,13 @@ def editor_to_runtime_config(editor_config: Dict[str, Any]) -> Dict[str, Any]:
         if device.get("description"):
             runtime_device["description"] = device["description"]
 
+        outputs = {}
         lights = {}
         switches = {}
         for output_name, output in device["outputs"].items():
+            if output.get("name"):
+                outputs[output_name] = {"name": output["name"]}
+
             if not output["enabled"] or not output["role"]:
                 continue
 
@@ -568,6 +645,8 @@ def editor_to_runtime_config(editor_config: Dict[str, Any]) -> Dict[str, Any]:
             else:
                 switches[output_name] = runtime_output
 
+        if outputs:
+            runtime_device["outputs"] = outputs
         if lights:
             runtime_device["lights"] = lights
         if switches:
