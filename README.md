@@ -16,8 +16,9 @@ For the Home Assistant add-on store presentation, see `scheiber/README.md` and
 This Home Assistant add-on provides a bridge between Scheiber devices on a CAN bus and MQTT, enabling integration with Home Assistant through MQTT Discovery. It monitors CAN traffic, decodes device messages, and publishes state updates to MQTT.
 
 It now also includes a built-in **Scheiber setup web interface** exposed through Home Assistant ingress for:
-- editing `scheiber-config.yaml` with a Bloc9-focused form UI,
+- editing `scheiber-config.yaml` with a type-aware Bloc9/Bloc7 form UI,
 - discovering Bloc9 candidates from live CAN traffic,
+- turning likely Bloc7 CAN frames into provisional matcher-based sensor drafts,
 - validating and applying configuration changes without hand-editing YAML.
 
 **Explicit entity configuration for safety and control:** You must define which outputs to expose via a `scheiber-config.yaml` configuration file placed in Home Assistant's `/config/` directory.
@@ -39,8 +40,10 @@ It now also includes a built-in **Scheiber setup web interface** exposed through
 
 - **CAN-MQTT Bridge**: Translates CAN messages to MQTT topics
 - **Ingress Web Setup UI**: Edit Bloc9 mappings and apply config changes from Home Assistant
+- **Bloc7 Manual Sensor Binding**: Configure voltage and tank-style sensors with explicit matcher and byte extraction rules
 - **Optional MCP Server**: Lets AI tools read/write validated config and inspect live CAN traffic for setup and reverse engineering
 - **Bloc9 Discovery Mode**: Watch live CAN traffic for likely Bloc9 bus IDs and output groups
+- **Bloc7 Candidate Hints**: Surface likely normalized/raw Bloc7 frames from the shared CAN inspector so they can be promoted into manual drafts
 - **Bloc9 Switch Support**: ON/OFF control and brightness (0-255) for 6-switch panels
 - **Explicit Entity Configuration**: Define which outputs to expose as lights or switches
 - **MQTT Discovery**: Automatic Home Assistant entity creation for configured outputs
@@ -107,6 +110,33 @@ Scheiber Bloc9 switch panels with up to 6 switches (S1-S6). Each switch appears 
 - Bus IDs: Typically 2-10 (extracted from arbitration ID)
 
 ⚠️ Protocol details are based on reverse-engineering and may be incomplete.
+
+### Bloc7
+
+Bloc7 analog inputs can now be configured as manual matcher-based sensors. Because segment and identity extraction are still not fully understood, setup remains explicit: each sensor stores the arbitration-ID matcher plus the byte/bit extraction rule used to decode the value.
+
+Example runtime config:
+
+```yaml
+devices:
+  - type: bloc7
+    bus_id: 21
+    name: Tank sender bank
+    sensors:
+      - sensor_type: level
+        name: Black water 1
+        entity_id: black_water_1
+        matcher:
+          pattern: 33818058   # 0x0204058A
+          mask: 4294967295    # 0xFFFFFFFF
+        value_config:
+          start_byte: 3
+          bit_length: 8
+          endian: little
+          scale: 1.0
+```
+
+The setup UI and MCP server can now suggest provisional Bloc7 sensor drafts from observed CAN frames, but those suggestions are intentionally non-authoritative and should be confirmed against live values.
 
 ## MQTT Topic Structure
 

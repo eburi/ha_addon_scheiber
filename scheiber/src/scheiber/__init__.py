@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 from .base_device import ScheiberCanDevice
+from .bloc7 import Bloc7Device
 from .bloc9 import Bloc9Device
 from .can_bus import ScheiberCanBus
 from .config import load_runtime_config
@@ -16,7 +17,13 @@ from .matchers import Matcher
 from .system import ScheiberSystem
 
 __version__ = "5.0.0"
-__all__ = ["create_scheiber_system", "ScheiberSystem", "ScheiberCanBus", "Bloc9Device"]
+__all__ = [
+    "create_scheiber_system",
+    "ScheiberSystem",
+    "ScheiberCanBus",
+    "Bloc7Device",
+    "Bloc9Device",
+]
 
 
 def create_scheiber_system(
@@ -179,6 +186,20 @@ def _create_devices(
                 f"Created Bloc9 device: bus_id={device_id}, "
                 f"segment_id={segment_id}, "
                 f"{num_lights} lights, {num_switches} switches"
+            )
+        elif device_type == "bloc7":
+            device = Bloc7Device(
+                device_id=device_id,
+                can_bus=can_bus,
+                config=device_config,
+                segment_id=segment_id,
+                logger=logging.getLogger(f"Bloc7.{device_route}"),
+            )
+            devices.append(device)
+            logger.info(
+                f"Created Bloc7 device: bus_id={device_id}, "
+                f"segment_id={segment_id}, "
+                f"{len(device.get_sensors())} sensors"
             )
         else:
             logger.warning(f"Unknown device type: {device_type}")

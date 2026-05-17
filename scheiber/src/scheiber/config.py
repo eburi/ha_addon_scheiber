@@ -21,8 +21,10 @@ except ImportError:  # pragma: no cover
 
 ENTITY_ID_RE = re.compile(r"^[a-z0-9_]+$")
 BLOC9_OUTPUT_KEYS = tuple(f"s{i}" for i in range(1, 7))
-SUPPORTED_DEVICE_TYPES = {"bloc9"}
+SUPPORTED_DEVICE_TYPES = {"bloc9", "bloc7"}
 OUTPUT_METADATA_KEYS = {"name"}
+BLOC7_SENSOR_TYPES = {"voltage", "level"}
+BLOC7_ENDIAN_OPTIONS = {"little", "big"}
 
 
 class ConfigValidationError(ValueError):
@@ -55,6 +57,75 @@ def empty_editor_output() -> Dict[str, Any]:
         "entity_id": "",
         "initial_brightness": None,
     }
+
+
+def empty_editor_sensor() -> Dict[str, Any]:
+    """Return the default editor state for a Bloc7 sensor."""
+    return {
+        "name": "",
+        "entity_id": "",
+        "sensor_type": "level",
+        "matcher": {"pattern": None, "mask": None},
+        "value_config": {
+            "start_byte": 0,
+            "bit_length": 8,
+            "endian": "little",
+            "scale": 1.0,
+        },
+    }
+
+
+def _normalize_int_field(
+    value: Any,
+    code: str,
+    message: str,
+    path: List[Any],
+    *,
+    min_value: Optional[int] = None,
+    max_value: Optional[int] = None,
+) -> Tuple[Optional[int], Optional[Dict[str, Any]]]:
+    """Normalize an integer field from int or numeric string input."""
+    if isinstance(value, bool):
+        return None, make_error(code, message, path)
+
+    normalized: Optional[int]
+    if isinstance(value, int):
+        normalized = value
+    elif isinstance(value, str):
+        text = value.strip().lower()
+        if not text:
+            return None, make_error(code, message, path)
+        try:
+            normalized = int(text, 16) if text.startswith("0x") else int(text, 10)
+        except ValueError:
+            return None, make_error(code, message, path)
+    else:
+        return None, make_error(code, message, path)
+
+    if min_value is not None and normalized < min_value:
+        return None, make_error(code, message, path)
+    if max_value is not None and normalized > max_value:
+        return None, make_error(code, message, path)
+    return normalized, None
+
+
+def _normalize_float_field(
+    value: Any, code: str, message: str, path: List[Any]
+) -> Tuple[Optional[float], Optional[Dict[str, Any]]]:
+    """Normalize a float field from numeric or string input."""
+    if isinstance(value, bool):
+        return None, make_error(code, message, path)
+    if isinstance(value, (int, float)):
+        return float(value), None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None, make_error(code, message, path)
+        try:
+            return float(text), None
+        except ValueError:
+            return None, make_error(code, message, path)
+    return None, make_error(code, message, path)
 
 
 def compute_revision(raw_yaml: str) -> str:
@@ -210,6 +281,7 @@ def validate_editor_config(
             "name",
             "description",
             "outputs",
+            "sensors",
         }
         for key in device.keys():
             if key not in allowed_device_keys:
@@ -243,11 +315,16 @@ def validate_editor_config(
             )
             continue
 
-        if not 0 <= bus_id <= 15:
+        max_bus_id = 15 if device_type == "bloc9" else 255
+        if not 0 <= bus_id <= max_bus_id:
             errors.append(
                 make_error(
                     "invalid_bus_id_range",
-                    "bus_id must be between 0 and 15",
+                    (
+                        "bus_id must be between 0 and 15"
+                        if device_type == "bloc9"
+                        else "bus_id must be between 0 and 255"
+                    ),
                     device_path + ["bus_id"],
                 )
             )
@@ -269,6 +346,16 @@ def validate_editor_config(
                 make_error(
                     "invalid_segment_id_range",
                     "segment_id must be between 0 and 7",
+                    device_path + ["segment_id"],
+                )
+            )
+            continue
+
+        if device_type == "bloc7" and segment_id != 0:
+            errors.append(
+                make_error(
+                    "unsupported_segment_id",
+                    "Bloc7 devices currently use manual matcher binding and must keep segment_id at 0",
                     device_path + ["segment_id"],
                 )
             )
@@ -305,195 +392,412 @@ def validate_editor_config(
                 )
             )
 
-        outputs = device.get("outputs", {})
-        if not isinstance(outputs, dict):
-            errors.append(
-                make_error(
-                    "invalid_outputs",
-                    "outputs must be an object keyed by s1-s6",
-                    device_path + ["outputs"],
-                )
-            )
-            continue
+        normalized_device: Dict[str, Any] = {
+            "type": device_type,
+            "bus_id": bus_id,
+            "segment_id": segment_id,
+            "name": name.strip() if isinstance(name, str) else "",
+            "description": description.strip() if isinstance(description, str) else "",
+        }
 
-        normalized_outputs = {}
-        for output_name in BLOC9_OUTPUT_KEYS:
-            output = outputs.get(output_name)
-            if output is None:
-                normalized_outputs[output_name] = empty_editor_output()
-                continue
-
-            output_path = device_path + ["outputs", output_name]
-            if not isinstance(output, dict):
+        if device_type == "bloc9":
+            outputs = device.get("outputs", {})
+            if not isinstance(outputs, dict):
                 errors.append(
                     make_error(
-                        "invalid_output",
-                        f"{output_name} must be an object",
-                        output_path,
+                        "invalid_outputs",
+                        "outputs must be an object keyed by s1-s6",
+                        device_path + ["outputs"],
                     )
                 )
                 continue
 
-            allowed_output_keys = {
-                "enabled",
-                "role",
-                "name",
-                "entity_id",
-                "initial_brightness",
-            }
-            for key in output.keys():
-                if key not in allowed_output_keys:
+            normalized_outputs = {}
+            for output_name in BLOC9_OUTPUT_KEYS:
+                output = outputs.get(output_name)
+                if output is None:
+                    normalized_outputs[output_name] = empty_editor_output()
+                    continue
+
+                output_path = device_path + ["outputs", output_name]
+                if not isinstance(output, dict):
                     errors.append(
                         make_error(
-                            "unknown_output_key",
-                            f"Unsupported output key '{key}'",
-                            output_path + [key],
+                            "invalid_output",
+                            f"{output_name} must be an object",
+                            output_path,
+                        )
+                    )
+                    continue
+
+                allowed_output_keys = {
+                    "enabled",
+                    "role",
+                    "name",
+                    "entity_id",
+                    "initial_brightness",
+                }
+                for key in output.keys():
+                    if key not in allowed_output_keys:
+                        errors.append(
+                            make_error(
+                                "unknown_output_key",
+                                f"Unsupported output key '{key}'",
+                                output_path + [key],
+                            )
+                        )
+
+                enabled = bool(output.get("enabled", True))
+                role = output.get("role")
+                output_label = output.get("name", "")
+                if output_label is None:
+                    output_label = ""
+                if not isinstance(output_label, str):
+                    errors.append(
+                        make_error(
+                            "invalid_output_name",
+                            "name must be a string",
+                            output_path + ["name"],
+                        )
+                    )
+                    output_label = ""
+
+                normalized_output = {
+                    "enabled": enabled,
+                    "role": role if enabled else None,
+                    "name": output_label.strip(),
+                    "entity_id": output.get("entity_id", "") if enabled else "",
+                    "initial_brightness": (
+                        output.get("initial_brightness") if enabled else None
+                    ),
+                }
+
+                if not enabled:
+                    normalized_outputs[output_name] = normalized_output
+                    continue
+
+                if role not in {"light", "switch"}:
+                    errors.append(
+                        make_error(
+                            "invalid_output_role",
+                            "role must be 'light' or 'switch'",
+                            output_path + ["role"],
                         )
                     )
 
-            enabled = bool(output.get("enabled", True))
-            role = output.get("role")
-            output_label = output.get("name", "")
-            if output_label is None:
-                output_label = ""
-            if not isinstance(output_label, str):
-                errors.append(
-                    make_error(
-                        "invalid_output_name",
-                        "name must be a string",
-                        output_path + ["name"],
-                    )
-                )
-                output_label = ""
-
-            normalized_output = {
-                "enabled": enabled,
-                "role": role if enabled else None,
-                "name": output_label.strip(),
-                "entity_id": output.get("entity_id", "") if enabled else "",
-                "initial_brightness": (
-                    output.get("initial_brightness") if enabled else None
-                ),
-            }
-
-            if not enabled:
-                normalized_outputs[output_name] = normalized_output
-                continue
-
-            if role not in {"light", "switch"}:
-                errors.append(
-                    make_error(
-                        "invalid_output_role",
-                        "role must be 'light' or 'switch'",
-                        output_path + ["role"],
-                    )
-                )
-
-            if not normalized_output["name"]:
-                errors.append(
-                    make_error(
-                        "missing_output_name",
-                        "Configured outputs require a name",
-                        output_path + ["name"],
-                    )
-                )
-
-            entity_id = normalized_output["entity_id"]
-            if not isinstance(entity_id, str) or not entity_id.strip():
-                errors.append(
-                    make_error(
-                        "missing_entity_id",
-                        "Configured outputs require an entity_id",
-                        output_path + ["entity_id"],
-                    )
-                )
-            else:
-                entity_id = entity_id.strip()
-                normalized_output["entity_id"] = entity_id
-                if entity_id.startswith("light.") or entity_id.startswith("switch."):
+                if not normalized_output["name"]:
                     errors.append(
                         make_error(
-                            "entity_id_with_domain",
-                            "entity_id must not include a Home Assistant domain prefix",
-                            output_path + ["entity_id"],
+                            "missing_output_name",
+                            "Configured outputs require a name",
+                            output_path + ["name"],
                         )
                     )
-                elif not ENTITY_ID_RE.match(entity_id):
+
+                entity_id = normalized_output["entity_id"]
+                if not isinstance(entity_id, str) or not entity_id.strip():
                     errors.append(
                         make_error(
-                            "invalid_entity_id",
-                            "entity_id must contain only lowercase letters, numbers, and underscores",
+                            "missing_entity_id",
+                            "Configured outputs require an entity_id",
                             output_path + ["entity_id"],
-                        )
-                    )
-                elif entity_id in seen_entity_ids:
-                    errors.append(
-                        make_error(
-                            "duplicate_entity_id",
-                            f"entity_id '{entity_id}' is already used",
-                            output_path + ["entity_id"],
-                            details={"conflicts_with": seen_entity_ids[entity_id]},
                         )
                     )
                 else:
-                    seen_entity_ids[entity_id] = output_path + ["entity_id"]
+                    entity_id = entity_id.strip()
+                    normalized_output["entity_id"] = entity_id
+                    if entity_id.startswith("light.") or entity_id.startswith(
+                        "switch."
+                    ):
+                        errors.append(
+                            make_error(
+                                "entity_id_with_domain",
+                                "entity_id must not include a Home Assistant domain prefix",
+                                output_path + ["entity_id"],
+                            )
+                        )
+                    elif not ENTITY_ID_RE.match(entity_id):
+                        errors.append(
+                            make_error(
+                                "invalid_entity_id",
+                                "entity_id must contain only lowercase letters, numbers, and underscores",
+                                output_path + ["entity_id"],
+                            )
+                        )
+                    elif entity_id in seen_entity_ids:
+                        errors.append(
+                            make_error(
+                                "duplicate_entity_id",
+                                f"entity_id '{entity_id}' is already used",
+                                output_path + ["entity_id"],
+                                details={"conflicts_with": seen_entity_ids[entity_id]},
+                            )
+                        )
+                    else:
+                        seen_entity_ids[entity_id] = output_path + ["entity_id"]
 
-            initial_brightness = normalized_output["initial_brightness"]
-            if role == "light" and initial_brightness is not None:
-                if (
-                    not isinstance(initial_brightness, int)
-                    or not 0 <= initial_brightness <= 255
-                ):
+                initial_brightness = normalized_output["initial_brightness"]
+                if role == "light" and initial_brightness is not None:
+                    if (
+                        not isinstance(initial_brightness, int)
+                        or not 0 <= initial_brightness <= 255
+                    ):
+                        errors.append(
+                            make_error(
+                                "invalid_initial_brightness",
+                                "initial_brightness must be an integer between 0 and 255",
+                                output_path + ["initial_brightness"],
+                            )
+                        )
+                    else:
+                        warnings.append(
+                            f"{output_name} on bloc9 {bus_id} uses initial_brightness and will send a CAN command on startup"
+                            if segment_id == 0
+                            else (
+                                f"{output_name} on bloc9 {bus_id}_{segment_id} uses "
+                                "initial_brightness and will send a CAN command on startup"
+                            )
+                        )
+
+                if role != "light" and initial_brightness is not None:
                     errors.append(
                         make_error(
-                            "invalid_initial_brightness",
-                            "initial_brightness must be an integer between 0 and 255",
+                            "initial_brightness_not_allowed",
+                            "initial_brightness is only supported for light outputs",
                             output_path + ["initial_brightness"],
                         )
                     )
-                else:
-                    warnings.append(
-                        f"{output_name} on bloc9 {bus_id} uses initial_brightness and will send a CAN command on startup"
-                        if segment_id == 0
-                        else (
-                            f"{output_name} on bloc9 {bus_id}_{segment_id} uses "
-                            "initial_brightness and will send a CAN command on startup"
+
+                normalized_outputs[output_name] = normalized_output
+
+            for output_name in outputs.keys():
+                if output_name not in BLOC9_OUTPUT_KEYS:
+                    errors.append(
+                        make_error(
+                            "invalid_output_name",
+                            f"Unsupported Bloc9 output '{output_name}'",
+                            device_path + ["outputs", output_name],
                         )
                     )
 
-            if role != "light" and initial_brightness is not None:
+            normalized_device["outputs"] = normalized_outputs
+        else:
+            sensors = device.get("sensors", [])
+            if sensors is None:
+                sensors = []
+            if not isinstance(sensors, list):
                 errors.append(
                     make_error(
-                        "initial_brightness_not_allowed",
-                        "initial_brightness is only supported for light outputs",
-                        output_path + ["initial_brightness"],
+                        "invalid_sensors",
+                        "sensors must be a list",
+                        device_path + ["sensors"],
                     )
                 )
+                continue
 
-            normalized_outputs[output_name] = normalized_output
-
-        for output_name in outputs.keys():
-            if output_name not in BLOC9_OUTPUT_KEYS:
-                errors.append(
-                    make_error(
-                        "invalid_output_name",
-                        f"Unsupported Bloc9 output '{output_name}'",
-                        device_path + ["outputs", output_name],
+            normalized_sensors = []
+            for sensor_index, sensor in enumerate(sensors):
+                sensor_path = device_path + ["sensors", sensor_index]
+                if not isinstance(sensor, dict):
+                    errors.append(
+                        make_error(
+                            "invalid_sensor",
+                            "Each sensor must be an object",
+                            sensor_path,
+                        )
                     )
+                    continue
+
+                allowed_sensor_keys = {
+                    "name",
+                    "entity_id",
+                    "sensor_type",
+                    "matcher",
+                    "value_config",
+                }
+                for key in sensor.keys():
+                    if key not in allowed_sensor_keys:
+                        errors.append(
+                            make_error(
+                                "unknown_sensor_key",
+                                f"Unsupported sensor key '{key}'",
+                                sensor_path + [key],
+                            )
+                        )
+
+                sensor_name = sensor.get("name", "")
+                if not isinstance(sensor_name, str) or not sensor_name.strip():
+                    errors.append(
+                        make_error(
+                            "missing_sensor_name",
+                            "Bloc7 sensors require a name",
+                            sensor_path + ["name"],
+                        )
+                    )
+                    sensor_name = ""
+                else:
+                    sensor_name = sensor_name.strip()
+
+                entity_id = sensor.get("entity_id", "")
+                if not isinstance(entity_id, str) or not entity_id.strip():
+                    errors.append(
+                        make_error(
+                            "missing_entity_id",
+                            "Bloc7 sensors require an entity_id",
+                            sensor_path + ["entity_id"],
+                        )
+                    )
+                    entity_id = ""
+                else:
+                    entity_id = entity_id.strip()
+                    if entity_id.startswith("sensor."):
+                        errors.append(
+                            make_error(
+                                "entity_id_with_domain",
+                                "entity_id must not include a Home Assistant domain prefix",
+                                sensor_path + ["entity_id"],
+                            )
+                        )
+                    elif not ENTITY_ID_RE.match(entity_id):
+                        errors.append(
+                            make_error(
+                                "invalid_entity_id",
+                                "entity_id must contain only lowercase letters, numbers, and underscores",
+                                sensor_path + ["entity_id"],
+                            )
+                        )
+                    elif entity_id in seen_entity_ids:
+                        errors.append(
+                            make_error(
+                                "duplicate_entity_id",
+                                f"entity_id '{entity_id}' is already used",
+                                sensor_path + ["entity_id"],
+                                details={"conflicts_with": seen_entity_ids[entity_id]},
+                            )
+                        )
+                    else:
+                        seen_entity_ids[entity_id] = sensor_path + ["entity_id"]
+
+                sensor_type = sensor.get("sensor_type", "level")
+                if sensor_type not in BLOC7_SENSOR_TYPES:
+                    errors.append(
+                        make_error(
+                            "invalid_sensor_type",
+                            "sensor_type must be 'voltage' or 'level'",
+                            sensor_path + ["sensor_type"],
+                        )
+                    )
+                    sensor_type = "level"
+
+                matcher = sensor.get("matcher")
+                if not isinstance(matcher, dict):
+                    errors.append(
+                        make_error(
+                            "invalid_matcher",
+                            "matcher must be an object with pattern and mask",
+                            sensor_path + ["matcher"],
+                        )
+                    )
+                    continue
+
+                pattern, pattern_error = _normalize_int_field(
+                    matcher.get("pattern"),
+                    "invalid_matcher_pattern",
+                    "matcher.pattern must be an integer or hex string",
+                    sensor_path + ["matcher", "pattern"],
+                    min_value=0,
+                )
+                if pattern_error:
+                    errors.append(pattern_error)
+
+                mask, mask_error = _normalize_int_field(
+                    matcher.get("mask"),
+                    "invalid_matcher_mask",
+                    "matcher.mask must be an integer or hex string",
+                    sensor_path + ["matcher", "mask"],
+                    min_value=0,
+                )
+                if mask_error:
+                    errors.append(mask_error)
+
+                value_config = sensor.get("value_config")
+                if not isinstance(value_config, dict):
+                    errors.append(
+                        make_error(
+                            "invalid_value_config",
+                            "value_config must be an object",
+                            sensor_path + ["value_config"],
+                        )
+                    )
+                    continue
+
+                start_byte, start_byte_error = _normalize_int_field(
+                    value_config.get("start_byte"),
+                    "invalid_start_byte",
+                    "value_config.start_byte must be a non-negative integer",
+                    sensor_path + ["value_config", "start_byte"],
+                    min_value=0,
+                )
+                if start_byte_error:
+                    errors.append(start_byte_error)
+
+                bit_length, bit_length_error = _normalize_int_field(
+                    value_config.get("bit_length"),
+                    "invalid_bit_length",
+                    "value_config.bit_length must be a positive integer",
+                    sensor_path + ["value_config", "bit_length"],
+                    min_value=1,
+                )
+                if bit_length_error:
+                    errors.append(bit_length_error)
+
+                endian = value_config.get("endian", "little")
+                if endian not in BLOC7_ENDIAN_OPTIONS:
+                    errors.append(
+                        make_error(
+                            "invalid_endian",
+                            "value_config.endian must be 'little' or 'big'",
+                            sensor_path + ["value_config", "endian"],
+                        )
+                    )
+                    endian = "little"
+
+                scale, scale_error = _normalize_float_field(
+                    value_config.get("scale", 1.0),
+                    "invalid_scale",
+                    "value_config.scale must be a number",
+                    sensor_path + ["value_config", "scale"],
+                )
+                if scale_error:
+                    errors.append(scale_error)
+
+                if (
+                    start_byte is None
+                    or bit_length is None
+                    or pattern is None
+                    or mask is None
+                    or scale is None
+                ):
+                    continue
+
+                normalized_sensors.append(
+                    {
+                        "name": sensor_name,
+                        "entity_id": entity_id,
+                        "sensor_type": sensor_type,
+                        "matcher": {"pattern": pattern, "mask": mask},
+                        "value_config": {
+                            "start_byte": start_byte,
+                            "bit_length": bit_length,
+                            "endian": endian,
+                            "scale": scale,
+                        },
+                    }
                 )
 
-        normalized_devices.append(
-            {
-                "type": device_type,
-                "bus_id": bus_id,
-                "segment_id": segment_id,
-                "name": name.strip() if isinstance(name, str) else "",
-                "description": (
-                    description.strip() if isinstance(description, str) else ""
-                ),
-                "outputs": normalized_outputs,
-            }
-        )
+            normalized_device["sensors"] = normalized_sensors
+
+        normalized_devices.append(normalized_device)
 
     if errors:
         raise ConfigValidationError(errors, warnings)
@@ -526,6 +830,106 @@ def runtime_to_editor_config(runtime_config: Dict[str, Any]) -> Dict[str, Any]:
                     )
                 ]
             )
+
+        device_type = device.get("type")
+        if device_type == "bloc7":
+            sensors = []
+            runtime_sensors = device.get("sensors")
+            if runtime_sensors is None:
+                runtime_sensors = []
+                for sensor_type, section_name in (
+                    ("voltage", "voltages"),
+                    ("level", "levels"),
+                ):
+                    section = device.get(section_name, [])
+                    if section is None:
+                        continue
+                    if not isinstance(section, list):
+                        raise ConfigValidationError(
+                            [
+                                make_error(
+                                    "invalid_section",
+                                    f"'{section_name}' must be a list",
+                                    ["devices", device_index, section_name],
+                                )
+                            ]
+                        )
+                    for sensor_index, sensor_config in enumerate(section):
+                        if not isinstance(sensor_config, dict):
+                            raise ConfigValidationError(
+                                [
+                                    make_error(
+                                        "invalid_sensor",
+                                        "Each sensor must be an object",
+                                        [
+                                            "devices",
+                                            device_index,
+                                            section_name,
+                                            sensor_index,
+                                        ],
+                                    )
+                                ]
+                            )
+                        runtime_sensors.append(
+                            {
+                                "sensor_type": sensor_type,
+                                **sensor_config,
+                            }
+                        )
+            if not isinstance(runtime_sensors, list):
+                raise ConfigValidationError(
+                    [
+                        make_error(
+                            "invalid_sensors",
+                            "'sensors' must be a list",
+                            ["devices", device_index, "sensors"],
+                        )
+                    ]
+                )
+
+            for sensor_index, sensor_config in enumerate(runtime_sensors):
+                if not isinstance(sensor_config, dict):
+                    raise ConfigValidationError(
+                        [
+                            make_error(
+                                "invalid_sensor",
+                                "Each sensor must be an object",
+                                ["devices", device_index, "sensors", sensor_index],
+                            )
+                        ]
+                    )
+
+                matcher = sensor_config.get("matcher", {})
+                value_config = sensor_config.get("value_config", {})
+                sensors.append(
+                    {
+                        "name": sensor_config.get("name", ""),
+                        "entity_id": sensor_config.get("entity_id", ""),
+                        "sensor_type": sensor_config.get("sensor_type", "level"),
+                        "matcher": {
+                            "pattern": matcher.get("pattern"),
+                            "mask": matcher.get("mask"),
+                        },
+                        "value_config": {
+                            "start_byte": value_config.get("start_byte", 0),
+                            "bit_length": value_config.get("bit_length", 8),
+                            "endian": value_config.get("endian", "little"),
+                            "scale": value_config.get("scale", 1.0),
+                        },
+                    }
+                )
+
+            editor_devices.append(
+                {
+                    "type": device_type,
+                    "bus_id": device.get("bus_id"),
+                    "segment_id": device.get("segment_id", 0),
+                    "name": device.get("name", ""),
+                    "description": device.get("description", ""),
+                    "sensors": sensors,
+                }
+            )
+            continue
 
         outputs = {
             output_name: empty_editor_output() for output_name in BLOC9_OUTPUT_KEYS
@@ -636,7 +1040,7 @@ def runtime_to_editor_config(runtime_config: Dict[str, Any]) -> Dict[str, Any]:
 
         editor_devices.append(
             {
-                "type": device.get("type"),
+                "type": device_type,
                 "bus_id": device.get("bus_id"),
                 "segment_id": device.get("segment_id", 0),
                 "name": device.get("name", ""),
@@ -663,33 +1067,57 @@ def editor_to_runtime_config(editor_config: Dict[str, Any]) -> Dict[str, Any]:
         if device.get("description"):
             runtime_device["description"] = device["description"]
 
-        outputs = {}
-        lights = {}
-        switches = {}
-        for output_name, output in device["outputs"].items():
-            if output.get("name"):
-                outputs[output_name] = {"name": output["name"]}
+        if device["type"] == "bloc7":
+            sensors = []
+            for sensor in device.get("sensors", []):
+                sensors.append(
+                    {
+                        "sensor_type": sensor["sensor_type"],
+                        "name": sensor["name"],
+                        "entity_id": sensor["entity_id"],
+                        "matcher": {
+                            "pattern": sensor["matcher"]["pattern"],
+                            "mask": sensor["matcher"]["mask"],
+                        },
+                        "value_config": {
+                            "start_byte": sensor["value_config"]["start_byte"],
+                            "bit_length": sensor["value_config"]["bit_length"],
+                            "endian": sensor["value_config"]["endian"],
+                            "scale": sensor["value_config"]["scale"],
+                        },
+                    }
+                )
+            runtime_device["sensors"] = sensors
+        else:
+            outputs = {}
+            lights = {}
+            switches = {}
+            for output_name, output in device["outputs"].items():
+                if output.get("name"):
+                    outputs[output_name] = {"name": output["name"]}
 
-            if not output["enabled"] or not output["role"]:
-                continue
+                if not output["enabled"] or not output["role"]:
+                    continue
 
-            runtime_output = {
-                "name": output["name"],
-                "entity_id": output["entity_id"],
-            }
-            if output["role"] == "light":
-                if output.get("initial_brightness") is not None:
-                    runtime_output["initial_brightness"] = output["initial_brightness"]
-                lights[output_name] = runtime_output
-            else:
-                switches[output_name] = runtime_output
+                runtime_output = {
+                    "name": output["name"],
+                    "entity_id": output["entity_id"],
+                }
+                if output["role"] == "light":
+                    if output.get("initial_brightness") is not None:
+                        runtime_output["initial_brightness"] = output[
+                            "initial_brightness"
+                        ]
+                    lights[output_name] = runtime_output
+                else:
+                    switches[output_name] = runtime_output
 
-        if outputs:
-            runtime_device["outputs"] = outputs
-        if lights:
-            runtime_device["lights"] = lights
-        if switches:
-            runtime_device["switches"] = switches
+            if outputs:
+                runtime_device["outputs"] = outputs
+            if lights:
+                runtime_device["lights"] = lights
+            if switches:
+                runtime_device["switches"] = switches
 
         runtime_devices.append(runtime_device)
 

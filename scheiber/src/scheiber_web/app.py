@@ -13,6 +13,7 @@ from scheiber.config import (
     validate_editor_config,
 )
 
+from .bloc7_candidates import build_bloc7_candidate_snapshot
 from .config_ops import ConfigApplyError, apply_editor_config
 from .discovery import Bloc9DiscoveryService
 from .inspector import CanInspector
@@ -185,6 +186,21 @@ def create_app(
     def stop_discovery():
         require_web_ui()
         return jsonify(discovery_service.stop())
+
+    @app.get("/api/discovery/bloc7")
+    def get_bloc7_discovery():
+        require_web_ui()
+        if not runtime_controller.has_live_runtime():
+            return (
+                jsonify(
+                    {"error": "Bridge is not running", "code": "runtime_not_running"}
+                ),
+                409,
+            )
+        start_if_needed = request.args.get("start_if_needed", "true").lower() != "false"
+        return jsonify(
+            build_bloc7_candidate_snapshot(inspector, start_if_needed=start_if_needed)
+        )
 
     @app.post("/api/discovery/control")
     def discovery_control():

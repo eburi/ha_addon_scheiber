@@ -11,6 +11,7 @@ from scheiber.config import (
     validate_editor_config,
 )
 
+from .bloc7_candidates import build_bloc7_candidate_snapshot
 from .config_ops import ConfigApplyError, apply_editor_config
 
 JSONRPC_VERSION = "2.0"
@@ -226,6 +227,19 @@ class ScheiberMCPServer:
                     "additionalProperties": False,
                 },
             },
+            {
+                "name": "detect_bloc7_candidates",
+                "description": (
+                    "Return likely Bloc7 sensor candidates inferred from the shared CAN inspector."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "start_if_needed": {"type": "boolean", "default": True}
+                    },
+                    "additionalProperties": False,
+                },
+            },
         ]
 
     def _resource_definitions(self) -> list[Dict[str, Any]]:
@@ -252,6 +266,12 @@ class ScheiberMCPServer:
                 "uri": "scheiber://can/snapshot",
                 "name": "Scheiber CAN snapshot",
                 "description": "The current CAN inspector snapshot without starting capture.",
+                "mimeType": "application/json",
+            },
+            {
+                "uri": "scheiber://can/bloc7-candidates",
+                "name": "Scheiber Bloc7 candidates",
+                "description": "Likely Bloc7 sensor candidates inferred from recent CAN traffic.",
                 "mimeType": "application/json",
             },
         ]
@@ -306,6 +326,20 @@ class ScheiberMCPServer:
                         "uri": uri,
                         "mimeType": "application/json",
                         "text": self._as_json_text(self.inspector.snapshot()),
+                    }
+                ]
+            }
+        if uri == "scheiber://can/bloc7-candidates":
+            return {
+                "contents": [
+                    {
+                        "uri": uri,
+                        "mimeType": "application/json",
+                        "text": self._as_json_text(
+                            build_bloc7_candidate_snapshot(
+                                self.inspector, start_if_needed=False
+                            )
+                        ),
                     }
                 ]
             }
@@ -405,6 +439,12 @@ class ScheiberMCPServer:
 
         if name == "stop_can_inspection":
             return self.inspector.stop()
+
+        if name == "detect_bloc7_candidates":
+            return build_bloc7_candidate_snapshot(
+                self.inspector,
+                start_if_needed=arguments.get("start_if_needed", True),
+            )
 
         raise MCPRequestError(-32602, f"Unknown tool: {name}")
 

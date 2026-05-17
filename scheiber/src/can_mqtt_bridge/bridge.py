@@ -198,6 +198,7 @@ class MQTTBridge:
                 hardware_sensor=hardware_sensor,
                 device_type=device_type,
                 device_id=device_id,
+                segment_id=segment_id,
                 mqtt_client=self.mqtt_client,
                 mqtt_topic_prefix=self.mqtt_topic_prefix,
             )

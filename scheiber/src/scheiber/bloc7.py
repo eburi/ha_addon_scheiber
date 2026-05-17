@@ -119,30 +119,50 @@ class Bloc7Device(ScheiberCanDevice):
     """
 
     def __init__(
-        self, device_id: int, can_bus: Any, config: Dict[str, Any], logger=None
+        self,
+        device_id: int,
+        can_bus: Any,
+        config: Dict[str, Any],
+        segment_id: int = 0,
+        logger=None,
     ):
-        super().__init__(device_id, "bloc7", can_bus, logger)
+        super().__init__(
+            device_id, "bloc7", can_bus, segment_id=segment_id, logger=logger
+        )
         self._sensors: List[SensorOutput] = []
 
-        for v_conf in config.get("voltages", []):
-            matcher = Matcher(v_conf["matcher"])
-            value_config = ValueConfig(**v_conf["value_config"])
-            entity_id = v_conf.get(
-                "entity_id", v_conf["name"].lower().replace(" ", "_")
-            )
-            self._sensors.append(
-                Voltage(v_conf["name"], entity_id, matcher, value_config)
-            )
+        runtime_sensors = config.get("sensors")
+        if runtime_sensors is None:
+            runtime_sensors = []
+            for sensor_type, section_name in (
+                ("voltage", "voltages"),
+                ("level", "levels"),
+            ):
+                for sensor_config in config.get(section_name, []):
+                    runtime_sensors.append(
+                        {
+                            "sensor_type": sensor_type,
+                            **sensor_config,
+                        }
+                    )
 
-        for l_conf in config.get("levels", []):
-            matcher = Matcher(l_conf["matcher"])
-            value_config = ValueConfig(**l_conf["value_config"])
-            entity_id = l_conf.get(
-                "entity_id", l_conf["name"].lower().replace(" ", "_")
+        for sensor_config in runtime_sensors:
+            matcher = Matcher(sensor_config["matcher"])
+            value_config = ValueConfig(**sensor_config["value_config"])
+            entity_id = sensor_config.get(
+                "entity_id", sensor_config["name"].lower().replace(" ", "_")
             )
-            self._sensors.append(
-                Level(l_conf["name"], entity_id, matcher, value_config)
-            )
+            sensor_type = sensor_config.get("sensor_type", "level")
+            if sensor_type == "voltage":
+                self._sensors.append(
+                    Voltage(sensor_config["name"], entity_id, matcher, value_config)
+                )
+            elif sensor_type == "level":
+                self._sensors.append(
+                    Level(sensor_config["name"], entity_id, matcher, value_config)
+                )
+            else:
+                raise ValueError(f"Unsupported Bloc7 sensor_type: {sensor_type}")
 
     def get_matchers(self) -> List[Matcher]:
         """Return all matchers from configured sensors."""

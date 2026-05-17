@@ -239,6 +239,62 @@ class TestMQTTDiscoveryLights:
         assert config["device"]["manufacturer"] == "Scheiber"
         assert config["device"]["model"] == "Marine Lighting Control System"
 
+
+class TestMQTTSensors:
+    """Test MQTT sensor setup for Bloc7 devices."""
+
+    @patch("can_mqtt_bridge.bridge.mqtt.Client")
+    @patch("can_mqtt_bridge.bridge.create_scheiber_system")
+    def test_bloc7_sensor_discovery_and_state_publish(
+        self, mock_create_system, mock_mqtt_client
+    ):
+        mock_sensor = MagicMock()
+        mock_sensor.name = "Black water 1"
+        mock_sensor.entity_id = "black_water_1"
+        mock_sensor.unit_of_measurement = "%"
+        mock_sensor.device_class = None
+        mock_sensor.icon = "mdi:gauge"
+        mock_sensor.get_value.return_value = 51
+        mock_sensor.subscribe = Mock()
+
+        mock_device = MagicMock()
+        mock_device.__class__.__name__ = "Bloc7Device"
+        mock_device.device_id = 21
+        mock_device.segment_id = 0
+        mock_device.route_slug = "21"
+        mock_device.get_lights.return_value = []
+        mock_device.get_switches.return_value = []
+        mock_device.get_sensors.return_value = [mock_sensor]
+
+        mock_system = MagicMock()
+        mock_system.get_all_devices.return_value = [mock_device]
+        mock_create_system.return_value = mock_system
+
+        mock_client = MagicMock()
+        mock_mqtt_client.return_value = mock_client
+
+        bridge = MQTTBridge(can_interface="can0", mqtt_host="localhost")
+        bridge.start()
+
+        discovery_call = next(
+            call
+            for call in mock_client.publish.call_args_list
+            if call[0][0] == "homeassistant/sensor/black_water_1/config"
+        )
+        discovery_config = json.loads(discovery_call[0][1])
+
+        assert discovery_config["unique_id"] == "scheiber_bloc7_21_black_water_1"
+        assert (
+            discovery_config["state_topic"]
+            == "homeassistant/scheiber/bloc7/21/black_water_1/state"
+        )
+        assert mock_sensor.subscribe.call_count == 1
+        assert any(
+            call[0][0] == "homeassistant/scheiber/bloc7/21/black_water_1/state"
+            and call[0][1] == "51"
+            for call in mock_client.publish.call_args_list
+        )
+
     @patch("can_mqtt_bridge.bridge.mqtt.Client")
     @patch("can_mqtt_bridge.bridge.create_scheiber_system")
     def test_light_discovery_config_includes_segment_id_in_topics(

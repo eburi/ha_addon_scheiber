@@ -9,7 +9,8 @@ Keep the setup workflow moving toward a Home Assistant add-on web interface that
 1. edits `scheiber-config.yaml`, starting with Bloc9 devices,
 2. provides live Bloc9 discovery from known CAN arbitration ID patterns,
 3. preserves pre-configuration metadata for devices and outputs before roles are assigned,
-4. is structured to support more Scheiber device types later.
+4. is structured to support more Scheiber device types later,
+5. can onboard Bloc7 analog sensors even when device identity must start from manually confirmed CAN matchers instead of fully known segment-aware ID rules.
 
 ## Task order
 
@@ -26,3 +27,4 @@ Completed planning tasks have been moved to `plan/tasks/done/`.
 - Surface segment-aware discovery and control experiments in the setup web UI.
 - Add an opt-in MCP surface on the management runtime so AI tools can inspect live CAN traffic and edit validated configuration during setup and reverse engineering.
 - Keep local-bus behavior unchanged while making cross-segment behavior explicit.
+- Keep the new Bloc7 manual matcher workflow honest about uncertainty until segment placement and arbitration-ID extraction rules are understood well enough to automate safely.

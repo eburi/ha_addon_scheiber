@@ -24,6 +24,7 @@ class MQTTSensor:
         hardware_sensor: Any,
         device_type: str,
         device_id: int,
+        segment_id: int,
         mqtt_client: mqtt.Client,
         mqtt_topic_prefix: str = "homeassistant",
     ):
@@ -41,18 +42,18 @@ class MQTTSensor:
         self.sensor = hardware_sensor
         self.device_type = device_type
         self.device_id = device_id
+        self.segment_id = segment_id
         self.mqtt_client = mqtt_client
         self.mqtt_topic_prefix = mqtt_topic_prefix
 
         # Generate identifiers
         sensor_name_slug = self.sensor.name.lower().replace(" ", "_")
-        self.unique_id = f"scheiber_{device_type}_{device_id}_{sensor_name_slug}"
+        route_slug = f"{device_id}" if segment_id == 0 else f"{device_id}_{segment_id}"
+        self.unique_id = f"scheiber_{device_type}_{route_slug}_{sensor_name_slug}"
         self.entity_id = hardware_sensor.entity_id
 
         # Generate topics
-        base_topic = (
-            f"{mqtt_topic_prefix}/scheiber/{device_type}/{device_id}/{sensor_name_slug}"
-        )
+        base_topic = f"{mqtt_topic_prefix}/scheiber/{device_type}/{route_slug}/{sensor_name_slug}"
         self.config_topic = f"{mqtt_topic_prefix}/sensor/{self.entity_id}/config"
         self.state_topic = f"{base_topic}/state"
         self.availability_topic = f"{base_topic}/availability"
@@ -98,6 +99,18 @@ class MQTTSensor:
     def publish_initial_state(self):
         """Publish initial state from hardware."""
         self._publish_state()
+
+    def publish_state(self):
+        """Publish the current sensor state."""
+        self._publish_state()
+
+    def subscribe_to_updates(self):
+        """Sensor updates are already wired via the constructor observer."""
+        return None
+
+    def subscribe_to_commands(self):
+        """Sensors do not subscribe to commands."""
+        return None
 
     def _on_hardware_state_change(self, state_dict):
         """

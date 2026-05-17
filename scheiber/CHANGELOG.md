@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.8.1] - 2026-05-17
+
+### Fixed
+- Inspector bit-level diff highlighting now maps `bit 0` through `bit 7` to the displayed `7 … 0` bit columns correctly, so changed bits are marked on the right byte positions instead of mirrored
+
+## [6.8.0] - 2026-05-17
+
+### Added
+- First-class Bloc7 support in the validated configuration workflow, including manual matcher-based voltage and level sensors
+- Bloc7 candidate analysis in the setup UI and MCP server so likely CAN frames can be promoted into provisional sensor drafts
+
+### Changed
+- The setup editor now supports both Bloc9 output devices and Bloc7 sensor devices from the same ingress workflow
+- Bloc7 runtime loading now accepts the new unified `sensors:` format while remaining compatible with the older `voltages:` and `levels:` sections
+
+### Fixed
+- MQTT sensor entities now expose the same publish/update hooks the bridge expects, so configured sensors are announced and republished reliably
+
 ## [6.7.2] - 2026-05-17
 
 ### Added

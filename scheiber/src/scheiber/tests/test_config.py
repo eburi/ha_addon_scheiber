@@ -60,6 +60,71 @@ def test_runtime_to_editor_config_reads_segment_id():
     assert normalized["devices"][0]["segment_id"] == 3
 
 
+def test_runtime_to_editor_config_converts_bloc7_sensor_list():
+    runtime_config = {
+        "devices": [
+            {
+                "type": "bloc7",
+                "bus_id": 21,
+                "name": "Tank sender bank",
+                "sensors": [
+                    {
+                        "sensor_type": "level",
+                        "name": "Black water 1",
+                        "entity_id": "black_water_1",
+                        "matcher": {"pattern": 0x0204058A, "mask": 0xFFFFFFFF},
+                        "value_config": {
+                            "start_byte": 3,
+                            "bit_length": 8,
+                            "endian": "little",
+                            "scale": 1.0,
+                        },
+                    }
+                ],
+            }
+        ]
+    }
+
+    editor_config = runtime_to_editor_config(runtime_config)
+    normalized, warnings = validate_editor_config(editor_config)
+
+    assert warnings == []
+    assert normalized["devices"][0]["type"] == "bloc7"
+    assert normalized["devices"][0]["sensors"][0]["matcher"]["pattern"] == 0x0204058A
+    assert normalized["devices"][0]["sensors"][0]["value_config"]["start_byte"] == 3
+
+
+def test_runtime_to_editor_config_converts_legacy_bloc7_sections():
+    runtime_config = {
+        "devices": [
+            {
+                "type": "bloc7",
+                "bus_id": 22,
+                "voltages": [
+                    {
+                        "name": "Generator port",
+                        "entity_id": "generator_port",
+                        "matcher": {"pattern": 0x02040B9A, "mask": 0xFFFFFFFF},
+                        "value_config": {
+                            "start_byte": 1,
+                            "bit_length": 8,
+                            "endian": "little",
+                            "scale": 0.1,
+                        },
+                    }
+                ],
+            }
+        ]
+    }
+
+    editor_config = runtime_to_editor_config(runtime_config)
+    normalized, warnings = validate_editor_config(editor_config)
+
+    assert warnings == []
+    assert normalized["devices"][0]["sensors"][0]["sensor_type"] == "voltage"
+    assert normalized["devices"][0]["sensors"][0]["entity_id"] == "generator_port"
+
+
 def test_runtime_to_editor_config_preserves_unassigned_output_names():
     runtime_config = {
         "devices": [
@@ -190,6 +255,81 @@ def test_validate_editor_config_rejects_duplicate_entity_id():
         validate_editor_config(config)
 
     assert any(error["code"] == "duplicate_entity_id" for error in exc.value.errors)
+
+
+def test_validate_editor_config_accepts_bloc7_sensor_strings():
+    config = {
+        "schema_version": 1,
+        "devices": [
+            {
+                "type": "bloc7",
+                "bus_id": 30,
+                "name": "Tank bank",
+                "segment_id": 0,
+                "sensors": [
+                    {
+                        "name": "Black water 1",
+                        "entity_id": "black_water_1",
+                        "sensor_type": "level",
+                        "matcher": {
+                            "pattern": "0x0204058A",
+                            "mask": "0xFFFFFFFF",
+                        },
+                        "value_config": {
+                            "start_byte": "3",
+                            "bit_length": "8",
+                            "endian": "little",
+                            "scale": "1.0",
+                        },
+                    }
+                ],
+            }
+        ],
+    }
+
+    normalized, warnings = validate_editor_config(config)
+
+    assert warnings == []
+    sensor = normalized["devices"][0]["sensors"][0]
+    assert sensor["matcher"]["pattern"] == 0x0204058A
+    assert sensor["matcher"]["mask"] == 0xFFFFFFFF
+    assert sensor["value_config"]["start_byte"] == 3
+    assert sensor["value_config"]["scale"] == 1.0
+
+
+def test_validate_editor_config_rejects_bloc7_segment_id():
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_editor_config(
+            {
+                "schema_version": 1,
+                "devices": [
+                    {
+                        "type": "bloc7",
+                        "bus_id": 30,
+                        "segment_id": 2,
+                        "sensors": [
+                            {
+                                "name": "Tank",
+                                "entity_id": "tank",
+                                "sensor_type": "level",
+                                "matcher": {
+                                    "pattern": 0x0204058A,
+                                    "mask": 0xFFFFFFFF,
+                                },
+                                "value_config": {
+                                    "start_byte": 1,
+                                    "bit_length": 8,
+                                    "endian": "little",
+                                    "scale": 1.0,
+                                },
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+
+    assert any(error["code"] == "unsupported_segment_id" for error in exc.value.errors)
 
 
 def test_save_editor_config_writes_and_enforces_revision(tmp_path):
@@ -336,6 +476,49 @@ def test_save_editor_config_persists_output_metadata_for_disabled_outputs(tmp_pa
         state["config"]["devices"][0]["outputs"]["s2"]["name"] == "Unused reading light"
     )
     assert state["config"]["devices"][0]["outputs"]["s2"]["enabled"] is False
+
+
+def test_save_editor_config_persists_bloc7_sensors(tmp_path):
+    config_path = tmp_path / "scheiber-config.yaml"
+    config = {
+        "schema_version": 1,
+        "devices": [
+            {
+                "type": "bloc7",
+                "bus_id": 31,
+                "name": "Tank bank",
+                "description": "Manual matcher config",
+                "sensors": [
+                    {
+                        "name": "Black water 2",
+                        "entity_id": "black_water_2",
+                        "sensor_type": "level",
+                        "matcher": {
+                            "pattern": 0x0204058B,
+                            "mask": 0xFFFFFFFF,
+                        },
+                        "value_config": {
+                            "start_byte": 1,
+                            "bit_length": 8,
+                            "endian": "little",
+                            "scale": 1.0,
+                        },
+                    }
+                ],
+            }
+        ],
+    }
+
+    save_editor_config(str(config_path), config)
+
+    saved_text = config_path.read_text(encoding="utf-8")
+    assert "type: bloc7" in saved_text
+    assert "sensor_type: level" in saved_text
+    assert "black_water_2" in saved_text
+
+    state = load_editor_state(str(config_path))
+    assert state["config"]["devices"][0]["type"] == "bloc7"
+    assert state["config"]["devices"][0]["sensors"][0]["entity_id"] == "black_water_2"
 
 
 def test_load_editor_state_returns_missing_for_absent_file(tmp_path):

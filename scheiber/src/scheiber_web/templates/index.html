@@ -11,11 +11,12 @@
       <header class="hero">
         <div>
           <h1>Scheiber setup</h1>
-          <p>Edit Bloc9 devices, discover panels on the CAN bus, and apply changes without leaving Home Assistant.</p>
+          <p>Edit Bloc9 and Bloc7 devices, inspect live CAN traffic, and save validated configuration without leaving Home Assistant.</p>
         </div>
         <div class="hero-actions">
           <a href="{{ url_for('inspect_page') }}" class="button secondary">Inspect</a>
-          <button id="add-device-button" class="primary">Add Bloc9 device</button>
+          <button id="add-bloc9-button" class="primary">Add Bloc9 device</button>
+          <button id="add-bloc7-button">Add Bloc7 device</button>
           <button id="apply-button">Validate &amp; apply</button>
         </div>
       </header>
@@ -48,18 +49,35 @@
         </section>
       </section>
 
+      <section class="card">
+        <div class="section-header">
+          <h2>Bloc7 candidates</h2>
+          <button id="bloc7-refresh-button" class="primary">Refresh candidates</button>
+        </div>
+        <p class="muted">Bloc7 binding is manual-first. These candidates come from raw CAN inspection heuristics and create provisional sensor drafts with explicit matcher and byte settings for you to confirm.</p>
+        <div id="bloc7-discovery-status" class="status-grid"></div>
+        <div id="bloc7-discovery-list" class="device-list empty-state">No Bloc7 candidate frames have been identified yet.</div>
+      </section>
+
       <section class="card hidden" id="editor-card">
         <div class="section-header">
-          <h2 id="editor-title">Add Bloc9 device</h2>
+          <h2 id="editor-title">Add device</h2>
           <button id="cancel-edit-button" class="secondary">Cancel</button>
         </div>
         <form id="device-form">
           <div class="form-grid">
             <label>
+              <span>Device type</span>
+              <select id="device-type">
+                <option value="bloc9">Bloc9</option>
+                <option value="bloc7">Bloc7</option>
+              </select>
+            </label>
+            <label>
               <span>Bus ID</span>
               <input type="number" min="0" max="15" id="device-bus-id" required>
             </label>
-            <label>
+            <label id="segment-id-field">
               <span>Segment ID</span>
               <input type="number" min="0" max="7" id="device-segment-id" value="0">
             </label>
@@ -73,9 +91,22 @@
             </label>
           </div>
 
-          <h3>Outputs</h3>
-          <p class="muted">Output names can be saved before you assign a role. Entity IDs become required only after choosing Light or Switch.</p>
-          <div id="outputs-editor" class="outputs-grid"></div>
+          <section id="bloc9-editor-section">
+            <h3>Outputs</h3>
+            <p class="muted">Output names can be saved before you assign a role. Entity IDs become required only after choosing Light or Switch.</p>
+            <div id="outputs-editor" class="outputs-grid"></div>
+          </section>
+
+          <section id="bloc7-editor-section" class="hidden">
+            <div class="section-header">
+              <div>
+                <h3>Sensors</h3>
+                <p class="muted">Each Bloc7 sensor uses an explicit matcher and byte extraction rule. Use the candidate panel above as a shortcut when a likely frame is visible.</p>
+              </div>
+              <button type="button" id="add-sensor-button">Add sensor</button>
+            </div>
+            <div id="sensors-editor" class="sensor-grid"></div>
+          </section>
 
           <div class="form-actions">
             <button type="submit" class="primary">Save device</button>

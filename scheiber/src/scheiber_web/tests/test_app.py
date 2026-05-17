@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import can
 from scheiber_web.app import create_app
 from scheiber_web.runtime import RuntimeSettings
 
@@ -196,6 +197,50 @@ def test_apply_config_preserves_named_disabled_outputs(tmp_path):
     assert refreshed["config"]["devices"][0]["outputs"]["s2"]["enabled"] is False
 
 
+def test_apply_config_saves_bloc7_sensor_device(tmp_path):
+    runtime = FakeRuntimeController()
+    client, config_path = create_test_client(tmp_path, runtime_controller=runtime)
+
+    payload = client.get("/api/config").get_json()
+    config = payload["config"]
+    config["devices"].append(
+        {
+            "type": "bloc7",
+            "bus_id": 21,
+            "segment_id": 0,
+            "name": "Tank bank",
+            "description": "Manual matcher binding",
+            "sensors": [
+                {
+                    "name": "Black water 1",
+                    "entity_id": "black_water_1",
+                    "sensor_type": "level",
+                    "matcher": {
+                        "pattern": 0x0204058A,
+                        "mask": 0xFFFFFFFF,
+                    },
+                    "value_config": {
+                        "start_byte": 3,
+                        "bit_length": 8,
+                        "endian": "little",
+                        "scale": 1.0,
+                    },
+                }
+            ],
+        }
+    )
+
+    response = client.post(
+        "/api/config/apply",
+        json={"config": config, "base_revision": payload["revision"]},
+    )
+
+    assert response.status_code == 200
+    saved_text = Path(config_path).read_text(encoding="utf-8")
+    assert "type: bloc7" in saved_text
+    assert "black_water_1" in saved_text
+
+
 def test_apply_config_rolls_back_when_reload_fails(tmp_path):
     runtime = FakeRuntimeController(fail_reload=True)
     client, config_path = create_test_client(tmp_path, runtime_controller=runtime)
@@ -301,6 +346,30 @@ def test_apply_config_persists_segment_id(tmp_path):
     assert "segment_id: 3" in saved_text
 
 
+def test_bloc7_discovery_endpoint_returns_candidates(tmp_path):
+    client, _ = create_test_client(tmp_path)
+    inspector = client.application.config["INSPECTOR"]
+    inspector.start()
+    inspector._handle_message(
+        can.Message(
+            arbitration_id=0x0204058A,
+            data=bytes([0x00, 0x08, 0x00, 0x33, 0x00, 0x00, 0x00, 0x00]),
+            is_extended_id=True,
+        )
+    )
+
+    response = client.get("/api/discovery/bloc7?start_if_needed=false")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["candidates"]
+    assert payload["candidates"][0]["arbitration_id"] == "0x0204058A"
+    assert (
+        payload["candidates"][0]["suggested_sensors"][0]["matcher"]["pattern"]
+        == 0x0204058A
+    )
+
+
 def test_mcp_route_returns_404_when_disabled(tmp_path):
     client, _ = create_test_client(tmp_path, mcp_server_enabled=False)
 
@@ -388,6 +457,37 @@ def test_mcp_can_snapshot_starts_capture_when_needed(tmp_path):
     payload = response.get_json()["result"]
     assert payload["isError"] is False
     assert payload["structuredContent"]["status"] == "running"
+
+
+def test_mcp_detect_bloc7_candidates_returns_structured_payload(tmp_path):
+    client, _ = create_test_client(tmp_path, mcp_server_enabled=True)
+    inspector = client.application.config["INSPECTOR"]
+    inspector.start()
+    inspector._handle_message(
+        can.Message(
+            arbitration_id=0x02040582,
+            data=bytes([0x00, 0x4D, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00]),
+            is_extended_id=True,
+        )
+    )
+
+    response = client.post(
+        "/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "tools/call",
+            "params": {
+                "name": "detect_bloc7_candidates",
+                "arguments": {"start_if_needed": False},
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()["result"]
+    assert payload["isError"] is False
+    assert payload["structuredContent"]["candidates"][0]["family"] == "normalized_level"
 
 
 def test_web_ui_routes_return_404_when_disabled(tmp_path):

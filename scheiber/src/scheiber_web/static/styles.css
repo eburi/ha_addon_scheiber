@@ -92,6 +92,12 @@ body {
   margin-top: 12px;
 }
 
+.sensor-grid,
+.candidate-suggestion-list {
+  display: grid;
+  gap: 12px;
+}
+
 .output-badge,
 .pill {
   display: inline-block;
@@ -148,6 +154,49 @@ body {
   padding: 12px;
   background: #162441;
   border-radius: 10px;
+}
+
+.sensor-row,
+.candidate-suggestion {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: #162441;
+  border-radius: 10px;
+}
+
+.sensor-row-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.code-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+}
+
+.candidate-summary {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.candidate-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.candidate-history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 label {
@@ -302,6 +351,10 @@ button.secondary {
   }
 
   .output-row {
+    grid-template-columns: 1fr;
+  }
+
+  .sensor-row-grid {
     grid-template-columns: 1fr;
   }
 
