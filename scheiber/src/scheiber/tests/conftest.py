@@ -1,9 +1,10 @@
 """Pytest fixtures for scheiber module tests."""
 
-import pytest
 import logging
-from unittest.mock import Mock, MagicMock
+from unittest.mock import MagicMock, Mock
+
 import can
+import pytest
 
 
 @pytest.fixture

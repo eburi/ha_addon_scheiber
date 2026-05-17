@@ -15,12 +15,12 @@ The migration:
 This maintains backward compatibility while migrating to the new format.
 """
 
-import json
 import argparse
-import sys
+import json
 import os
-from pathlib import Path
+import sys
 from datetime import datetime
+from pathlib import Path
 
 
 def load_yaml_config(config_path):

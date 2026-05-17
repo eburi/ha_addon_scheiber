@@ -8,9 +8,9 @@ Verifies that:
 """
 
 import time
-from unittest.mock import Mock, MagicMock, patch
-import pytest
+from unittest.mock import MagicMock, Mock, patch
 
+import pytest
 from can_mqtt_bridge.light import MQTTLight
 from can_mqtt_bridge.switch import MQTTSwitch
 

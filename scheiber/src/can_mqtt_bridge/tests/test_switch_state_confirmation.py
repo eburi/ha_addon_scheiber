@@ -6,15 +6,16 @@ Verifies that switches wait for CAN confirmation before publishing state to MQTT
 
 import json
 import time
-from unittest.mock import Mock, MagicMock, call
-import pytest
-import can
+from unittest.mock import MagicMock, Mock, call
 
+import can
+import pytest
 from can_mqtt_bridge.bridge import MQTTBridge
 from can_mqtt_bridge.switch import MQTTSwitch
+
 from scheiber import create_scheiber_system
-from scheiber.switch import Switch
 from scheiber.bloc9 import Bloc9Device
+from scheiber.switch import Switch
 
 
 class TestSwitchStateConfirmation:

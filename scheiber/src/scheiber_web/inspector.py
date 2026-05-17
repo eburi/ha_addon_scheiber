@@ -8,8 +8,14 @@ from typing import Any, Dict, List, Optional
 
 import can
 
+from scheiber.discovery import (
+    classify_bloc9_message,
+    decode_bloc9_address,
+    format_bloc9_route_slug,
+)
 
 MAX_HISTORY = 30
+BLOC9_COMMAND_PREFIX = 0x02360600
 
 
 def _compute_bit_diff(
@@ -41,6 +47,84 @@ def _compute_bit_diff(
             }
         )
     return result
+
+
+def _brightness_percent(brightness: int) -> int:
+    """Convert a 0-255 brightness value into a UI-friendly percentage."""
+    return round((brightness / 255) * 100)
+
+
+def _format_output_state(name: str, state: Dict[str, Any]) -> str:
+    """Format a decoded Bloc9 output state for the inspector UI."""
+    output_name = name.upper()
+    if not state["state"]:
+        return f"{output_name}: OFF"
+
+    percent = _brightness_percent(state["effective_brightness"])
+    if percent >= 100:
+        return f"{output_name}: ON"
+    return f"{output_name}: ON, {percent}%"
+
+
+def _format_command_state(switch_nr: int, mode: int, brightness: int) -> str:
+    """Format a Bloc9 command payload for the inspector UI."""
+    output_name = f"S{switch_nr + 1}" if 0 <= switch_nr <= 5 else f"Switch {switch_nr}"
+    if mode == 0x00:
+        return f"{output_name}: OFF"
+    if mode == 0x01:
+        return f"{output_name}: ON"
+    if mode == 0x11:
+        return f"{output_name}: ON, {_brightness_percent(brightness)}%"
+    return f"{output_name}: mode 0x{mode:02X}"
+
+
+def _describe_known_message(arbitration_id: int, data: bytes) -> Dict[str, Any]:
+    """Return decoded human-readable metadata for known CAN messages."""
+    msg = can.Message(
+        arbitration_id=arbitration_id,
+        data=data,
+        is_extended_id=arbitration_id > 0x7FF,
+    )
+
+    bloc9 = classify_bloc9_message(msg)
+    if bloc9 is not None:
+        route_slug = bloc9["route_slug"]
+        if bloc9["kind"] == "heartbeat":
+            return {
+                "is_known": True,
+                "known_kind": "bloc9_heartbeat",
+                "known_messages": [f"Bloc9 #{route_slug} heartbeat"],
+            }
+
+        output_states = ", ".join(
+            _format_output_state(name, state)
+            for name, state in bloc9["outputs"].items()
+        )
+        return {
+            "is_known": True,
+            "known_kind": "bloc9_state_update",
+            "known_messages": [f"Bloc9 #{route_slug} state update", output_states],
+        }
+
+    if (arbitration_id & 0xFFFFFF00) == BLOC9_COMMAND_PREFIX:
+        address = decode_bloc9_address(arbitration_id)
+        if address is not None:
+            route_slug = format_bloc9_route_slug(
+                address["bus_id"], address["segment_id"]
+            )
+            switch_nr = data[0] if len(data) > 0 else -1
+            mode = data[1] if len(data) > 1 else 0
+            brightness = data[3] if len(data) > 3 else 0
+            return {
+                "is_known": True,
+                "known_kind": "bloc9_command",
+                "known_messages": [
+                    f"Bloc9 #{route_slug} command",
+                    _format_command_state(switch_nr, mode, brightness),
+                ],
+            }
+
+    return {"is_known": False, "known_kind": None, "known_messages": []}
 
 
 class CanInspector:
@@ -96,6 +180,7 @@ class CanInspector:
                 freq = entry["count"] / elapsed if elapsed > 0 else 0.0
                 last_data = list(entry["last_data"])
                 prev_data = list(entry["prev_data"]) if entry["prev_data"] else None
+                known_info = _describe_known_message(arb_id, entry["last_data"])
                 entries.append(
                     {
                         "arbitration_id": f"0x{arb_id:08X}",
@@ -109,6 +194,9 @@ class CanInspector:
                         "prev_data": prev_data,
                         "data_changed": entry["prev_data"] is not None
                         and entry["prev_data"] != entry["last_data"],
+                        "is_known": known_info["is_known"],
+                        "known_kind": known_info["known_kind"],
+                        "known_messages": known_info["known_messages"],
                     }
                 )
             return {
@@ -134,6 +222,7 @@ class CanInspector:
 
             last_data = entry["last_data"]
             prev_data = entry["prev_data"]
+            known_info = _describe_known_message(arb_id, last_data)
 
             history_out = []
             raw_history = list(entry["history"])  # oldest → newest
@@ -165,6 +254,9 @@ class CanInspector:
                 "prev_data": list(prev_data) if prev_data else None,
                 "bit_diff": _compute_bit_diff(prev_data, last_data),
                 "history": history_out,
+                "is_known": known_info["is_known"],
+                "known_kind": known_info["known_kind"],
+                "known_messages": known_info["known_messages"],
             }
 
     # ------------------------------------------------------------------

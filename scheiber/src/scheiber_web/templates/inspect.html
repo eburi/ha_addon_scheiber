@@ -52,11 +52,19 @@
         <div class="section-header">
           <h2>Arbitration IDs</h2>
           <div class="filter-row">
-            <input type="text" id="inspect-filter" placeholder="Filter by ID…">
+            <input type="text" id="inspect-filter" placeholder="Filter by ID or text…">
+            <input type="text" id="inspect-filter-mask" placeholder="Mask (e.g. 0xFFFFFF00)">
             <label class="toggle-label">
               <input type="checkbox" id="inspect-changes-only">
               Changes only
             </label>
+            <label class="toggle-label">
+              <input type="checkbox" id="inspect-hide-known">
+              Hide known
+            </label>
+          </div>
+          <div class="filter-hint muted">
+            With a mask, the ID filter matches <code>(arbitration_id &amp; mask) == (filter &amp; mask)</code>.
           </div>
         </div>
 

@@ -7,11 +7,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from unittest.mock import Mock, MagicMock
+from unittest.mock import MagicMock, Mock
+
 import can
+from can_mqtt_bridge.light import MQTTLight
+
 from scheiber.bloc9 import Bloc9Device
 from scheiber.can_bus import ScheiberCanBus
-from can_mqtt_bridge.light import MQTTLight
 
 
 def test_can_to_mqtt_state_flow():

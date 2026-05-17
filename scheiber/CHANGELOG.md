@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.6.2] - 2026-05-17
+
+### Fixed
+- Inspector now annotates known Bloc9 heartbeats, state updates, and command frames with human-readable summaries directly in the arbitration-ID list
+- Inspector filtering now supports masked arbitration-ID matching, decoded-text matches, and hiding known traffic so unknown frames are easier to isolate during reverse engineering
+
 ## [6.6.1] - 2026-05-17
 
 ### Added
@@ -726,7 +732,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.1...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.2...HEAD
+[6.6.2]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.1...v6.6.2
 [6.6.1]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.0...v6.6.1
 [6.6.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.5.0...v6.6.0
 [6.5.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.4.5...v6.5.0

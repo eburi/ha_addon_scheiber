@@ -8,8 +8,10 @@ to the format documented in device_types.yaml:
 """
 
 from unittest.mock import Mock
-import pytest
+
 import can
+import pytest
+
 from scheiber.bloc9 import Bloc9Device
 
 

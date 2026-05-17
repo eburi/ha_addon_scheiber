@@ -2,10 +2,11 @@
 Shared fixtures for can_mqtt_bridge tests.
 """
 
-import pytest
-from unittest.mock import Mock, MagicMock, patch
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 # Add parent directories to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -67,8 +68,7 @@ def mock_bloc9_device(mock_light, mock_switch):
 def temp_config_file(tmp_path):
     """Create temporary config file."""
     config = tmp_path / "test_config.yaml"
-    config.write_text(
-        """
+    config.write_text("""
 bloc9_devices:
   7:
     name: "Test Panel"
@@ -76,6 +76,5 @@ bloc9_devices:
       s1:
         name: "S1"
         output: "s1"
-"""
-    )
+""")
     return str(config)

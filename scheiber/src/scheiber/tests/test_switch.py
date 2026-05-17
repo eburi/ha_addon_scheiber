@@ -1,7 +1,9 @@
 """Tests for Switch class."""
 
-import pytest
 from unittest.mock import Mock, call
+
+import pytest
+
 from scheiber.switch import Switch
 
 

@@ -5,6 +5,7 @@ MQTT Bridge for Scheiber sensor entities.
 import json
 import logging
 from typing import Any
+
 import paho.mqtt.client as mqtt
 
 

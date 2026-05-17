@@ -7,7 +7,9 @@ const state = {
   sortBy: "last_seen",
   sortDir: "desc",
   filterText: "",
+  filterMaskText: "",
   changesOnly: false,
+  hideKnown: false,
   detail: null,
   startedAt: null,
   pollInterval: null,
@@ -48,6 +50,14 @@ function fmtDuration(startedAt) {
   return `${String(mm).padStart(2,"0")}:${String(ss).padStart(2,"0")}`;
 }
 
+function parseIntegerInput(value) {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^0x[0-9a-f]+$/i.test(trimmed)) return parseInt(trimmed, 16);
+  if (/^[0-9a-f]+$/i.test(trimmed)) return parseInt(trimmed, 16);
+  return null;
+}
+
 function hexBytes(data, prevData) {
   if (!data) return "";
   return data
@@ -56,6 +66,14 @@ function hexBytes(data, prevData) {
       return `<span class="hex-byte${changed ? " changed" : ""}">${b.toString(16).padStart(2, "0").toUpperCase()}</span>`;
     })
     .join(" ");
+}
+
+function renderKnownMessages(entry) {
+  if (!entry.is_known || !entry.known_messages?.length) return "";
+  const lines = entry.known_messages
+    .map((message) => `<div class="inspect-known-message">${message}</div>`)
+    .join("");
+  return `<div class="inspect-known-messages">${lines}</div>`;
 }
 
 // -----------------------------------------------------------------------
@@ -82,11 +100,26 @@ function updateStatusBar(snapshot) {
 function filteredEntries() {
   let entries = state.entries;
   if (state.filterText) {
-    const q = state.filterText.toLowerCase();
-    entries = entries.filter((e) => e.arbitration_id.toLowerCase().includes(q));
+    const filterValue = parseIntegerInput(state.filterText);
+    const maskValue = parseIntegerInput(state.filterMaskText);
+
+    if (filterValue !== null && maskValue !== null) {
+      entries = entries.filter(
+        (e) => (e.arbitration_id_int & maskValue) === (filterValue & maskValue),
+      );
+    } else {
+      const q = state.filterText.toLowerCase();
+      entries = entries.filter((e) => (
+        e.arbitration_id.toLowerCase().includes(q)
+        || (e.known_messages || []).some((message) => message.toLowerCase().includes(q))
+      ));
+    }
   }
   if (state.changesOnly) {
     entries = entries.filter((e) => e.data_changed);
+  }
+  if (state.hideKnown) {
+    entries = entries.filter((e) => !e.is_known);
   }
   return entries;
 }
@@ -120,7 +153,7 @@ function renderTable() {
     .map((e) => {
       const isSelected = e.arbitration_id_int === state.selectedIdInt;
       return `<tr class="inspect-row${isSelected ? " selected" : ""}" data-id="${e.arbitration_id_int}">
-        <td><strong>${e.arbitration_id}</strong></td>
+        <td><strong>${e.arbitration_id}</strong>${renderKnownMessages(e)}</td>
         <td>${e.count}</td>
         <td class="hide-mobile">${e.freq_hz.toFixed(2)}</td>
         <td>${fmtRelative(e.last_seen)}</td>
@@ -409,8 +442,18 @@ document.getElementById("inspect-filter").addEventListener("input", (e) => {
   renderTable();
 });
 
+document.getElementById("inspect-filter-mask").addEventListener("input", (e) => {
+  state.filterMaskText = e.target.value.trim();
+  renderTable();
+});
+
 document.getElementById("inspect-changes-only").addEventListener("change", (e) => {
   state.changesOnly = e.target.checked;
+  renderTable();
+});
+
+document.getElementById("inspect-hide-known").addEventListener("change", (e) => {
+  state.hideKnown = e.target.checked;
   renderTable();
 });
 

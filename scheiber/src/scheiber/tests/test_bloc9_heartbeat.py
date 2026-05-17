@@ -5,9 +5,11 @@ Verifies that low-priority status messages (0x00000600) are treated as
 heartbeats only and do NOT update switch/light states.
 """
 
-from unittest.mock import Mock, call, MagicMock
-import pytest
+from unittest.mock import MagicMock, Mock, call
+
 import can
+import pytest
+
 from scheiber.bloc9 import Bloc9Device
 from scheiber.matchers import Matcher
 

@@ -1,7 +1,8 @@
 """Tests for Matcher class."""
 
-import pytest
 import can
+import pytest
+
 from scheiber.matchers import Matcher
 
 

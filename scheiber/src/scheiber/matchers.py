@@ -6,6 +6,7 @@ Matchers use pattern/mask logic to identify CAN messages by arbitration ID.
 
 from dataclasses import dataclass
 from typing import Optional
+
 import can
 
 
