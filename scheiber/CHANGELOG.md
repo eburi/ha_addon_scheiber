@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.7.2] - 2026-05-17
+
+### Added
+- Home Assistant add-on store assets with dedicated `icon.png` and `logo.png` branding for the Scheiber integration
+- Add-on-specific `README.md` and `DOCS.md` files so the store card and documentation tab now present focused Home Assistant setup guidance
+
+### Changed
+- Refreshed the add-on metadata and repository display name to better match the Home Assistant add-on presentation
+
 ## [6.7.1] - 2026-05-17
 
 ### Fixed
@@ -760,7 +769,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.7.1...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.7.2...HEAD
+[6.7.2]: https://github.com/eburi/ha_addon_scheiber/compare/v6.7.1...v6.7.2
 [6.7.1]: https://github.com/eburi/ha_addon_scheiber/compare/v6.7.0...v6.7.1
 [6.7.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.3...v6.7.0
 [6.6.3]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.2...v6.6.3

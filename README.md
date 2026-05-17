@@ -1,6 +1,13 @@
 # Home Assistant Add-on: Scheiber CAN-MQTT Bridge
 
+<p align="center">
+  <img src="scheiber/logo.png" alt="Scheiber Home Assistant add-on" width="560"/>
+</p>
+
 Experimental bridge for Scheiber CAN devices with MQTT integration.
+
+For the Home Assistant add-on store presentation, see `scheiber/README.md` and
+`scheiber/DOCS.md`.
 
 ⚠️ **EXPERIMENTAL**: This is an ongoing reverse-engineering project. The Scheiber CAN protocol is not fully documented, and functionality may be incomplete or change significantly.
 

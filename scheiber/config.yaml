@@ -1,10 +1,10 @@
-name: scheiber
+name: Scheiber
 slug: scheiber
-version: "6.7.1"
+version: "6.7.2"
 description: >
-  MQTT Bridge to connect Scheiber CAN devices to Home Assistant via MQTT.
-  Optional MCP access exposes config editing and live CAN inspection and should
-  only be enabled temporarily for setup or reverse engineering.
+  Scheiber CAN-to-MQTT bridge for Home Assistant with MQTT discovery,
+  ingress setup, and optional live Bloc9 configuration tooling.
+url: "https://github.com/eburi/ha_addon_scheiber"
 
 arch:
   - amd64
