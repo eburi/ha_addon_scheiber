@@ -29,7 +29,7 @@ class RuntimeSettings:
     state_file: Optional[str] = None
     log_level: str = "info"
     read_only: bool = False
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"
     port: int = 8099
 
 

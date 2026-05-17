@@ -14,6 +14,8 @@ MQTT_TOPIC_PREFIX=$(bashio::config 'mqtt_topic_prefix')
 LOG_LEVEL=$(bashio::config 'log_level')
 DATA_DIR=$(bashio::config 'data_dir')
 CONFIG_FILE=$(bashio::config 'config_file')
+WEB_UI_ENABLED=$(bashio::config 'web_ui_enabled')
+WEB_UI_EXPOSE_NETWORK=$(bashio::config 'web_ui_expose_network')
 
 bashio::log.info "---------------------------------------------------------------------------"
 bashio::log.info "Configuration Values:"
@@ -24,6 +26,18 @@ bashio::log.info "MQTT topic prefix: ${MQTT_TOPIC_PREFIX}"
 bashio::log.info "Log level: ${LOG_LEVEL}"
 bashio::log.info "Data directory: ${DATA_DIR}"   
 bashio::log.info "Configuration File: ${CONFIG_FILE}"
+bashio::log.info "Web UI enabled: ${WEB_UI_ENABLED}"
+bashio::log.info "Web UI exposed to network: ${WEB_UI_EXPOSE_NETWORK}"
+
+if [ "${WEB_UI_ENABLED}" = "true" ] && [ "${WEB_UI_EXPOSE_NETWORK}" = "true" ]; then
+    WEB_UI_HOST="0.0.0.0"
+    bashio::log.warning "Web UI will bind to all host interfaces"
+else
+    WEB_UI_HOST="127.0.0.1"
+    if [ "${WEB_UI_ENABLED}" = "true" ]; then
+        bashio::log.info "Web UI restricted to loopback; use Home Assistant ingress for access"
+    fi
+fi
 
 # Export variables for use in the python script
 export CAN_INTERFACE="${CAN_IFACE}"
@@ -102,8 +116,24 @@ fi
 bashio::log.info "---------------------------------------------------------------------------"
 bashio::log.info "Starting actual bridge..."
 
-bashio::log.info "Running Scheiber web interface"
-exec python3 -m scheiber_web \
+if [ "${WEB_UI_ENABLED}" = "true" ]; then
+    bashio::log.info "Running Scheiber web interface"
+    exec python3 -m scheiber_web \
+         --can-interface "${CAN_INTERFACE}" \
+         --mqtt-host "${MQTT_HOST}" \
+         --mqtt-port "${MQTT_PORT}" \
+         --mqtt-user "${MQTT_USER}" \
+         --mqtt-password "${MQTT_PASSWORD}" \
+         --mqtt-topic-prefix "${MQTT_TOPIC_PREFIX}" \
+         --log-level "${LOG_LEVEL}" \
+         --config "${CONFIG_FILE}" \
+         --data-dir "${DATA_DIR}" \
+         --host "${WEB_UI_HOST}" \
+         --port 8099
+fi
+
+bashio::log.info "Web UI disabled; running CAN MQTT bridge only"
+exec python3 -m can_mqtt_bridge \
      --can-interface "${CAN_INTERFACE}" \
      --mqtt-host "${MQTT_HOST}" \
      --mqtt-port "${MQTT_PORT}" \
@@ -112,6 +142,4 @@ exec python3 -m scheiber_web \
      --mqtt-topic-prefix "${MQTT_TOPIC_PREFIX}" \
      --log-level "${LOG_LEVEL}" \
      --config "${CONFIG_FILE}" \
-     --data-dir "${DATA_DIR}" \
-     --host "0.0.0.0" \
-     --port 8099
+     --data-dir "${DATA_DIR}"

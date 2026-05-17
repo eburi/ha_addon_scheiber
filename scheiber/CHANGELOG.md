@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.6.3] - 2026-05-17
+
+### Changed
+- The add-on web UI now binds to loopback by default so Home Assistant ingress keeps working without exposing the setup interface on the host network
+- When the setup UI is disabled, the add-on now skips the web server process entirely and runs the CAN-to-MQTT bridge directly
+
+### Added
+- New add-on option `web_ui_enabled` allows operators to disable the setup UI server after setup and run the bridge without starting the non-production web process
+- New add-on option `web_ui_expose_network` allows operators to opt in to binding the setup UI on all host interfaces when direct network access is required
+
 ## [6.6.2] - 2026-05-17
 
 ### Fixed
@@ -732,7 +742,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.2...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.3...HEAD
+[6.6.3]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.2...v6.6.3
 [6.6.2]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.1...v6.6.2
 [6.6.1]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.0...v6.6.1
 [6.6.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.5.0...v6.6.0

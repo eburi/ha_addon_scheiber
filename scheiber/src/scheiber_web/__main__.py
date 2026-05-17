@@ -11,7 +11,7 @@ from .app import create_app
 from .runtime import BridgeRuntimeController, RuntimeSettings
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Scheiber web setup interface with shared CAN/MQTT runtime"
     )
@@ -36,22 +36,18 @@ def main() -> int:
         help="Logging level",
     )
     parser.add_argument("--read-only", action="store_true", help="Read-only mode")
-    parser.add_argument("--host", default="0.0.0.0", help="Web server host")
+    parser.add_argument("--host", default="127.0.0.1", help="Web server host")
     parser.add_argument("--port", type=int, default=8099, help="Web server port")
+    return parser
 
-    args = parser.parse_args()
 
-    log_level = getattr(logging, args.log_level.upper())
-    logging.basicConfig(
-        level=log_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    logger = logging.getLogger(__name__)
-
+def build_settings(args: argparse.Namespace) -> RuntimeSettings:
+    """Build runtime settings from parsed CLI arguments."""
     state_file = args.state_file
     if not state_file and args.data_dir:
         state_file = str(Path(args.data_dir) / "scheiber_state.json")
 
-    settings = RuntimeSettings(
+    return RuntimeSettings(
         can_interface=args.can_interface,
         mqtt_host=args.mqtt_host,
         mqtt_port=args.mqtt_port,
@@ -66,6 +62,16 @@ def main() -> int:
         port=args.port,
     )
 
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    log_level = getattr(logging, args.log_level.upper())
+    logging.basicConfig(
+        level=log_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    logger = logging.getLogger(__name__)
+
+    settings = build_settings(args)
     runtime_controller = BridgeRuntimeController(settings)
     try:
         runtime_controller.start()

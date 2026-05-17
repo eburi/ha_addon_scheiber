@@ -631,11 +631,15 @@ mqtt_password: "mqtt"         # MQTT password
 mqtt_topic_prefix: "homeassistant"  # MQTT topic prefix (important for HA discovery)
 log_level: "info"             # Logging level: debug/info/warning/error
 data_dir: "/data"             # Directory for persistent state storage
+web_ui_enabled: true          # false = skip the setup UI process and run the bridge only
+web_ui_expose_network: false  # when UI is enabled: false = ingress only, true = listen on all host interfaces
 ```
 
 **Important Notes:**
 - `mqtt_topic_prefix` should be `homeassistant` for automatic Home Assistant discovery
 - `data_dir` is where device states are persisted (typically `/data` in Docker/HA)
+- `web_ui_enabled: false` disables the setup UI server entirely; the add-on runs only the CAN-to-MQTT bridge
+- `web_ui_expose_network: false` keeps the setup UI bound to `127.0.0.1`, so it stays available through Home Assistant ingress without exposing port 8099 on the host network
 - State cache files stored at `{data_dir}/state_cache/bloc9_{device_id}.json`
 
 ### Device Protocol Configuration
