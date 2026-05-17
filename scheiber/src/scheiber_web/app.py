@@ -8,16 +8,15 @@ from typing import Optional
 from flask import Flask, abort, jsonify, render_template, request
 
 from scheiber.config import (
-    ConfigRevisionConflictError,
     ConfigValidationError,
     load_editor_state,
-    restore_editor_config,
-    save_editor_config,
     validate_editor_config,
 )
 
+from .config_ops import ConfigApplyError, apply_editor_config
 from .discovery import Bloc9DiscoveryService
 from .inspector import CanInspector
+from .mcp import MCPRequestError, ScheiberMCPServer
 from .runtime import BridgeRuntimeController, RuntimeSettings
 
 
@@ -57,11 +56,21 @@ def create_app(
     runtime_controller = runtime_controller or BridgeRuntimeController(settings)
     discovery_service = discovery_service or Bloc9DiscoveryService(runtime_controller)
     inspector = CanInspector(runtime_controller)
+    mcp_server = (
+        ScheiberMCPServer(settings, runtime_controller, inspector)
+        if settings.mcp_server_enabled
+        else None
+    )
 
     app.config["SCHEIBER_SETTINGS"] = settings
     app.config["RUNTIME_CONTROLLER"] = runtime_controller
     app.config["DISCOVERY_SERVICE"] = discovery_service
     app.config["INSPECTOR"] = inspector
+    app.config["MCP_SERVER"] = mcp_server
+
+    def require_web_ui() -> None:
+        if not settings.web_ui_enabled:
+            abort(404)
 
     @app.before_request
     def handle_options_preflight():
@@ -89,10 +98,12 @@ def create_app(
 
     @app.get("/")
     def index():
+        require_web_ui()
         return render_template("index.html")
 
     @app.get("/api/status")
     def get_status():
+        require_web_ui()
         config_state = load_editor_state(settings.config_path)
         return jsonify(
             {
@@ -108,10 +119,12 @@ def create_app(
 
     @app.get("/api/config")
     def get_config():
+        require_web_ui()
         return jsonify(load_editor_state(settings.config_path))
 
     @app.post("/api/config/validate")
     def validate_config():
+        require_web_ui()
         payload = request.get_json(silent=True) or {}
         try:
             normalized_config, warnings = validate_editor_config(payload.get("config"))
@@ -140,73 +153,28 @@ def create_app(
 
     @app.post("/api/config/apply")
     def apply_config():
+        require_web_ui()
         payload = request.get_json(silent=True) or {}
         try:
-            save_result = save_editor_config(
+            result = apply_editor_config(
                 settings.config_path,
+                runtime_controller,
                 payload.get("config"),
-                expected_revision=payload.get("base_revision"),
+                base_revision=payload.get("base_revision"),
             )
-        except ConfigRevisionConflictError as exc:
-            return jsonify({"error": str(exc), "code": "revision_conflict"}), 409
-        except ConfigValidationError as exc:
-            return (
-                jsonify(
-                    {
-                        "error": "Configuration validation failed",
-                        "code": "validation_failed",
-                        "diagnostics": {
-                            "errors": exc.errors,
-                            "warnings": exc.warnings,
-                        },
-                    }
-                ),
-                422,
-            )
+        except ConfigApplyError as exc:
+            return jsonify(exc.to_response()), exc.status_code
 
-        try:
-            runtime_controller.reload()
-        except Exception as exc:
-            restore_editor_config(
-                settings.config_path,
-                save_result["previous_raw_yaml"],
-                save_result["previous_exists"],
-            )
-            rollback_error = None
-            try:
-                runtime_controller.reload()
-            except Exception as rollback_exc:  # pragma: no cover
-                rollback_error = str(rollback_exc)
-
-            return (
-                jsonify(
-                    {
-                        "error": "Bridge reload failed",
-                        "code": "reload_failed",
-                        "details": str(exc),
-                        "rollback_error": rollback_error,
-                    }
-                ),
-                500,
-            )
-
-        return jsonify(
-            {
-                "saved": True,
-                "applied": True,
-                "config": save_result["config"],
-                "revision": save_result["revision"],
-                "diagnostics": save_result["diagnostics"],
-                "runtime": runtime_controller.get_status(),
-            }
-        )
+        return jsonify(result)
 
     @app.get("/api/discovery")
     def get_discovery():
+        require_web_ui()
         return jsonify(discovery_service.snapshot())
 
     @app.post("/api/discovery/start")
     def start_discovery():
+        require_web_ui()
         try:
             snapshot = discovery_service.start()
         except RuntimeError as exc:
@@ -215,11 +183,13 @@ def create_app(
 
     @app.post("/api/discovery/stop")
     def stop_discovery():
+        require_web_ui()
         return jsonify(discovery_service.stop())
 
     @app.post("/api/discovery/control")
     def discovery_control():
         """Send a live CAN command to a Bloc9 output for testing purposes."""
+        require_web_ui()
         if not runtime_controller.has_live_runtime():
             return (
                 jsonify(
@@ -267,14 +237,17 @@ def create_app(
 
     @app.get("/inspect")
     def inspect_page():
+        require_web_ui()
         return render_template("inspect.html")
 
     @app.get("/api/inspect")
     def get_inspect():
+        require_web_ui()
         return jsonify(inspector.snapshot())
 
     @app.post("/api/inspect/start")
     def start_inspect():
+        require_web_ui()
         if not runtime_controller.has_live_runtime():
             return (
                 jsonify(
@@ -286,10 +259,12 @@ def create_app(
 
     @app.post("/api/inspect/stop")
     def stop_inspect():
+        require_web_ui()
         return jsonify(inspector.stop())
 
     @app.get("/api/inspect/detail/<hex_id>")
     def get_inspect_detail(hex_id):
+        require_web_ui()
         try:
             arb_id = int(hex_id, 16)
         except ValueError:
@@ -298,5 +273,30 @@ def create_app(
         if result is None:
             abort(404)
         return jsonify(result)
+
+    @app.post("/mcp")
+    def mcp():
+        if mcp_server is None:
+            abort(404)
+
+        payload = request.get_json(silent=True)
+        if payload is None:
+            error = MCPRequestError(
+                -32700,
+                "Request body must be valid JSON",
+                http_status=400,
+            )
+            return jsonify(error.to_response()), error.http_status
+
+        try:
+            handled = mcp_server.handle_request(payload)
+        except MCPRequestError as exc:
+            return jsonify(exc.to_response()), exc.http_status
+
+        if handled is None:
+            return "", 202
+
+        response, status_code = handled
+        return jsonify(response), status_code
 
     return app

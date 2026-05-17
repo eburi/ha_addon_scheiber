@@ -79,3 +79,32 @@ def test_main_allows_explicit_network_binding(monkeypatch):
             "use_reloader": False,
         }
     ]
+
+
+def test_main_supports_mcp_without_web_ui(monkeypatch):
+    fake_app = FakeApp()
+    captured = {}
+
+    def fake_create_app(settings, runtime_controller):
+        captured["settings"] = settings
+        captured["runtime_controller"] = runtime_controller
+        return fake_app
+
+    monkeypatch.setattr(web_main, "BridgeRuntimeController", FakeRuntimeController)
+    monkeypatch.setattr(web_main, "create_app", fake_create_app)
+
+    exit_code = web_main.main(
+        [
+            "--can-interface",
+            "can1",
+            "--mqtt-host",
+            "localhost",
+            "--disable-web-ui",
+            "--enable-mcp-server",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["settings"].web_ui_enabled is False
+    assert captured["settings"].mcp_server_enabled is True
+    assert captured["runtime_controller"].started is True

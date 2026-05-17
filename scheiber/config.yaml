@@ -1,8 +1,10 @@
 name: scheiber
 slug: scheiber
-version: "6.6.3"
+version: "6.7.0"
 description: >
   MQTT Bridge to connect Scheiber CAN devices to Home Assistant via MQTT.
+  Optional MCP access exposes config editing and live CAN inspection and should
+  only be enabled temporarily for setup or reverse engineering.
 
 arch:
   - amd64
@@ -36,6 +38,7 @@ options:
   config_file: /config/scheiber-config.yaml
   web_ui_enabled: true
   web_ui_expose_network: false
+  mcp_server_enabled: false
 
 schema:
   can_interface: str
@@ -49,3 +52,4 @@ schema:
   config_file: str?
   web_ui_enabled: bool
   web_ui_expose_network: bool
+  mcp_server_enabled: bool

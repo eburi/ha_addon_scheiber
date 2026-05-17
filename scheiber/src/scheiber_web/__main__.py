@@ -38,6 +38,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--read-only", action="store_true", help="Read-only mode")
     parser.add_argument("--host", default="127.0.0.1", help="Web server host")
     parser.add_argument("--port", type=int, default=8099, help="Web server port")
+    parser.add_argument(
+        "--disable-web-ui",
+        action="store_true",
+        help="Disable the human web UI while keeping shared services available",
+    )
+    parser.add_argument(
+        "--enable-mcp-server",
+        action="store_true",
+        help="Enable the MCP server endpoint on the management runtime",
+    )
     return parser
 
 
@@ -60,6 +70,8 @@ def build_settings(args: argparse.Namespace) -> RuntimeSettings:
         read_only=args.read_only,
         host=args.host,
         port=args.port,
+        web_ui_enabled=not args.disable_web_ui,
+        mcp_server_enabled=args.enable_mcp_server,
     )
 
 
@@ -72,6 +84,11 @@ def main(argv: list[str] | None = None) -> int:
     logger = logging.getLogger(__name__)
 
     settings = build_settings(args)
+    if settings.mcp_server_enabled:
+        logger.warning(
+            "MCP server enabled: exposes configuration editing and live CAN "
+            "inspection. Use this only temporarily for setup or reverse engineering."
+        )
     runtime_controller = BridgeRuntimeController(settings)
     try:
         runtime_controller.start()

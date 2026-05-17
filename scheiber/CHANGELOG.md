@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.7.0] - 2026-05-17
+
+### Added
+- Optional MCP server support on the add-on management runtime so AI tools can read/write validated Scheiber configuration and inspect live CAN traffic for setup and reverse engineering
+- New add-on option `mcp_server_enabled` to turn the MCP endpoint on only when it is needed
+
+### Changed
+- The management runtime now starts whenever either the setup UI or MCP server is enabled, allowing MCP to reuse the same validated config workflow and shared CAN listener
+- Add-on metadata, docs, and startup logs now warn that MCP exposes configuration editing and CAN inspection and should only be enabled temporarily
 ## [6.6.3] - 2026-05-17
 
 ### Changed
@@ -742,7 +751,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.3...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.7.0...HEAD
+[6.7.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.3...v6.7.0
 [6.6.3]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.2...v6.6.3
 [6.6.2]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.1...v6.6.2
 [6.6.1]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.0...v6.6.1

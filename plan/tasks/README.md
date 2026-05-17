@@ -15,7 +15,7 @@ Keep the setup workflow moving toward a Home Assistant add-on web interface that
 
 1. `bloc9-segment-routing.md`
 
-Completed web UI planning tasks have been moved to `plan/tasks/done/`.
+Completed planning tasks have been moved to `plan/tasks/done/`.
 
 ## Current direction
 
@@ -24,4 +24,5 @@ Completed web UI planning tasks have been moved to `plan/tasks/done/`.
 - The setup editor now preserves operator-entered output names even when an output is still disabled or not yet assigned as a light or switch.
 - Extend Bloc9 decoding and control paths to account for remote bus segments.
 - Surface segment-aware discovery and control experiments in the setup web UI.
+- Add an opt-in MCP surface on the management runtime so AI tools can inspect live CAN traffic and edit validated configuration during setup and reverse engineering.
 - Keep local-bus behavior unchanged while making cross-segment behavior explicit.

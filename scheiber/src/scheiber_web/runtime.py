@@ -31,6 +31,8 @@ class RuntimeSettings:
     read_only: bool = False
     host: str = "127.0.0.1"
     port: int = 8099
+    web_ui_enabled: bool = True
+    mcp_server_enabled: bool = False
 
 
 class BridgeRuntimeController:
@@ -193,6 +195,9 @@ class BridgeRuntimeController:
                 "effective_config_path": effective_config_path,
                 "config_exists": config_exists,
                 "state_file": self.settings.state_file,
+                "read_only": self.settings.read_only,
+                "web_ui_enabled": self.settings.web_ui_enabled,
+                "mcp_server_enabled": self.settings.mcp_server_enabled,
             }
 
     def _attach_subscribers(self, bridge) -> None:

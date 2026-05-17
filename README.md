@@ -32,6 +32,7 @@ It now also includes a built-in **Scheiber setup web interface** exposed through
 
 - **CAN-MQTT Bridge**: Translates CAN messages to MQTT topics
 - **Ingress Web Setup UI**: Edit Bloc9 mappings and apply config changes from Home Assistant
+- **Optional MCP Server**: Lets AI tools read/write validated config and inspect live CAN traffic for setup and reverse engineering
 - **Bloc9 Discovery Mode**: Watch live CAN traffic for likely Bloc9 bus IDs and output groups
 - **Bloc9 Switch Support**: ON/OFF control and brightness (0-255) for 6-switch panels
 - **Explicit Entity Configuration**: Define which outputs to expose as lights or switches
@@ -633,6 +634,7 @@ log_level: "info"             # Logging level: debug/info/warning/error
 data_dir: "/data"             # Directory for persistent state storage
 web_ui_enabled: true          # false = skip the setup UI process and run the bridge only
 web_ui_expose_network: false  # when UI is enabled: false = ingress only, true = listen on all host interfaces
+mcp_server_enabled: false     # temporary-use MCP endpoint for AI-assisted config editing and CAN inspection
 ```
 
 **Important Notes:**
@@ -640,6 +642,7 @@ web_ui_expose_network: false  # when UI is enabled: false = ingress only, true =
 - `data_dir` is where device states are persisted (typically `/data` in Docker/HA)
 - `web_ui_enabled: false` disables the setup UI server entirely; the add-on runs only the CAN-to-MQTT bridge
 - `web_ui_expose_network: false` keeps the setup UI bound to `127.0.0.1`, so it stays available through Home Assistant ingress without exposing port 8099 on the host network
+- `mcp_server_enabled: true` exposes config editing plus live CAN inspection through the management runtime; enable it only temporarily while setting up or reverse engineering and disable it again afterwards
 - State cache files stored at `{data_dir}/state_cache/bloc9_{device_id}.json`
 
 ### Device Protocol Configuration

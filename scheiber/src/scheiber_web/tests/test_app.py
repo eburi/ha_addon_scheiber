@@ -3,6 +3,8 @@ from pathlib import Path
 from scheiber_web.app import create_app
 from scheiber_web.runtime import RuntimeSettings
 
+from scheiber.config import load_editor_state
+
 
 class FakeRuntimeController:
     def __init__(self, fail_reload=False):
@@ -24,6 +26,9 @@ class FakeRuntimeController:
             "effective_config_path": "/tmp/config.yaml",
             "config_exists": True,
             "state_file": None,
+            "read_only": False,
+            "web_ui_enabled": True,
+            "mcp_server_enabled": False,
         }
 
     def reload(self):
@@ -83,7 +88,14 @@ class FakeDiscoveryService:
         return self.snapshot()
 
 
-def create_test_client(tmp_path, runtime_controller=None, discovery_service=None):
+def create_test_client(
+    tmp_path,
+    runtime_controller=None,
+    discovery_service=None,
+    *,
+    web_ui_enabled=True,
+    mcp_server_enabled=False,
+):
     config_path = tmp_path / "scheiber-config.yaml"
     config_path.write_text("""
 devices:
@@ -99,10 +111,14 @@ devices:
         can_interface="can1",
         mqtt_host="localhost",
         config_path=str(config_path),
+        web_ui_enabled=web_ui_enabled,
+        mcp_server_enabled=mcp_server_enabled,
     )
+    runtime = runtime_controller or FakeRuntimeController()
+    runtime.settings = settings
     app = create_app(
         settings,
-        runtime_controller=runtime_controller or FakeRuntimeController(),
+        runtime_controller=runtime,
         discovery_service=discovery_service or FakeDiscoveryService(),
     )
     app.testing = True
@@ -283,3 +299,102 @@ def test_apply_config_persists_segment_id(tmp_path):
     assert response.status_code == 200
     saved_text = Path(config_path).read_text(encoding="utf-8")
     assert "segment_id: 3" in saved_text
+
+
+def test_mcp_route_returns_404_when_disabled(tmp_path):
+    client, _ = create_test_client(tmp_path, mcp_server_enabled=False)
+
+    response = client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "ping"})
+
+    assert response.status_code == 404
+
+
+def test_mcp_initialize_lists_capabilities(tmp_path):
+    client, _ = create_test_client(tmp_path, mcp_server_enabled=True)
+
+    response = client.post(
+        "/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {"protocolVersion": "2025-03-26"},
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["result"]["protocolVersion"] == "2025-03-26"
+    assert "tools" in payload["result"]["capabilities"]
+    assert "resources" in payload["result"]["capabilities"]
+
+
+def test_mcp_save_config_applies_and_reloads_runtime(tmp_path):
+    runtime = FakeRuntimeController()
+    client, config_path = create_test_client(
+        tmp_path,
+        runtime_controller=runtime,
+        mcp_server_enabled=True,
+    )
+
+    state = load_editor_state(str(config_path))
+    config = state["config"]
+    config["devices"][0]["outputs"]["s2"] = {
+        "enabled": True,
+        "role": "switch",
+        "name": "Pump",
+        "entity_id": "pump_switch",
+        "initial_brightness": None,
+    }
+
+    response = client.post(
+        "/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {
+                "name": "save_config",
+                "arguments": {
+                    "config": config,
+                    "base_revision": state["revision"],
+                },
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()["result"]
+    assert payload["isError"] is False
+    assert payload["structuredContent"]["saved"] is True
+    assert runtime.reload_calls == 1
+    assert "pump_switch" in Path(config_path).read_text(encoding="utf-8")
+
+
+def test_mcp_can_snapshot_starts_capture_when_needed(tmp_path):
+    client, _ = create_test_client(tmp_path, mcp_server_enabled=True)
+
+    response = client.post(
+        "/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {"name": "read_can_snapshot", "arguments": {}},
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()["result"]
+    assert payload["isError"] is False
+    assert payload["structuredContent"]["status"] == "running"
+
+
+def test_web_ui_routes_return_404_when_disabled(tmp_path):
+    client, _ = create_test_client(
+        tmp_path, web_ui_enabled=False, mcp_server_enabled=True
+    )
+
+    response = client.get("/api/config")
+
+    assert response.status_code == 404
