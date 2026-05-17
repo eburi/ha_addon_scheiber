@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.7.1] - 2026-05-17
+
+### Fixed
+- Restored Home Assistant ingress access by always binding the management server to `0.0.0.0` when it is enabled
+- Stopped starting the add-on management server when `web_ui_enabled` is off, so the bridge-only mode avoids the extra web runtime entirely
+
+### Removed
+- Removed the unused add-on option `web_ui_expose_network`; the setup UI is now simply on or off via `web_ui_enabled`
+
 ## [6.7.0] - 2026-05-17
 
 ### Added
@@ -751,7 +760,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.7.0...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.7.1...HEAD
+[6.7.1]: https://github.com/eburi/ha_addon_scheiber/compare/v6.7.0...v6.7.1
 [6.7.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.3...v6.7.0
 [6.6.3]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.2...v6.6.3
 [6.6.2]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.1...v6.6.2

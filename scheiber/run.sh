@@ -15,7 +15,6 @@ LOG_LEVEL=$(bashio::config 'log_level')
 DATA_DIR=$(bashio::config 'data_dir')
 CONFIG_FILE=$(bashio::config 'config_file')
 WEB_UI_ENABLED=$(bashio::config 'web_ui_enabled')
-WEB_UI_EXPOSE_NETWORK=$(bashio::config 'web_ui_expose_network')
 MCP_SERVER_ENABLED=$(bashio::config 'mcp_server_enabled')
 
 bashio::log.info "---------------------------------------------------------------------------"
@@ -28,21 +27,18 @@ bashio::log.info "Log level: ${LOG_LEVEL}"
 bashio::log.info "Data directory: ${DATA_DIR}"   
 bashio::log.info "Configuration File: ${CONFIG_FILE}"
 bashio::log.info "Web UI enabled: ${WEB_UI_ENABLED}"
-bashio::log.info "Web UI exposed to network: ${WEB_UI_EXPOSE_NETWORK}"
 bashio::log.info "MCP server enabled: ${MCP_SERVER_ENABLED}"
 
-if { [ "${WEB_UI_ENABLED}" = "true" ] || [ "${MCP_SERVER_ENABLED}" = "true" ]; } && [ "${WEB_UI_EXPOSE_NETWORK}" = "true" ]; then
-    WEB_UI_HOST="0.0.0.0"
-    bashio::log.warning "Management server will bind to all host interfaces"
-else
-    WEB_UI_HOST="127.0.0.1"
-    if [ "${WEB_UI_ENABLED}" = "true" ] || [ "${MCP_SERVER_ENABLED}" = "true" ]; then
-        bashio::log.info "Management server restricted to loopback; use Home Assistant ingress for access"
-    fi
+if [ "${WEB_UI_ENABLED}" = "true" ] || [ "${MCP_SERVER_ENABLED}" = "true" ]; then
+    bashio::log.info "Management server will bind to 0.0.0.0"
 fi
 
 if [ "${MCP_SERVER_ENABLED}" = "true" ]; then
     bashio::log.warning "MCP server enabled: configuration editing and live CAN inspection are exposed; enable this only temporarily for setup or reverse engineering"
+fi
+
+if [ "${WEB_UI_ENABLED}" != "true" ] && [ "${MCP_SERVER_ENABLED}" = "true" ]; then
+    bashio::log.warning "MCP server requested but web UI is disabled; skipping the management server"
 fi
 
 # Export variables for use in the python script
@@ -122,7 +118,7 @@ fi
 bashio::log.info "---------------------------------------------------------------------------"
 bashio::log.info "Starting actual bridge..."
 
-if [ "${WEB_UI_ENABLED}" = "true" ] || [ "${MCP_SERVER_ENABLED}" = "true" ]; then
+if [ "${WEB_UI_ENABLED}" = "true" ]; then
     bashio::log.info "Running Scheiber management server"
     CMD=(
         python3 -m scheiber_web
@@ -135,12 +131,8 @@ if [ "${WEB_UI_ENABLED}" = "true" ] || [ "${MCP_SERVER_ENABLED}" = "true" ]; the
         --log-level "${LOG_LEVEL}"
         --config "${CONFIG_FILE}"
         --data-dir "${DATA_DIR}"
-        --host "${WEB_UI_HOST}"
         --port 8099
     )
-    if [ "${WEB_UI_ENABLED}" != "true" ]; then
-        CMD+=(--disable-web-ui)
-    fi
     if [ "${MCP_SERVER_ENABLED}" = "true" ]; then
         CMD+=(--enable-mcp-server)
     fi

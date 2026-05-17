@@ -18,7 +18,7 @@ class FakeApp:
         self.run_calls.append(kwargs)
 
 
-def test_main_defaults_to_loopback_binding(monkeypatch):
+def test_main_defaults_to_network_binding(monkeypatch):
     fake_app = FakeApp()
     captured = {}
 
@@ -33,11 +33,11 @@ def test_main_defaults_to_loopback_binding(monkeypatch):
     exit_code = web_main.main(["--can-interface", "can1", "--mqtt-host", "localhost"])
 
     assert exit_code == 0
-    assert captured["settings"].host == "127.0.0.1"
+    assert captured["settings"].host == "0.0.0.0"
     assert captured["runtime_controller"].started is True
     assert fake_app.run_calls == [
         {
-            "host": "127.0.0.1",
+            "host": "0.0.0.0",
             "port": 8099,
             "threaded": True,
             "use_reloader": False,
@@ -45,7 +45,7 @@ def test_main_defaults_to_loopback_binding(monkeypatch):
     ]
 
 
-def test_main_allows_explicit_network_binding(monkeypatch):
+def test_main_allows_explicit_host_override(monkeypatch):
     fake_app = FakeApp()
     captured = {}
 

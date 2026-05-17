@@ -36,7 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Logging level",
     )
     parser.add_argument("--read-only", action="store_true", help="Read-only mode")
-    parser.add_argument("--host", default="127.0.0.1", help="Web server host")
+    parser.add_argument("--host", default="0.0.0.0", help="Web server host")
     parser.add_argument("--port", type=int, default=8099, help="Web server port")
     parser.add_argument(
         "--disable-web-ui",
