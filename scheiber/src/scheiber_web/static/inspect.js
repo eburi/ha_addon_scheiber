@@ -185,6 +185,9 @@ function renderBitDiff(bitDiff, container) {
     return;
   }
 
+  const isChangedDisplayIndex = (changedBitPositions, displayIndex) =>
+    changedBitPositions.includes(7 - displayIndex);
+
   container.innerHTML = bitDiff
     .map((b) => {
       const prevHex = b.prev_byte.toString(16).padStart(2, "0").toUpperCase();
@@ -194,7 +197,7 @@ function renderBitDiff(bitDiff, container) {
       const prevBits = b.prev_bits
         .split("")
         .map((bit, i) => {
-          const c = b.changed_bit_positions.includes(i) ? " changed" : "";
+          const c = isChangedDisplayIndex(b.changed_bit_positions, i) ? " changed" : "";
           return `<span class="bit-cell${c}">${bit}</span>`;
         })
         .join("");
@@ -202,14 +205,15 @@ function renderBitDiff(bitDiff, container) {
       const currBits = b.curr_bits
         .split("")
         .map((bit, i) => {
-          const c = b.changed_bit_positions.includes(i) ? " changed" : "";
+          const c = isChangedDisplayIndex(b.changed_bit_positions, i) ? " changed" : "";
           return `<span class="bit-cell${c}">${bit}</span>`;
         })
         .join("");
 
       const mask = Array.from({ length: 8 }, (_, i) => {
-        const c = b.changed_bit_positions.includes(i) ? " changed" : "";
-        return `<span class="change-mask-cell${c}">${b.changed_bit_positions.includes(i) ? "^" : "."}</span>`;
+        const changed = isChangedDisplayIndex(b.changed_bit_positions, i);
+        const c = changed ? " changed" : "";
+        return `<span class="change-mask-cell${c}">${changed ? "^" : "."}</span>`;
       }).join("");
 
       return `<div class="bit-byte-block${changedClass}">
