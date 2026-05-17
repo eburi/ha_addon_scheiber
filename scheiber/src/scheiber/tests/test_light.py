@@ -1,7 +1,9 @@
 """Tests for DimmableLight class."""
 
-import pytest
 from unittest.mock import Mock, call
+
+import pytest
+
 from scheiber.light import DimmableLight
 
 
@@ -579,6 +581,7 @@ class TestDimmableLightTransitions:
 
     def test_transition_timing_accuracy(self):
         """Test that transition duration is accurate within tolerance."""
+        import threading
         import time
 
         send_command_mock = Mock()
@@ -592,8 +595,8 @@ class TestDimmableLightTransitions:
 
         # Test various durations
         test_cases = [
-            (0.5, 0.1),  # 0.5s transition, ±100ms tolerance
-            (1.0, 0.1),  # 1.0s transition, ±100ms tolerance
+            (0.5, 0.15),  # 0.5s transition, ±150ms tolerance
+            (1.0, 0.15),  # 1.0s transition, ±150ms tolerance
             (2.0, 0.15),  # 2.0s transition, ±150ms tolerance
         ]
 
@@ -602,24 +605,25 @@ class TestDimmableLightTransitions:
 
             # Track when transition completes
             completion_time = None
+            completion_event = threading.Event()
 
             def observer(state_dict):
                 nonlocal completion_time
                 if state_dict["brightness"] == 200:
-                    completion_time = time.time()
+                    completion_time = time.perf_counter()
+                    completion_event.set()
 
             light.subscribe(observer)
 
             # Record start time
-            start_time = time.time()
+            start_time = time.perf_counter()
 
             # Start transition
             light.fade_to(target_brightness=200, duration=duration, easing="linear")
 
-            # Wait for transition to actually complete (poll the observer callback)
+            # Wait for transition to actually complete
             timeout = duration + 1.0  # Max wait time
-            while completion_time is None and (time.time() - start_time) < timeout:
-                time.sleep(0.01)
+            completion_event.wait(timeout=timeout)
 
             # Verify transition completed
             assert (

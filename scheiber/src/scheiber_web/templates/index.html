@@ -42,7 +42,7 @@
             <h2>Bloc9 discovery</h2>
             <button id="discovery-toggle-button" class="primary">Start discovery</button>
           </div>
-          <p class="muted">Discovery watches live Bloc9 traffic, including forwarded IDs with non-zero low-bit suffixes, and lets you test whether those targets support reporting only or reporting plus control.</p>
+          <p class="muted">Discovery watches live Bloc9 traffic, including routed devices on non-native segments, and lets you test whether those targets support reporting only or reporting plus control.</p>
           <div id="discovery-status" class="status-grid"></div>
           <div id="discovery-list" class="device-list empty-state">Discovery has not found any Bloc9 candidates yet.</div>
         </section>
@@ -57,7 +57,11 @@
           <div class="form-grid">
             <label>
               <span>Bus ID</span>
-              <input type="number" min="0" max="31" id="device-bus-id" required>
+              <input type="number" min="0" max="15" id="device-bus-id" required>
+            </label>
+            <label>
+              <span>Segment ID</span>
+              <input type="number" min="0" max="7" id="device-segment-id" value="0">
             </label>
             <label>
               <span>Name</span>

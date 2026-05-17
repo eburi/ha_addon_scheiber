@@ -50,13 +50,13 @@ class ScheiberSystem:
         self.state_file = state_file
         self.logger = logger or logging.getLogger(__name__)
 
-        # Build device lookup: (device_type, device_id) -> device
-        self._device_map: Dict[Tuple[str, int], ScheiberCanDevice] = {}
+        # Build device lookup: (device_type, device_id, segment_id) -> device
+        self._device_map: Dict[Tuple[str, int, int], ScheiberCanDevice] = {}
         for device in devices:
-            key = (device.device_type, device.device_id)
+            key = (device.device_type, device.device_id, device.segment_id)
             if key in self._device_map:
                 raise ValueError(
-                    f"Duplicate device: {device.device_type} bus_id={device.device_id}"
+                    f"Duplicate device: {device.device_type} bus_id={device.device_id} segment_id={device.segment_id}"
                 )
             self._device_map[key] = device
 
@@ -77,7 +77,7 @@ class ScheiberSystem:
         self._running = False
 
     def get_device(
-        self, device_type: str, device_id: int
+        self, device_type: str, device_id: int, segment_id: int = 0
     ) -> Optional[ScheiberCanDevice]:
         """
         Get device by type and ID.
@@ -85,11 +85,12 @@ class ScheiberSystem:
         Args:
             device_type: Device type name (e.g., 'bloc9')
             device_id: Device bus ID
+            segment_id: Device segment ID
 
         Returns:
             Device instance or None if not found
         """
-        key = (device_type, device_id)
+        key = (device_type, device_id, segment_id)
         return self._device_map.get(key)
 
     def get_all_devices(self) -> List[ScheiberCanDevice]:
@@ -109,7 +110,7 @@ class ScheiberSystem:
             state_data: State dictionary (device_type -> device_id -> device_state)
         """
         for device in self.devices:
-            device_key = f"{device.device_type}_{device.device_id}"
+            device_key = device.state_key
             if device_key in state_data:
                 try:
                     device.restore_from_state(state_data[device_key])
@@ -126,7 +127,7 @@ class ScheiberSystem:
         """
         state_data = {}
         for device in self.devices:
-            device_key = f"{device.device_type}_{device.device_id}"
+            device_key = device.state_key
             try:
                 state_data[device_key] = device.store_to_state()
             except Exception as e:

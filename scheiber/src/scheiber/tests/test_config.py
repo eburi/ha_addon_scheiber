@@ -36,6 +36,28 @@ def test_runtime_to_editor_config_converts_bloc9_sections():
     assert normalized["devices"][0]["outputs"]["s1"]["entity_id"] == "main_light"
     assert normalized["devices"][0]["outputs"]["s6"]["role"] == "switch"
     assert normalized["devices"][0]["outputs"]["s6"]["entity_id"] == "fan_switch"
+    assert normalized["devices"][0]["segment_id"] == 0
+
+
+def test_runtime_to_editor_config_reads_segment_id():
+    runtime_config = {
+        "devices": [
+            {
+                "type": "bloc9",
+                "bus_id": 7,
+                "segment_id": 3,
+                "lights": {
+                    "s1": {"name": "Main light", "entity_id": "main_light"},
+                },
+            }
+        ]
+    }
+
+    editor_config = runtime_to_editor_config(runtime_config)
+    normalized, warnings = validate_editor_config(editor_config)
+
+    assert warnings == []
+    assert normalized["devices"][0]["segment_id"] == 3
 
 
 def test_runtime_to_editor_config_preserves_unassigned_output_names():
@@ -90,6 +112,47 @@ def test_validate_editor_config_allows_named_disabled_outputs():
     assert warnings == []
     assert normalized["devices"][0]["outputs"]["s4"]["name"] == "Spare output"
     assert normalized["devices"][0]["outputs"]["s4"]["enabled"] is False
+
+
+def test_validate_editor_config_allows_same_bus_id_on_different_segments():
+    config = {
+        "schema_version": 1,
+        "devices": [
+            {
+                "type": "bloc9",
+                "bus_id": 3,
+                "segment_id": 0,
+                "outputs": {
+                    "s1": {
+                        "enabled": True,
+                        "role": "light",
+                        "name": "Main",
+                        "entity_id": "main_light",
+                        "initial_brightness": None,
+                    }
+                },
+            },
+            {
+                "type": "bloc9",
+                "bus_id": 3,
+                "segment_id": 2,
+                "outputs": {
+                    "s1": {
+                        "enabled": True,
+                        "role": "light",
+                        "name": "Guest",
+                        "entity_id": "guest_light",
+                        "initial_brightness": None,
+                    }
+                },
+            },
+        ],
+    }
+
+    normalized, warnings = validate_editor_config(config)
+
+    assert warnings == []
+    assert [device["segment_id"] for device in normalized["devices"]] == [0, 2]
 
 
 def test_validate_editor_config_rejects_duplicate_entity_id():
@@ -172,6 +235,62 @@ def test_save_editor_config_writes_and_enforces_revision(tmp_path):
         expected_revision=first_save["revision"],
     )
     assert second_save["revision"] == first_save["revision"]
+
+
+def test_save_editor_config_omits_segment_id_for_native_segment(tmp_path):
+    config_path = tmp_path / "scheiber-config.yaml"
+    config = {
+        "schema_version": 1,
+        "devices": [
+            {
+                "type": "bloc9",
+                "bus_id": 7,
+                "segment_id": 0,
+                "outputs": {
+                    "s1": {
+                        "enabled": True,
+                        "role": "light",
+                        "name": "Main",
+                        "entity_id": "main_light",
+                        "initial_brightness": None,
+                    }
+                },
+            }
+        ],
+    }
+
+    save_editor_config(str(config_path), config)
+
+    saved_text = config_path.read_text(encoding="utf-8")
+    assert "segment_id" not in saved_text
+
+
+def test_save_editor_config_persists_nonzero_segment_id(tmp_path):
+    config_path = tmp_path / "scheiber-config.yaml"
+    config = {
+        "schema_version": 1,
+        "devices": [
+            {
+                "type": "bloc9",
+                "bus_id": 7,
+                "segment_id": 3,
+                "outputs": {
+                    "s1": {
+                        "enabled": True,
+                        "role": "light",
+                        "name": "Main",
+                        "entity_id": "main_light",
+                        "initial_brightness": None,
+                    }
+                },
+            }
+        ],
+    }
+
+    save_editor_config(str(config_path), config)
+
+    saved_text = config_path.read_text(encoding="utf-8")
+    assert "segment_id: 3" in saved_text
 
 
 def test_save_editor_config_persists_output_metadata_for_disabled_outputs(tmp_path):

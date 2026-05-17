@@ -6,20 +6,22 @@ Bridges Scheiber CAN devices to Home Assistant via MQTT Discovery.
 
 import json
 import logging
-import threading
-from typing import Optional, Dict, Any, List
-import paho.mqtt.client as mqtt
 
 # Add parent directory to path for scheiber module
 import sys
+import threading
 from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import paho.mqtt.client as mqtt
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from scheiber import create_scheiber_system, ScheiberSystem
+from scheiber import ScheiberSystem, create_scheiber_system
+
 from .light import MQTTLight
-from .switch import MQTTSwitch
 from .sensor import MQTTSensor
+from .switch import MQTTSwitch
 
 
 class MQTTBridge:
@@ -143,8 +145,16 @@ class MQTTBridge:
         """
         device_type = device.__class__.__name__.lower().replace("device", "")
         device_id = device.device_id
+        segment_id = getattr(device, "segment_id", 0)
+        if not isinstance(segment_id, int):
+            segment_id = 0
+        route_slug = getattr(device, "route_slug", None)
+        if not isinstance(route_slug, str) or not route_slug:
+            route_slug = (
+                f"{device_id}" if segment_id == 0 else f"{device_id}_{segment_id}"
+            )
 
-        self.logger.info(f"Setting up MQTT for {device_type} device {device_id}")
+        self.logger.info(f"Setting up MQTT for {device_type} device {route_slug}")
 
         # Create MQTT light entities
         for hardware_light in device.get_lights():
@@ -152,6 +162,7 @@ class MQTTBridge:
                 hardware_light=hardware_light,
                 device_type=device_type,
                 device_id=device_id,
+                segment_id=segment_id,
                 mqtt_client=self.mqtt_client,
                 mqtt_topic_prefix=self.mqtt_topic_prefix,
                 read_only=self.read_only,
@@ -169,6 +180,7 @@ class MQTTBridge:
                 hardware_switch=hardware_switch,
                 device_type=device_type,
                 device_id=device_id,
+                segment_id=segment_id,
                 mqtt_client=self.mqtt_client,
                 mqtt_topic_prefix=self.mqtt_topic_prefix,
                 read_only=self.read_only,

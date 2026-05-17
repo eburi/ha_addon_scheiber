@@ -2,6 +2,7 @@
 #
 # This file defines the devices on your CAN bus using the v6 format
 # Compatible with the new scheiber module and can-mqtt-bridge
+# Optional `segment_id` can be added per Bloc9 for routed/non-native segments.
 
 devices:
   - type: bloc9

@@ -28,12 +28,12 @@ def make_controller(read_only=False):
     return controller
 
 
-def test_send_bloc9_command_uses_segment_suffix():
+def test_send_bloc9_command_uses_segment_id():
     controller = make_controller()
 
     can_id = controller.send_bloc9_command(
         bus_id=3,
-        segment_suffix=2,
+        segment_id=2,
         switch_nr=0,
         on=True,
         brightness=255,

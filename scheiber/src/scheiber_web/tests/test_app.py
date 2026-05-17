@@ -40,19 +40,17 @@ class FakeRuntimeController:
     def unsubscribe_from_messages(self, _callback):
         return None
 
-    def send_bloc9_command(
-        self, bus_id, switch_nr, on, brightness=None, segment_suffix=0
-    ):
+    def send_bloc9_command(self, bus_id, switch_nr, on, brightness=None, segment_id=0):
         self.sent_commands.append(
             {
                 "bus_id": bus_id,
                 "switch_nr": switch_nr,
                 "on": on,
                 "brightness": brightness,
-                "segment_suffix": segment_suffix,
+                "segment_id": segment_id,
             }
         )
-        return 0x02360600 | (0x80 | (bus_id << 3) | segment_suffix)
+        return 0x02360600 | (0x80 | (bus_id << 3) | segment_id)
 
 
 class FakeDiscoveryService:
@@ -120,6 +118,7 @@ def test_get_config_returns_normalized_editor_payload(tmp_path):
     payload = response.get_json()
     assert payload["status"] == "valid"
     assert payload["config"]["devices"][0]["bus_id"] == 7
+    assert payload["config"]["devices"][0]["segment_id"] == 0
     assert payload["config"]["devices"][0]["outputs"]["s1"]["role"] == "light"
 
 
@@ -212,7 +211,7 @@ def test_discovery_start_returns_conflict_when_runtime_is_unavailable(tmp_path):
     assert response.get_json()["code"] == "runtime_not_running"
 
 
-def test_discovery_control_accepts_segment_suffix(tmp_path):
+def test_discovery_control_accepts_segment_id(tmp_path):
     runtime = FakeRuntimeController()
     client, _config_path = create_test_client(tmp_path, runtime_controller=runtime)
 
@@ -220,7 +219,7 @@ def test_discovery_control_accepts_segment_suffix(tmp_path):
         "/api/discovery/control",
         json={
             "bus_id": 3,
-            "segment_suffix": 2,
+            "segment_id": 2,
             "switch_nr": 0,
             "on": True,
             "brightness": 255,
@@ -234,7 +233,53 @@ def test_discovery_control_accepts_segment_suffix(tmp_path):
             "switch_nr": 0,
             "on": True,
             "brightness": 255,
-            "segment_suffix": 2,
+            "segment_id": 2,
         }
     ]
     assert response.get_json()["can_id"] == "0x0236069A"
+
+
+def test_discovery_control_defaults_segment_id_to_zero(tmp_path):
+    runtime = FakeRuntimeController()
+    client, _ = create_test_client(tmp_path, runtime_controller=runtime)
+
+    response = client.post(
+        "/api/discovery/control",
+        json={
+            "bus_id": 3,
+            "switch_nr": 0,
+            "on": True,
+            "brightness": 255,
+        },
+    )
+
+    assert response.status_code == 200
+    assert runtime.sent_commands == [
+        {
+            "bus_id": 3,
+            "switch_nr": 0,
+            "on": True,
+            "brightness": 255,
+            "segment_id": 0,
+        }
+    ]
+    assert response.get_json()["segment_id"] == 0
+    assert response.get_json()["can_id"] == "0x02360698"
+
+
+def test_apply_config_persists_segment_id(tmp_path):
+    runtime = FakeRuntimeController()
+    client, config_path = create_test_client(tmp_path, runtime_controller=runtime)
+
+    payload = client.get("/api/config").get_json()
+    config = payload["config"]
+    config["devices"][0]["segment_id"] = 3
+
+    response = client.post(
+        "/api/config/apply",
+        json={"config": config, "base_revision": payload["revision"]},
+    )
+
+    assert response.status_code == 200
+    saved_text = Path(config_path).read_text(encoding="utf-8")
+    assert "segment_id: 3" in saved_text

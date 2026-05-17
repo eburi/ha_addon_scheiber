@@ -11,9 +11,11 @@ The fix: Changed matcher mask from 0xFFFFFF00 to 0xFFFFFFFF to include
 the device ID byte in the matching.
 """
 
-import pytest
-import can
 from unittest.mock import Mock
+
+import can
+import pytest
+
 from scheiber.bloc9 import Bloc9Device
 
 
@@ -346,6 +348,35 @@ class TestMessageRouting:
 
         # Verify no overlap
         assert device_3_patterns.isdisjoint(device_9_patterns)
+
+    def test_same_bus_id_isolated_by_segment_id(self):
+        mock_bus = Mock()
+
+        device_local = Bloc9Device(
+            device_id=3,
+            segment_id=0,
+            can_bus=mock_bus,
+            lights_config={"s1": {"name": "Device 3_0 S1"}},
+        )
+        device_segment_2 = Bloc9Device(
+            device_id=3,
+            segment_id=2,
+            can_bus=mock_bus,
+            lights_config={"s1": {"name": "Device 3_2 S1"}},
+        )
+
+        msg_segment_2 = can.Message(
+            arbitration_id=0x0216069A,
+            data=bytes([0x64, 0x00, 0x11, 0x01, 0x00, 0x00, 0x00, 0x00]),
+            is_extended_id=True,
+        )
+
+        device_local.process_message(msg_segment_2)
+        device_segment_2.process_message(msg_segment_2)
+
+        assert device_local.lights[0].get_state()["state"] is False
+        assert device_segment_2.lights[0].get_state()["state"] is True
+        assert device_segment_2.lights[0].get_state()["brightness"] == 100
 
 
 if __name__ == "__main__":

@@ -4,8 +4,9 @@ Base class for Bloc9 outputs (lights and switches).
 Provides common functionality for CAN message matching and state decoding.
 """
 
-from typing import Any, Callable, Dict, List, Optional, Tuple
 import logging
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
 import can
 
 
@@ -24,6 +25,7 @@ class Output:
         name: str,
         entity_id: str,
         send_command_func: Callable,
+        segment_id: int = 0,
         logger: Optional[logging.Logger] = None,
     ):
         """
@@ -35,14 +37,19 @@ class Output:
             name: Human-readable name
             entity_id: Entity ID for Home Assistant
             send_command_func: Function to send CAN commands
+            segment_id: Parent device segment ID
             logger: Optional logger
         """
         self.device_id = device_id
+        self.segment_id = segment_id
         self.switch_nr = switch_nr
         self.name = name
         self.entity_id = entity_id
         self._send_command_func = send_command_func
-        self.logger = logger or logging.getLogger(f"Output.{device_id}.{name}")
+        output_device_slug = (
+            f"{device_id}" if segment_id == 0 else f"{device_id}_{segment_id}"
+        )
+        self.logger = logger or logging.getLogger(f"Output.{output_device_slug}.{name}")
 
         # State
         self._state = False
@@ -73,8 +80,12 @@ class Output:
         else:
             return []
 
-        # Add device ID to pattern (with 0x80 bit set - same as command encoding)
-        pattern = base_pattern | ((self.device_id << 3) | 0x80)
+        from .discovery import build_bloc9_address_byte
+
+        # Add device route to pattern (same addressing as commands)
+        pattern = base_pattern | build_bloc9_address_byte(
+            self.device_id, self.segment_id
+        )
 
         return [Matcher(pattern=pattern, mask=0xFFFFFFFF)]
 

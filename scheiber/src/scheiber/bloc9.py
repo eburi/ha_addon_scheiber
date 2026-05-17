@@ -4,15 +4,17 @@ Bloc9 device implementation.
 Manages 6 dimmable light outputs (S1-S6) using the Bloc9 CAN protocol.
 """
 
-from typing import Any, Dict, List, Optional
-import can
 import logging
 import time
+from typing import Any, Dict, List, Optional
+
+import can
 
 from .base_device import ScheiberCanDevice
+from .discovery import build_bloc9_address_byte
 from .light import DimmableLight
-from .switch import Switch
 from .matchers import Matcher
+from .switch import Switch
 
 
 class Bloc9Device(ScheiberCanDevice):
@@ -38,6 +40,7 @@ class Bloc9Device(ScheiberCanDevice):
         self,
         device_id: int,
         can_bus,
+        segment_id: int = 0,
         lights_config: Optional[Dict[str, Dict[str, Any]]] = None,
         switches_config: Optional[Dict[str, Dict[str, Any]]] = None,
         initial_state: Optional[Dict[str, Any]] = None,
@@ -48,13 +51,14 @@ class Bloc9Device(ScheiberCanDevice):
 
         Args:
             device_id: Device bus ID
+            segment_id: Segment ID (0 = local/native)
             can_bus: ScheiberCanBus instance
             lights_config: Dict mapping output names (s1-s6) to light config
             switches_config: Dict mapping output names (s1-s6) to switch config
             initial_state: Previously persisted state dictionary (outputs -> state)
             logger: Optional logger
         """
-        super().__init__(device_id, "bloc9", can_bus, logger)
+        super().__init__(device_id, "bloc9", can_bus, segment_id, logger)
 
         # Extract persisted state for outputs
         self._initial_state = initial_state or {}
@@ -104,7 +108,8 @@ class Bloc9Device(ScheiberCanDevice):
                     name=name,
                     entity_id=entity_id,
                     send_command_func=self._send_switch_command,
-                    logger=logging.getLogger(f"Bloc9.{device_id}.{output_name}"),
+                    segment_id=segment_id,
+                    logger=logging.getLogger(f"Bloc9.{self.route_slug}.{output_name}"),
                 )
 
                 # Initialize with persisted state (no CAN command sent)
@@ -161,7 +166,8 @@ class Bloc9Device(ScheiberCanDevice):
                     name=name,
                     entity_id=entity_id,
                     send_command_func=self._send_switch_command,
-                    logger=logging.getLogger(f"Bloc9.{device_id}.{output_name}"),
+                    segment_id=segment_id,
+                    logger=logging.getLogger(f"Bloc9.{self.route_slug}.{output_name}"),
                 )
 
                 # Initialize with persisted state (no CAN command sent)
@@ -208,11 +214,15 @@ class Bloc9Device(ScheiberCanDevice):
                 self._matcher_to_outputs[pattern].append(switch)
 
         # Add heartbeat matcher (low-priority status)
-        heartbeat_pattern = 0x00000600 | ((self.device_id & 0x1F) << 3)
+        heartbeat_pattern = 0x00000600 | build_bloc9_address_byte(
+            self.device_id, self.segment_id
+        )
         matchers.append(Matcher(pattern=heartbeat_pattern, mask=0xFFFFFFFF))
 
         # Add command matcher (identify our own commands as known, not "unknown")
-        command_id = 0x02360600 | ((self.device_id << 3) | 0x80)
+        command_id = 0x02360600 | build_bloc9_address_byte(
+            self.device_id, self.segment_id
+        )
         matchers.append(Matcher(pattern=command_id, mask=0xFFFFFFFF))
 
         return matchers
@@ -227,13 +237,17 @@ class Bloc9Device(ScheiberCanDevice):
             msg: CAN message
         """
         # Check if this is heartbeat (low-priority status)
-        heartbeat_pattern = 0x00000600 | ((self.device_id << 3) | 0x80)
+        heartbeat_pattern = 0x00000600 | build_bloc9_address_byte(
+            self.device_id, self.segment_id
+        )
         if msg.arbitration_id == heartbeat_pattern:
             self._process_status(msg)
             return
 
         # Check if this is command echo (ignore)
-        command_id = 0x02360600 | ((self.device_id << 3) | 0x80)
+        command_id = 0x02360600 | build_bloc9_address_byte(
+            self.device_id, self.segment_id
+        )
         if msg.arbitration_id == command_id:
             return
 
@@ -295,6 +309,8 @@ class Bloc9Device(ScheiberCanDevice):
         device_info = {
             "device_type": "bloc9",
             "bus_id": self.device_id,
+            "segment_id": self.segment_id,
+            "route_slug": self.route_slug,
             "outputs": outputs,
         }
         self._notify_observers({"device_info": device_info})
@@ -311,8 +327,7 @@ class Bloc9Device(ScheiberCanDevice):
             brightness: Desired brightness (0-255)
         """
         # Construct CAN ID
-        low_byte = ((self.device_id << 3) | 0x80) & 0xFF
-        can_id = 0x02360600 | low_byte
+        can_id = 0x02360600 | build_bloc9_address_byte(self.device_id, self.segment_id)
 
         # Determine brightness
         brightness = brightness if brightness is not None else (255 if state else 0)

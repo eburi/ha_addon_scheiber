@@ -44,3 +44,5 @@ def test_discovery_service_tracks_local_and_segmented_candidates_separately():
     ]
     assert snapshot["candidates"][0]["is_segmented"] is False
     assert snapshot["candidates"][1]["is_segmented"] is True
+    assert snapshot["candidates"][1]["segment_id"] == 2
+    assert snapshot["candidates"][1]["route_slug"] == "3_2"

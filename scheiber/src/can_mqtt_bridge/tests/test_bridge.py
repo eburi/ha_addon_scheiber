@@ -5,11 +5,12 @@ Tests initialization, MQTT discovery, state publishing, and command handling.
 """
 
 import json
-import time
-import pytest
-from unittest.mock import MagicMock, Mock, patch, call
 import sys
+import time
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, call, patch
+
+import pytest
 
 # Add parent directories to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -237,6 +238,49 @@ class TestMQTTDiscoveryLights:
         assert config["device"]["name"] == "Scheiber"
         assert config["device"]["manufacturer"] == "Scheiber"
         assert config["device"]["model"] == "Marine Lighting Control System"
+
+    @patch("can_mqtt_bridge.bridge.mqtt.Client")
+    @patch("can_mqtt_bridge.bridge.create_scheiber_system")
+    def test_light_discovery_config_includes_segment_id_in_topics(
+        self, mock_create_system, mock_mqtt_client
+    ):
+        mock_light = MagicMock()
+        mock_light.name = "S1"
+        mock_light.entity_id = "s1_segmented"
+        mock_light.switch_nr = 0
+        mock_light.get_state.return_value = {"state": False, "brightness": 0}
+        mock_light.subscribe = Mock()
+
+        mock_device = MagicMock()
+        mock_device.__class__.__name__ = "Bloc9Device"
+        mock_device.device_id = 7
+        mock_device.segment_id = 3
+        mock_device.route_slug = "7_3"
+        mock_device.get_lights.return_value = [mock_light]
+        mock_device.get_switches.return_value = []
+
+        mock_system = MagicMock()
+        mock_system.get_all_devices.return_value = [mock_device]
+        mock_create_system.return_value = mock_system
+
+        mock_client = MagicMock()
+        mock_mqtt_client.return_value = mock_client
+
+        bridge = MQTTBridge(can_interface="can0", mqtt_host="localhost")
+        bridge.start()
+
+        discovery_calls = [
+            call
+            for call in mock_client.publish.call_args_list
+            if "/config" in str(call)
+        ]
+
+        config_payload = discovery_calls[0][0][1]
+        config = json.loads(config_payload)
+
+        assert config["unique_id"] == "scheiber_bloc9_7_3_s1"
+        assert config["state_topic"] == "homeassistant/scheiber/bloc9/7_3/s1/state"
+        assert config["command_topic"] == "homeassistant/scheiber/bloc9/7_3/s1/set"
 
         # Verify color mode support
         assert config["supported_color_modes"] == ["brightness"]

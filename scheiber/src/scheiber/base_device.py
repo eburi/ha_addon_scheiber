@@ -4,10 +4,11 @@ Abstract base class for all Scheiber CAN devices.
 Defines the interface that all device types (Bloc9, Bloc7, etc.) must implement.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
+
 import can
-import logging
 
 
 class ScheiberCanDevice(ABC):
@@ -26,6 +27,7 @@ class ScheiberCanDevice(ABC):
         device_id: int,
         device_type: str,
         can_bus,
+        segment_id: int = 0,
         logger: Optional[logging.Logger] = None,
     ):
         """
@@ -35,15 +37,31 @@ class ScheiberCanDevice(ABC):
             device_id: Unique device ID (bus_id)
             device_type: Device type name (e.g., 'bloc9', 'bloc7')
             can_bus: ScheiberCanBus instance for sending messages
+            segment_id: Segment identifier for bridged/forwarded buses
             logger: Optional logger instance
         """
         self.device_id = device_id
+        self.segment_id = segment_id
         self.device_type = device_type
         self.can_bus = can_bus
         self.logger = logger or logging.getLogger(
-            f"{self.__class__.__name__}.{device_id}"
+            f"{self.__class__.__name__}.{self.route_slug}"
         )
         self._observers: List[Any] = []
+
+    @property
+    def route_slug(self) -> str:
+        """Return the device's bus/segment identity string."""
+        return (
+            f"{self.device_id}"
+            if self.segment_id == 0
+            else f"{self.device_id}_{self.segment_id}"
+        )
+
+    @property
+    def state_key(self) -> str:
+        """Return the persistence key for this device."""
+        return f"{self.device_type}_{self.route_slug}"
 
     @abstractmethod
     def get_matchers(self) -> List:
@@ -114,11 +132,17 @@ class ScheiberCanDevice(ABC):
 
     def __str__(self) -> str:
         """String representation."""
-        return f"{self.__class__.__name__}(device_id={self.device_id})"
+        return (
+            f"{self.__class__.__name__}(device_id={self.device_id}, "
+            f"segment_id={self.segment_id})"
+        )
 
     def __repr__(self) -> str:
         """Debug representation."""
-        return f"{self.__class__.__name__}(device_id={self.device_id}, device_type='{self.device_type}')"
+        return (
+            f"{self.__class__.__name__}(device_id={self.device_id}, "
+            f"segment_id={self.segment_id}, device_type='{self.device_type}')"
+        )
 
     def subscribe(self, observer: Any) -> None:
         """

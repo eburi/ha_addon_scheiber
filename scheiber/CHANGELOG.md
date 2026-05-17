@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.6.1] - 2026-05-17
+
+### Added
+- Inspector arbitration-ID rows now show decoded summaries for known Bloc9 traffic, including route-aware device labels and extracted output state or command details under the raw CAN ID
+- Inspector filtering now supports an optional bitmask, so IDs can be matched with expressions equivalent to `(arbitration_id & mask) == (filter & mask)`
+
+### Changed
+- Inspector filtering can now hide all rows whose latest frame matches a known message pattern, making it easier to focus on unknown traffic during reverse engineering
+
+## [6.6.0] - 2026-05-16
+
+### Added
+- Bloc9 devices can now be configured with an optional `segment_id`, allowing the same local `bus_id` to be used on different routed Scheiber segments without collisions
+
+### Changed
+- Segment-aware Bloc9 routing now flows through discovery, saved configuration, runtime device identity, state persistence, MQTT topics, and MQTT unique IDs
+- Native/local devices keep the existing `bus_id` identity, while routed devices use `bus_id_segment_id` slugs such as `3_2` in the setup UI and MQTT paths
+- The setup UI now labels discovered routed Bloc9 devices as `Bloc9 #bus_segment` and saves `segment_id` when promoted into configuration
+- Bloc9 config validation now enforces the hardware-addressable `bus_id` range of `0..15`
+
+### Fixed
+- Light fade transitions no longer overshoot their configured duration by an extra timing step at completion
+
 ## [6.5.0] - 2026-05-16
 
 ### Added
@@ -703,7 +726,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.5.0...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.1...HEAD
+[6.6.1]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.0...v6.6.1
+[6.6.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.5.0...v6.6.0
 [6.5.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.4.5...v6.5.0
 [6.4.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.3.6...v6.4.0
 [6.2.16]: https://github.com/eburi/ha_addon_scheiber/compare/v6.2.15...v6.2.16

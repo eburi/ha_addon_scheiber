@@ -11,17 +11,25 @@ const state = {
 const outputs = ["s1", "s2", "s3", "s4", "s5", "s6"];
 
 function candidateLabel(candidate) {
-  if ((candidate.segment_suffix || 0) === 0) {
-    return `Bloc9 #${candidate.bus_id} (local/native)`;
+  if ((candidate.segment_id || 0) === 0) {
+    return `Bloc9 #${candidate.bus_id}`;
   }
-  return `Bloc9 #${candidate.bus_id} (suffix ${candidate.segment_suffix})`;
+  return `Bloc9 #${candidate.bus_id}_${candidate.segment_id}`;
 }
 
 function candidateRouteDescription(candidate) {
-  if ((candidate.segment_suffix || 0) === 0) {
-    return "Native local-bus arbitration IDs";
+  if ((candidate.segment_id || 0) === 0) {
+    return "Native local-bus arbitration IDs (segment 0)";
   }
-  return `Forwarded/segmented arbitration IDs using low-bit suffix ${candidate.segment_suffix}`;
+  return `Forwarded/segmented arbitration IDs on segment ${candidate.segment_id}`;
+}
+
+function deviceRouteSlug(device) {
+  return Number(device.segment_id || 0) === 0 ? `${device.bus_id}` : `${device.bus_id}_${device.segment_id}`;
+}
+
+function deviceLabel(device) {
+  return `Bloc9 #${deviceRouteSlug(device)}`;
 }
 
 function blankOutput() {
@@ -38,6 +46,7 @@ function blankDevice() {
   return {
     type: "bloc9",
     bus_id: "",
+    segment_id: 0,
     name: "",
     description: "",
     outputs: Object.fromEntries(outputs.map((name) => [name, blankOutput()])),
@@ -124,12 +133,12 @@ function renderDevices() {
   container.className = "device-list";
   container.innerHTML = state.config.devices
     .map((device, index) => `
-      <article class="device-card">
-        <div class="device-card-header">
-          <div>
-            <h3>Bloc9 #${device.bus_id}</h3>
-            <div class="muted">${device.name || "Unnamed device"}</div>
-          </div>
+        <article class="device-card">
+          <div class="device-card-header">
+            <div>
+              <h3>${deviceLabel(device)}</h3>
+              <div class="muted">${device.name || "Unnamed device"}</div>
+            </div>
           <div class="inline-actions">
             <button data-action="edit-device" data-index="${index}">Edit</button>
             <button data-action="delete-device" data-index="${index}">Delete</button>
@@ -185,8 +194,9 @@ function renderOutputEditor(device) {
 function openEditor(device = blankDevice(), index = null) {
   state.editingIndex = index;
   document.getElementById("editor-card").classList.remove("hidden");
-  document.getElementById("editor-title").textContent = index === null ? "Add Bloc9 device" : `Edit Bloc9 #${device.bus_id}`;
+  document.getElementById("editor-title").textContent = index === null ? "Add Bloc9 device" : `Edit ${deviceLabel(device)}`;
   document.getElementById("device-bus-id").value = device.bus_id;
+  document.getElementById("device-segment-id").value = device.segment_id ?? 0;
   document.getElementById("device-name").value = device.name || "";
   document.getElementById("device-description").value = device.description || "";
   renderOutputEditor(device);
@@ -201,6 +211,7 @@ function closeEditor() {
 function readDeviceForm() {
   const device = blankDevice();
   device.bus_id = Number(document.getElementById("device-bus-id").value);
+  device.segment_id = Number(document.getElementById("device-segment-id").value || 0);
   device.name = document.getElementById("device-name").value.trim();
   device.description = document.getElementById("device-description").value.trim();
 
@@ -264,7 +275,7 @@ function getControlState(candidateKey) {
 function renderOutputControls(candidate) {
   const candidateKey = String(candidate.candidate_key);
   const busId = Number(candidate.bus_id);
-  const segmentSuffix = Number(candidate.segment_suffix || 0);
+  const segmentId = Number(candidate.segment_id || 0);
   const ctrl = getControlState(candidateKey);
   const rows = outputs
     .map((name, switchNr) => {
@@ -285,8 +296,8 @@ function renderOutputControls(candidate) {
                <span class="brightness-value">${s.brightness}</span>`
             : "";
         controlWidget = `
-          <button data-action="send-control" data-bus-id="${busId}" data-segment-suffix="${segmentSuffix}" data-candidate-key="${candidateKey}" data-switch-nr="${switchNr}" data-on="1" class="primary">On</button>
-          <button data-action="send-control" data-bus-id="${busId}" data-segment-suffix="${segmentSuffix}" data-candidate-key="${candidateKey}" data-switch-nr="${switchNr}" data-on="0">Off</button>
+          <button data-action="send-control" data-bus-id="${busId}" data-segment-id="${segmentId}" data-candidate-key="${candidateKey}" data-switch-nr="${switchNr}" data-on="1" class="primary">On</button>
+          <button data-action="send-control" data-bus-id="${busId}" data-segment-id="${segmentId}" data-candidate-key="${candidateKey}" data-switch-nr="${switchNr}" data-on="0">Off</button>
           ${dimControls}`;
       }
 
@@ -301,23 +312,24 @@ function renderOutputControls(candidate) {
 
   return `
     <div class="output-controls">
-      <div class="control-hint">Live test — commands are sent with bus ID ${busId} and suffix ${segmentSuffix}; nothing is saved.</div>
+      <div class="control-hint">Live test — commands are sent with bus ID ${busId} on segment ${segmentId}; nothing is saved.</div>
       ${rows}
     </div>`;
 }
 
-async function sendControl(busId, switchNr, on, brightness, segmentSuffix) {
+async function sendControl(busId, switchNr, on, brightness, segmentId) {
   const response = await fetch("./api/discovery/control", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ bus_id: busId, segment_suffix: segmentSuffix, switch_nr: switchNr, on, brightness }),
+    body: JSON.stringify({ bus_id: busId, segment_id: segmentId, switch_nr: switchNr, on, brightness }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     showMessage(payload.error || "Failed to send CAN command", "error");
     return;
   }
-  showMessage(`Sent ${payload.can_id || "CAN command"} to Bloc9 #${payload.bus_id} suffix ${payload.segment_suffix}`, "success");
+  const routeSlug = Number(payload.segment_id || 0) === 0 ? `${payload.bus_id}` : `${payload.bus_id}_${payload.segment_id}`;
+  showMessage(`Sent ${payload.can_id || "CAN command"} to Bloc9 #${routeSlug}`, "success");
 }
 
 function renderDiscovery() {
@@ -347,7 +359,6 @@ function renderDiscovery() {
       const candidateKey = String(candidate.candidate_key);
       const expanded = !!state.expandedCandidates[candidateKey];
       const expandLabel = expanded ? "▲ Hide controls" : "▼ Test outputs";
-      const canPromote = (candidate.segment_suffix || 0) === 0;
       return `
         <article class="discovery-card">
           <div class="device-card-header">
@@ -357,13 +368,11 @@ function renderDiscovery() {
             </div>
             <div class="inline-actions">
               <button data-action="toggle-expand" data-candidate-key="${candidateKey}">${expandLabel}</button>
-              ${canPromote
-                ? `<button data-action="promote-candidate" data-bus-id="${candidate.bus_id}">Use as device</button>`
-                : `<button disabled title="Forwarded/segmented candidates are not writable in saved config yet">Use as device</button>`}
+              <button data-action="promote-candidate" data-bus-id="${candidate.bus_id}" data-segment-id="${candidate.segment_id || 0}">Use as device</button>
             </div>
           </div>
-          <div class="muted">Bus ID: <strong>${candidate.bus_id}</strong></div>
-          <div class="muted">Route: ${candidateRouteDescription(candidate)}</div>
+          <div class="muted">Bus/segment: <strong>${candidate.route_slug || deviceRouteSlug(candidate)}</strong></div>
+          <div class="muted">${candidateRouteDescription(candidate)}</div>
           <div class="muted">Groups seen: ${candidate.groups_seen.join(", ") || "heartbeat only"}</div>
           <div class="muted">Arbitration IDs: ${candidate.sample_arbitration_ids.join(", ")}</div>
           ${expanded ? renderOutputControls(candidate) : ""}
@@ -422,14 +431,17 @@ async function validateAndApply() {
   showMessage("Configuration saved and bridge reloaded", "success");
 }
 
-function promoteCandidate(busId) {
-  const existingIndex = state.config.devices.findIndex((device) => Number(device.bus_id) === Number(busId));
+function promoteCandidate(busId, segmentId = 0) {
+  const existingIndex = state.config.devices.findIndex(
+    (device) => Number(device.bus_id) === Number(busId) && Number(device.segment_id || 0) === Number(segmentId)
+  );
   if (existingIndex >= 0) {
     openEditor(state.config.devices[existingIndex], existingIndex);
     return;
   }
   const device = blankDevice();
   device.bus_id = Number(busId);
+  device.segment_id = Number(segmentId);
   openEditor(device, null);
 }
 
@@ -450,7 +462,7 @@ document.addEventListener("click", async (event) => {
   }
 
   if (action === "promote-candidate") {
-    promoteCandidate(event.target.dataset.busId);
+    promoteCandidate(event.target.dataset.busId, event.target.dataset.segmentId || 0);
   }
 
   if (action === "toggle-expand") {
@@ -461,14 +473,14 @@ document.addEventListener("click", async (event) => {
 
   if (action === "send-control") {
     const busId = Number(event.target.dataset.busId);
-    const segmentSuffix = Number(event.target.dataset.segmentSuffix || 0);
+    const segmentId = Number(event.target.dataset.segmentId || 0);
     const candidateKey = event.target.dataset.candidateKey;
     const switchNr = Number(event.target.dataset.switchNr);
     const on = event.target.dataset.on === "1";
     const output = outputs[switchNr];
     const ctrl = getControlState(candidateKey);
     const brightness = on && ctrl[output]?.role === "light" ? ctrl[output].brightness : null;
-    await sendControl(busId, switchNr, on, brightness, segmentSuffix);
+    await sendControl(busId, switchNr, on, brightness, segmentId);
   }
 });
 

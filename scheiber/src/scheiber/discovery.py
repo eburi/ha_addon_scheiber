@@ -15,30 +15,35 @@ BLOC9_STATE_GROUPS: Dict[int, Tuple[str, int, str, int]] = {
     0x021A0600: ("s5", 4, "s6", 5),
 }
 BLOC9_BUS_ID_MASK = 0x78
-BLOC9_SEGMENT_SUFFIX_MASK = 0x07
+BLOC9_SEGMENT_ID_MASK = 0x07
 BLOC9_ADDRESS_FLAG = 0x80
 
 
-def build_bloc9_address_byte(bus_id: int, segment_suffix: int = 0) -> int:
-    """Build the Bloc9 arbitration-ID low byte from bus ID and segment suffix."""
+def format_bloc9_route_slug(bus_id: int, segment_id: int = 0) -> str:
+    """Format a bus/segment identity for topics, state keys, and UI labels."""
+    return f"{bus_id}" if segment_id == 0 else f"{bus_id}_{segment_id}"
+
+
+def build_bloc9_address_byte(bus_id: int, segment_id: int = 0) -> int:
+    """Build the Bloc9 arbitration-ID low byte from bus ID and segment ID."""
     if not 0 <= bus_id <= 15:
         raise ValueError("bus_id must be between 0 and 15")
-    if not 0 <= segment_suffix <= 7:
-        raise ValueError("segment_suffix must be between 0 and 7")
-    return BLOC9_ADDRESS_FLAG | (bus_id << 3) | segment_suffix
+    if not 0 <= segment_id <= 7:
+        raise ValueError("segment_id must be between 0 and 7")
+    return BLOC9_ADDRESS_FLAG | (bus_id << 3) | segment_id
 
 
 def decode_bloc9_address(arbitration_id: int) -> Optional[Dict[str, int]]:
-    """Decode the Bloc9 arbitration-ID low byte into bus ID and segment suffix."""
+    """Decode the Bloc9 arbitration-ID low byte into bus ID and segment ID."""
     low_byte = arbitration_id & 0xFF
     if (low_byte & BLOC9_ADDRESS_FLAG) != BLOC9_ADDRESS_FLAG:
         return None
 
     bus_id = (low_byte & BLOC9_BUS_ID_MASK) >> 3
-    segment_suffix = low_byte & BLOC9_SEGMENT_SUFFIX_MASK
+    segment_id = low_byte & BLOC9_SEGMENT_ID_MASK
     return {
         "bus_id": bus_id,
-        "segment_suffix": segment_suffix,
+        "segment_id": segment_id,
         "low_byte": low_byte,
     }
 
@@ -61,8 +66,8 @@ def classify_bloc9_message(msg: can.Message) -> Optional[Dict[str, Any]]:
     if address is None:
         return None
     bus_id = address["bus_id"]
-    segment_suffix = address["segment_suffix"]
-    candidate_key = f"{bus_id}:{segment_suffix}"
+    segment_id = address["segment_id"]
+    candidate_key = f"{bus_id}:{segment_id}"
 
     prefix = msg.arbitration_id & 0xFFFFFF00
     if prefix in BLOC9_STATE_GROUPS:
@@ -74,9 +79,10 @@ def classify_bloc9_message(msg: can.Message) -> Optional[Dict[str, Any]]:
         return {
             "kind": "state_update",
             "bus_id": bus_id,
-            "segment_suffix": segment_suffix,
+            "segment_id": segment_id,
+            "route_slug": format_bloc9_route_slug(bus_id, segment_id),
             "candidate_key": candidate_key,
-            "is_segmented": segment_suffix != 0,
+            "is_segmented": segment_id != 0,
             "group": f"{lower_name}_{upper_name}",
             "arbitration_id": f"0x{msg.arbitration_id:08X}",
             "outputs": {
@@ -89,9 +95,10 @@ def classify_bloc9_message(msg: can.Message) -> Optional[Dict[str, Any]]:
         return {
             "kind": "heartbeat",
             "bus_id": bus_id,
-            "segment_suffix": segment_suffix,
+            "segment_id": segment_id,
+            "route_slug": format_bloc9_route_slug(bus_id, segment_id),
             "candidate_key": candidate_key,
-            "is_segmented": segment_suffix != 0,
+            "is_segmented": segment_id != 0,
             "arbitration_id": f"0x{msg.arbitration_id:08X}",
         }
 

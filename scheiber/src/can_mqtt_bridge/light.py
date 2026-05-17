@@ -7,10 +7,11 @@ Handles MQTT discovery, state publishing, and command handling for lights.
 import json
 import logging
 import time
-from typing import Dict, Any, Callable, Optional
+from typing import Any, Callable, Dict, Optional
+
 import paho.mqtt.client as mqtt
-from paho.mqtt.properties import Properties
 from paho.mqtt.packettypes import PacketTypes
+from paho.mqtt.properties import Properties
 
 
 class MQTTLight:
@@ -30,6 +31,7 @@ class MQTTLight:
         device_type: str,
         device_id: int,
         mqtt_client: mqtt.Client,
+        segment_id: int = 0,
         mqtt_topic_prefix: str = "homeassistant",
         read_only: bool = False,
     ):
@@ -40,6 +42,7 @@ class MQTTLight:
             hardware_light: DimmableLight instance from scheiber module
             device_type: Device type (e.g., 'bloc9')
             device_id: Device bus ID
+            segment_id: Device segment ID
             mqtt_client: MQTT client instance
             mqtt_topic_prefix: MQTT topic prefix
             read_only: Read-only mode (no commands)
@@ -48,19 +51,21 @@ class MQTTLight:
         self.hardware_light = hardware_light
         self.device_type = device_type
         self.device_id = device_id
+        self.segment_id = segment_id
         self.mqtt_client = mqtt_client
         self.mqtt_topic_prefix = mqtt_topic_prefix
         self.read_only = read_only
 
         # Generate identifiers (using s1, s2, etc. naming from hardware)
         self.switch_name = f"s{hardware_light.switch_nr + 1}"  # e.g., 's1', 's2'
-        self.unique_id = f"scheiber_{device_type}_{device_id}_{self.switch_name}"
+        self.device_slug = (
+            f"{device_id}" if segment_id == 0 else f"{device_id}_{segment_id}"
+        )
+        self.unique_id = f"scheiber_{device_type}_{self.device_slug}_{self.switch_name}"
         self.entity_id = hardware_light.entity_id  # e.g., 'main_light_crew_cabin'
 
         # Generate topics (v5 schema)
-        base_topic = (
-            f"{mqtt_topic_prefix}/scheiber/{device_type}/{device_id}/{self.switch_name}"
-        )
+        base_topic = f"{mqtt_topic_prefix}/scheiber/{device_type}/{self.device_slug}/{self.switch_name}"
         self.config_topic = f"{mqtt_topic_prefix}/light/{self.entity_id}/config"
         self.state_topic = f"{base_topic}/state"
         self.availability_topic = f"{base_topic}/availability"

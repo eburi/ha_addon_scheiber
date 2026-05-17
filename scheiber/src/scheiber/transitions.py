@@ -4,10 +4,10 @@ Transition and flash controllers for smooth brightness changes.
 Designed for DimmableLight objects using proper object-oriented approach.
 """
 
+import logging
 import threading
 import time
-from typing import Callable, Optional, TYPE_CHECKING
-import logging
+from typing import TYPE_CHECKING, Callable, Optional
 
 if TYPE_CHECKING:
     from scheiber.light import DimmableLight
@@ -64,6 +64,7 @@ class TransitionController:
             try:
                 steps = max(1, int(duration / self.step_delay))
                 easing_func = get_easing_function(easing_name)
+                transition_start = time.perf_counter()
 
                 for step in range(steps + 1):
                     if self.stop_event.is_set():
@@ -92,7 +93,13 @@ class TransitionController:
 
                     self.light._set_brightness(brightness_val, notify=False)
 
-                    time.sleep(self.step_delay)
+                    if step < steps:
+                        next_step_time = transition_start + (
+                            ((step + 1) * duration) / steps
+                        )
+                        sleep_time = next_step_time - time.perf_counter()
+                        if sleep_time > 0:
+                            time.sleep(sleep_time)
 
                 # Notify observers once at the end with final state
                 self.light._notify_observers(

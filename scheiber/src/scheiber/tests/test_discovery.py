@@ -15,22 +15,22 @@ def test_decode_bloc9_bus_id_from_status_message():
     assert decode_bloc9_bus_id(0x02160601) is None
 
 
-def test_decode_bloc9_address_includes_segment_suffix():
+def test_decode_bloc9_address_includes_segment_id():
     assert decode_bloc9_address(0x02160698) == {
         "bus_id": 3,
-        "segment_suffix": 0,
+        "segment_id": 0,
         "low_byte": 0x98,
     }
     assert decode_bloc9_address(0x0216069A) == {
         "bus_id": 3,
-        "segment_suffix": 2,
+        "segment_id": 2,
         "low_byte": 0x9A,
     }
 
 
-def test_build_bloc9_address_byte_supports_segment_suffix():
+def test_build_bloc9_address_byte_supports_segment_id():
     assert build_bloc9_address_byte(3) == 0x98
-    assert build_bloc9_address_byte(3, segment_suffix=2) == 0x9A
+    assert build_bloc9_address_byte(3, segment_id=2) == 0x9A
 
 
 def test_classify_bloc9_state_update_message():
@@ -44,8 +44,9 @@ def test_classify_bloc9_state_update_message():
 
     assert result["kind"] == "state_update"
     assert result["bus_id"] == 7
-    assert result["segment_suffix"] == 0
+    assert result["segment_id"] == 0
     assert result["candidate_key"] == "7:0"
+    assert result["route_slug"] == "7"
     assert result["group"] == "s5_s6"
     assert result["outputs"]["s5"]["state"] is True
     assert result["outputs"]["s5"]["raw_brightness"] == 0x6B
@@ -63,8 +64,9 @@ def test_classify_segmented_bloc9_state_update_message():
 
     assert result["kind"] == "state_update"
     assert result["bus_id"] == 3
-    assert result["segment_suffix"] == 2
+    assert result["segment_id"] == 2
     assert result["candidate_key"] == "3:2"
+    assert result["route_slug"] == "3_2"
     assert result["is_segmented"] is True
     assert result["outputs"]["s1"]["state"] is True
 
@@ -81,7 +83,8 @@ def test_classify_bloc9_heartbeat_message():
     assert result == {
         "kind": "heartbeat",
         "bus_id": 7,
-        "segment_suffix": 0,
+        "segment_id": 0,
+        "route_slug": "7",
         "candidate_key": "7:0",
         "is_segmented": False,
         "arbitration_id": "0x000006B8",

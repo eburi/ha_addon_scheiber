@@ -62,7 +62,7 @@ class Bloc9DiscoveryService:
             candidates = []
             for _candidate_key, candidate in sorted(
                 self._session["candidates"].items(),
-                key=lambda item: (item[1]["bus_id"], item[1]["segment_suffix"]),
+                key=lambda item: (item[1]["bus_id"], item[1]["segment_id"]),
             ):
                 groups_seen = sorted(candidate["groups_seen"])
                 confidence = self._build_confidence(candidate)
@@ -70,8 +70,9 @@ class Bloc9DiscoveryService:
                     {
                         "candidate_key": candidate["candidate_key"],
                         "bus_id": candidate["bus_id"],
-                        "segment_suffix": candidate["segment_suffix"],
-                        "is_segmented": candidate["segment_suffix"] != 0,
+                        "segment_id": candidate["segment_id"],
+                        "route_slug": candidate["route_slug"],
+                        "is_segmented": candidate["segment_id"] != 0,
                         "first_seen_at": candidate["first_seen_at"],
                         "last_seen_at": candidate["last_seen_at"],
                         "groups_seen": groups_seen,
@@ -112,7 +113,8 @@ class Bloc9DiscoveryService:
                 {
                     "candidate_key": candidate_key,
                     "bus_id": observation["bus_id"],
-                    "segment_suffix": observation["segment_suffix"],
+                    "segment_id": observation["segment_id"],
+                    "route_slug": observation["route_slug"],
                     "first_seen_at": timestamp,
                     "last_seen_at": timestamp,
                     "groups_seen": set(),

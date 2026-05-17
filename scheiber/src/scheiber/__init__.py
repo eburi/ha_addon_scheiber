@@ -143,13 +143,17 @@ def _create_devices(
     for device_config in device_configs:
         device_type = device_config.get("type")
         device_id = device_config.get("bus_id")  # Changed from "id" to "bus_id"
+        segment_id = device_config.get("segment_id", 0)
 
         if not device_type or device_id is None:
             logger.warning(f"Invalid device config: {device_config}")
             continue
 
         # Extract device-specific state
-        device_key = f"{device_type}_{device_id}"
+        device_route = (
+            f"{device_id}" if segment_id == 0 else f"{device_id}_{segment_id}"
+        )
+        device_key = f"{device_type}_{device_route}"
         device_state = initial_state.get(device_key, {})
 
         # Create device based on type
@@ -161,10 +165,11 @@ def _create_devices(
             device = Bloc9Device(
                 device_id=device_id,
                 can_bus=can_bus,
+                segment_id=segment_id,
                 lights_config=lights_config,
                 switches_config=switches_config,
                 initial_state=device_state,
-                logger=logging.getLogger(f"Bloc9.{device_id}"),
+                logger=logging.getLogger(f"Bloc9.{device_route}"),
             )
             devices.append(device)
 
@@ -172,6 +177,7 @@ def _create_devices(
             num_switches = len(switches_config)
             logger.info(
                 f"Created Bloc9 device: bus_id={device_id}, "
+                f"segment_id={segment_id}, "
                 f"{num_lights} lights, {num_switches} switches"
             )
         else:
@@ -192,9 +198,9 @@ def _validate_unique_ids(devices: list) -> None:
     """
     seen = set()
     for device in devices:
-        key = (device.device_type, device.device_id)
+        key = (device.device_type, device.device_id, device.segment_id)
         if key in seen:
             raise ValueError(
-                f"Duplicate device: {device.device_type} bus_id={device.device_id}"
+                f"Duplicate device: {device.device_type} bus_id={device.device_id} segment_id={device.segment_id}"
             )
         seen.add(key)

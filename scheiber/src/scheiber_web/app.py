@@ -230,7 +230,9 @@ def create_app(
 
         payload = request.get_json(silent=True) or {}
         bus_id = payload.get("bus_id")
-        segment_suffix = payload.get("segment_suffix", 0)
+        segment_id = payload.get("segment_id", 0)
+        if segment_id is None:
+            segment_id = 0
         switch_nr = payload.get("switch_nr")
         on = payload.get("on", False)
         brightness = payload.get("brightness")
@@ -244,7 +246,7 @@ def create_app(
                 int(switch_nr),
                 bool(on),
                 int(brightness) if brightness is not None else None,
-                int(segment_suffix),
+                int(segment_id),
             )
         except RuntimeError as exc:
             return jsonify({"error": str(exc), "code": "runtime_not_running"}), 409
@@ -257,7 +259,7 @@ def create_app(
             {
                 "sent": True,
                 "bus_id": int(bus_id),
-                "segment_suffix": int(segment_suffix),
+                "segment_id": int(segment_id),
                 "switch_nr": int(switch_nr),
                 "can_id": f"0x{can_id:08X}",
             }

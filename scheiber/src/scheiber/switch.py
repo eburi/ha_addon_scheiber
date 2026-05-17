@@ -4,8 +4,9 @@ Basic ON/OFF switch component.
 Provides simple boolean state control with observer pattern for notifications.
 """
 
-from typing import Any, Callable, Dict, Optional
 import logging
+from typing import Any, Callable, Dict, Optional
+
 import can
 
 from .output import Output
@@ -29,6 +30,7 @@ class Switch(Output):
         name: str,
         entity_id: str,
         send_command_func: Callable[[int, bool, Optional[int]], None],
+        segment_id: int = 0,
         logger: Optional[logging.Logger] = None,
         dimming_threshold: int = 2,
     ):
@@ -45,7 +47,13 @@ class Switch(Output):
             dimming_threshold: Threshold for considering brightness as ON
         """
         super().__init__(
-            device_id, switch_nr, name, entity_id, send_command_func, logger
+            device_id,
+            switch_nr,
+            name,
+            entity_id,
+            send_command_func,
+            segment_id,
+            logger,
         )
         self.send_command_func = send_command_func
         self.dimming_threshold = dimming_threshold

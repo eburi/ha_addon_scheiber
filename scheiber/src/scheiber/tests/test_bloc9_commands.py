@@ -86,6 +86,16 @@ class TestBloc9Commands:
                 actual_can_id == expected_can_id
             ), f"Device {device_id}: expected 0x{expected_can_id:08X}, got 0x{actual_can_id:08X}"
 
+    def test_bloc9_arbitration_id_calculation_with_segment_id(self):
+        """Test arbitration ID calculation for a remote/forwarded segment."""
+        mock_bus = Mock()
+        device = Bloc9Device(device_id=2, segment_id=3, can_bus=mock_bus)
+
+        device._send_switch_command(switch_nr=0, state=True, brightness=255)
+
+        actual_can_id = mock_bus.send_message.call_args[0][0]
+        assert actual_can_id == 0x02360693
+
     def test_bloc9_all_switches(self):
         """Test that all switch numbers (S1-S6) generate correct data."""
         mock_bus = Mock()

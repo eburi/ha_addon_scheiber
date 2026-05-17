@@ -6,7 +6,7 @@ devices:
   # Each Bloc9 has 6 outputs (s1-s6) that can be configured as lights or switches
   
   - type: bloc9
-    bus_id: 3  # The Bloc9's unique CAN ID (0-31)
+    bus_id: 3  # The Bloc9's local CAN ID (0-15)
     name: "Saloon Lights"
     description: "Main saloon lighting control"
     lights:
@@ -36,7 +36,8 @@ devices:
         entity_id: "galley_fan"
   
   - type: bloc9
-    bus_id: 7  # Another Bloc9 on the same bus
+    bus_id: 7  # Another Bloc9 on the same segment
+    segment_id: 2  # Optional routed segment ID (defaults to 0 for local/native)
     name: "Cabin Lights"
     description: "Forward cabin lighting"
     outputs:
@@ -70,7 +71,8 @@ devices:
 
 # Configuration format:
 # - Each device has a type ('bloc9' for now)
-# - bus_id: Device ID on CAN bus (0-31)
+# - bus_id: Device ID on CAN bus segment (0-15)
+# - segment_id: Optional routed segment ID (0-7), omit for local/native
 # - name: Human-readable device name
 # - description: Optional description
 # - outputs: Optional saved output metadata, including names for outputs that are not

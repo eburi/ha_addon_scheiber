@@ -203,7 +203,14 @@ def validate_editor_config(
             )
             continue
 
-        allowed_device_keys = {"type", "bus_id", "name", "description", "outputs"}
+        allowed_device_keys = {
+            "type",
+            "bus_id",
+            "segment_id",
+            "name",
+            "description",
+            "outputs",
+        }
         for key in device.keys():
             if key not in allowed_device_keys:
                 errors.append(
@@ -236,23 +243,44 @@ def validate_editor_config(
             )
             continue
 
-        if not 0 <= bus_id <= 31:
+        if not 0 <= bus_id <= 15:
             errors.append(
                 make_error(
                     "invalid_bus_id_range",
-                    "bus_id must be between 0 and 31",
+                    "bus_id must be between 0 and 15",
                     device_path + ["bus_id"],
                 )
             )
             continue
 
-        device_key = (device_type, bus_id)
+        segment_id = device.get("segment_id", 0)
+        if not isinstance(segment_id, int):
+            errors.append(
+                make_error(
+                    "invalid_segment_id",
+                    "segment_id must be an integer",
+                    device_path + ["segment_id"],
+                )
+            )
+            continue
+
+        if not 0 <= segment_id <= 7:
+            errors.append(
+                make_error(
+                    "invalid_segment_id_range",
+                    "segment_id must be between 0 and 7",
+                    device_path + ["segment_id"],
+                )
+            )
+            continue
+
+        device_key = (device_type, bus_id, segment_id)
         if device_key in seen_device_keys:
             errors.append(
                 make_error(
                     "duplicate_device",
-                    f"Duplicate {device_type} bus_id {bus_id}",
-                    device_path + ["bus_id"],
+                    f"Duplicate {device_type} bus_id {bus_id} segment_id {segment_id}",
+                    device_path + ["segment_id"],
                 )
             )
         seen_device_keys.add(device_key)
@@ -426,6 +454,11 @@ def validate_editor_config(
                 else:
                     warnings.append(
                         f"{output_name} on bloc9 {bus_id} uses initial_brightness and will send a CAN command on startup"
+                        if segment_id == 0
+                        else (
+                            f"{output_name} on bloc9 {bus_id}_{segment_id} uses "
+                            "initial_brightness and will send a CAN command on startup"
+                        )
                     )
 
             if role != "light" and initial_brightness is not None:
@@ -453,6 +486,7 @@ def validate_editor_config(
             {
                 "type": device_type,
                 "bus_id": bus_id,
+                "segment_id": segment_id,
                 "name": name.strip() if isinstance(name, str) else "",
                 "description": (
                     description.strip() if isinstance(description, str) else ""
@@ -464,7 +498,9 @@ def validate_editor_config(
     if errors:
         raise ConfigValidationError(errors, warnings)
 
-    normalized_devices.sort(key=lambda item: (item["type"], item["bus_id"]))
+    normalized_devices.sort(
+        key=lambda item: (item["type"], item["bus_id"], item["segment_id"])
+    )
     return {"schema_version": 1, "devices": normalized_devices}, warnings
 
 
@@ -602,6 +638,7 @@ def runtime_to_editor_config(runtime_config: Dict[str, Any]) -> Dict[str, Any]:
             {
                 "type": device.get("type"),
                 "bus_id": device.get("bus_id"),
+                "segment_id": device.get("segment_id", 0),
                 "name": device.get("name", ""),
                 "description": device.get("description", ""),
                 "outputs": outputs,
@@ -619,6 +656,8 @@ def editor_to_runtime_config(editor_config: Dict[str, Any]) -> Dict[str, Any]:
             "type": device["type"],
             "bus_id": device["bus_id"],
         }
+        if device.get("segment_id", 0) != 0:
+            runtime_device["segment_id"] = device["segment_id"]
         if device.get("name"):
             runtime_device["name"] = device["name"]
         if device.get("description"):
