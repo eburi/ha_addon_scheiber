@@ -4,6 +4,7 @@ const state = {
   entries: [],
   selectedId: null,        // hex string like "0x023606C0"
   selectedIdInt: null,     // integer
+  dataFormat: "hex",
   sortBy: "last_seen",
   sortDir: "desc",
   filterText: "",
@@ -58,12 +59,24 @@ function parseIntegerInput(value) {
   return null;
 }
 
-function hexBytes(data, prevData) {
+function formatByte(value) {
+  if (state.dataFormat === "decimal") return String(value);
+  return value.toString(16).padStart(2, "0").toUpperCase();
+}
+
+function formatByteTransition(prevValue, nextValue) {
+  if (state.dataFormat === "decimal") {
+    return `${prevValue}→${nextValue}`;
+  }
+  return `0x${formatByte(prevValue)}→0x${formatByte(nextValue)}`;
+}
+
+function formatBytes(data, prevData) {
   if (!data) return "";
   return data
     .map((b, i) => {
       const changed = prevData && i < prevData.length && prevData[i] !== b;
-      return `<span class="hex-byte${changed ? " changed" : ""}">${b.toString(16).padStart(2, "0").toUpperCase()}</span>`;
+      return `<span class="hex-byte${changed ? " changed" : ""}">${formatByte(b)}</span>`;
     })
     .join(" ");
 }
@@ -158,7 +171,7 @@ function renderTable() {
         <td class="hide-mobile">${e.freq_hz.toFixed(2)}</td>
         <td>${fmtRelative(e.last_seen)}</td>
         <td class="hide-mobile">${e.dlc}</td>
-        <td>${hexBytes(e.last_data, e.prev_data)}</td>
+        <td>${formatBytes(e.last_data, e.prev_data)}</td>
       </tr>`;
     })
     .join("");
@@ -190,8 +203,6 @@ function renderBitDiff(bitDiff, container) {
 
   container.innerHTML = bitDiff
     .map((b) => {
-      const prevHex = b.prev_byte.toString(16).padStart(2, "0").toUpperCase();
-      const currHex = b.curr_byte.toString(16).padStart(2, "0").toUpperCase();
       const changedClass = b.changed ? " changed" : "";
 
       const prevBits = b.prev_bits
@@ -217,7 +228,7 @@ function renderBitDiff(bitDiff, container) {
       }).join("");
 
       return `<div class="bit-byte-block${changedClass}">
-        <div class="byte-header">B${b.byte_index} 0x${prevHex}→0x${currHex}</div>
+        <div class="byte-header">B${b.byte_index} ${formatByteTransition(b.prev_byte, b.curr_byte)}</div>
         <div class="bit-row prev">${prevBits}</div>
         <div class="bit-row">${currBits}</div>
         <div class="change-mask">${mask}</div>
@@ -260,7 +271,7 @@ function renderDetail(detail) {
       return `<tr>
         <td>${detail.history.length - i}</td>
         <td>${fmtTimestamp(h.timestamp)}</td>
-        <td>${hexBytes(h.data, h.bit_diff?.map ? h.bit_diff.map((b) => b.prev_byte) : null)}</td>
+        <td>${formatBytes(h.data, h.bit_diff?.map ? h.bit_diff.map((b) => b.prev_byte) : null)}</td>
         <td class="changed-bits-list">${changedBits || "—"}</td>
       </tr>`;
     })
@@ -459,6 +470,12 @@ document.getElementById("inspect-changes-only").addEventListener("change", (e) =
 document.getElementById("inspect-hide-known").addEventListener("change", (e) => {
   state.hideKnown = e.target.checked;
   renderTable();
+});
+
+document.getElementById("inspect-data-format").addEventListener("change", (e) => {
+  state.dataFormat = e.target.value;
+  renderTable();
+  if (state.detail) renderDetail(state.detail);
 });
 
 document.getElementById("inspect-tbody").addEventListener("click", (e) => {

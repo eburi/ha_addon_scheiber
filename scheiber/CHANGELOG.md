@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.9.1] - 2026-05-18
+
+### Changed
+- CAN Bus Inspector now lets operators switch live byte rendering between hexadecimal and unsigned decimal without leaving the page
+- Bloc9 setup now raises toast feedback for live output state changes while the Bloc9 tab is open, so discovery activity is visible even when the changed card is further down the page
+- Bloc9 output sections now have a clearer bordered separation, and each output's current state header stays sticky while scrolling through long cards
+
 ## [6.9.0] - 2026-05-17
 
 ### Changed
@@ -794,7 +801,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.0...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.1...HEAD
+[6.9.1]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.0...v6.9.1
 [6.9.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.8.1...v6.9.0
 [6.8.1]: https://github.com/eburi/ha_addon_scheiber/compare/v6.8.0...v6.8.1
 [6.8.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.7.2...v6.8.0

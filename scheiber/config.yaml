@@ -1,6 +1,6 @@
 name: Scheiber
 slug: scheiber
-version: "6.9.0"
+version: "6.9.1"
 description: >
   Scheiber CAN-to-MQTT bridge for Home Assistant with MQTT discovery,
   ingress setup, and optional live Bloc9 configuration tooling.

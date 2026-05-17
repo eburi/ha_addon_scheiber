@@ -18,6 +18,7 @@ const state = {
   busyActions: {},
   controlState: {},
   outputActivity: {},
+  bloc9ToastHistory: {},
   inspectLoaded: false,
 };
 
@@ -198,8 +199,31 @@ function updateOutputActivity(previousCandidates, nextCandidates) {
       if (!previousValue || JSON.stringify(previousValue) !== JSON.stringify(nextValue)) {
         state.outputActivity[key] = state.outputActivity[key] || {};
         state.outputActivity[key][outputName] = Date.now();
+        if (previousValue) {
+          announceBloc9StatusChange(candidate, outputName, previousValue, nextValue);
+        }
       }
     }
+  }
+}
+
+function describeBloc9OutputState(outputName, value) {
+  if (!value) return `${outputName.toUpperCase()} unknown`;
+  if (!value.state) return `${outputName.toUpperCase()} OFF`;
+  return `${outputName.toUpperCase()} ON (${value.effective_brightness})`;
+}
+
+function announceBloc9StatusChange(candidate, outputName, previousValue, nextValue) {
+  if (state.activeTab !== "bloc9") return;
+  const message = `Bloc9 #${bloc9KeyFor(candidate)} ${describeBloc9OutputState(outputName, nextValue)}`;
+  const historyKey = `${candidate.candidate_key}:${outputName}:${JSON.stringify(nextValue)}`;
+  const lastShownAt = state.bloc9ToastHistory[historyKey];
+  if (lastShownAt && Date.now() - lastShownAt < 2500) return;
+
+  state.bloc9ToastHistory[historyKey] = Date.now();
+  const level = nextValue.state ? "success" : "warning";
+  if (JSON.stringify(previousValue) !== JSON.stringify(nextValue)) {
+    showToast(message, level);
   }
 }
 

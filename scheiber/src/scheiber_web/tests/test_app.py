@@ -161,6 +161,8 @@ def test_embedded_inspect_page_hides_back_link(tmp_path):
     page = response.get_data(as_text=True)
     assert "inspect-embedded" in page
     assert "Back to Setup" not in page
+    assert 'id="inspect-data-format"' in page
+    assert "Unsigned decimal" in page
 
 
 def test_apply_config_saves_and_reloads_runtime(tmp_path):

@@ -56,6 +56,13 @@
           <div class="filter-row">
             <input type="text" id="inspect-filter" placeholder="Filter by ID or text…">
             <input type="text" id="inspect-filter-mask" placeholder="Mask (e.g. 0xFFFFFF00)">
+            <label class="filter-select-label">
+              <span>Data format</span>
+              <select id="inspect-data-format">
+                <option value="hex" selected>Hex</option>
+                <option value="decimal">Unsigned decimal</option>
+              </select>
+            </label>
             <label class="toggle-label">
               <input type="checkbox" id="inspect-changes-only">
               Changes only
