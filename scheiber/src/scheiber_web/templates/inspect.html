@@ -6,9 +6,11 @@
     <title>CAN Bus Inspector – Scheiber</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   </head>
-  <body>
+  <body class="{% if embedded %}inspect-embedded{% endif %}">
     <main class="page">
+      {% if not embedded %}
       <a href="{{ url_for('index') }}" class="back-link">← Back to Setup</a>
+      {% endif %}
 
       <header class="hero">
         <div>

@@ -1,15 +1,25 @@
+const outputs = ["s1", "s2", "s3", "s4", "s5", "s6"];
+const entityIdPattern = /^[a-z0-9_]+$/;
+
 const state = {
+  runtime: {
+    running: false,
+    last_error: null,
+    read_only: false,
+  },
   config: { schema_version: 1, devices: [] },
   baseRevision: null,
-  editingIndex: null,
   diagnostics: { errors: [], warnings: [] },
   discovery: { status: "idle", candidates: [], message_counts: {} },
-  bloc7Discovery: { status: "idle", candidates: [] },
-  expandedCandidates: {},
+  bloc7Discovery: { status: "idle", candidates: [], total_messages: 0, unique_ids: 0 },
+  activeTab: "bloc9",
+  bloc9Drafts: {},
+  bloc7Drafts: {},
+  busyActions: {},
   controlState: {},
+  outputActivity: {},
+  inspectLoaded: false,
 };
-
-const outputs = ["s1", "s2", "s3", "s4", "s5", "s6"];
 
 function blankOutput() {
   return {
@@ -31,315 +41,39 @@ function blankSensor() {
   };
 }
 
-function blankDevice(type = "bloc9") {
+function blankBloc9Device() {
   return {
-    type,
+    type: "bloc9",
     bus_id: "",
     segment_id: 0,
     name: "",
     description: "",
     outputs: Object.fromEntries(outputs.map((name) => [name, blankOutput()])),
+  };
+}
+
+function blankBloc7Device() {
+  return {
+    type: "bloc7",
+    bus_id: "",
+    segment_id: 0,
+    name: "",
+    description: "",
     sensors: [],
   };
 }
 
-function showMessage(message, level = "success") {
-  const el = document.getElementById("flash-message");
-  el.textContent = message;
-  el.className = `flash-message ${level}`;
+function clone(value) {
+  return structuredClone(value);
 }
 
-function clearMessage() {
-  const el = document.getElementById("flash-message");
-  el.textContent = "";
-  el.className = "flash-message hidden";
-}
-
-function deviceRouteSlug(device) {
-  return Number(device.segment_id || 0) === 0
-    ? `${device.bus_id}`
-    : `${device.bus_id}_${device.segment_id}`;
-}
-
-function deviceLabel(device) {
-  const type = (device.type || "bloc9").toUpperCase();
-  return `${type} #${deviceRouteSlug(device)}`;
-}
-
-function bloc9CandidateLabel(candidate) {
-  if ((candidate.segment_id || 0) === 0) {
-    return `Bloc9 #${candidate.bus_id}`;
-  }
-  return `Bloc9 #${candidate.bus_id}_${candidate.segment_id}`;
-}
-
-function bloc9CandidateRouteDescription(candidate) {
-  if ((candidate.segment_id || 0) === 0) {
-    return "Native local-bus arbitration IDs (segment 0)";
-  }
-  return `Forwarded/segmented arbitration IDs on segment ${candidate.segment_id}`;
-}
-
-function renderStatus(runtime, config) {
-  document.getElementById("runtime-status").innerHTML = `
-    <div class="status-item"><span class="label">Bridge</span><span class="value">${runtime.running ? "Running" : "Stopped"}</span></div>
-    <div class="status-item"><span class="label">CAN interface</span><span class="value">${runtime.can_interface}</span></div>
-    <div class="status-item"><span class="label">MQTT</span><span class="value">${runtime.mqtt_host}:${runtime.mqtt_port}</span></div>
-    <div class="status-item"><span class="label">Config file</span><span class="value">${runtime.config_path}</span></div>
-    <div class="status-item"><span class="label">Last error</span><span class="value">${runtime.last_error || "None"}</span></div>
-  `;
-
-  document.getElementById("config-status").innerHTML = `
-    <div class="status-item"><span class="label">Config status</span><span class="value">${config.status}</span></div>
-    <div class="status-item"><span class="label">Revision</span><span class="value">${config.revision || "Not saved yet"}</span></div>
-  `;
-}
-
-function renderDiagnostics() {
-  const container = document.getElementById("diagnostics");
-  const parts = [];
-  for (const warning of state.diagnostics.warnings || []) {
-    parts.push(`<div class="diagnostic-item warning">${warning}</div>`);
-  }
-  for (const error of state.diagnostics.errors || []) {
-    parts.push(`<div class="diagnostic-item error">${error.message}</div>`);
-  }
-  container.innerHTML = parts.join("");
-}
-
-function summarizeOutputs(outputsMap = {}) {
-  const rows = [];
-  for (const [name, output] of Object.entries(outputsMap)) {
-    if (output.enabled && output.role) {
-      rows.push(`
-        <div class="status-item">
-          <div><strong>${name.toUpperCase()}</strong> <span class="pill secondary">${output.role}</span></div>
-          <div class="muted">${output.name} &middot; ${output.entity_id}</div>
-        </div>
-      `);
-      continue;
-    }
-    if (output.name) {
-      rows.push(`
-        <div class="status-item">
-          <div><strong>${name.toUpperCase()}</strong> <span class="pill secondary">unassigned</span></div>
-          <div class="muted">${output.name}</div>
-        </div>
-      `);
-    }
-  }
-  return rows.length ? rows.join("") : `<div class="muted">No outputs configured.</div>`;
-}
-
-function summarizeSensors(sensors = []) {
-  if (!sensors.length) {
-    return `<div class="muted">No sensors configured.</div>`;
-  }
-  return sensors
-    .map(
-      (sensor) => `
-        <div class="status-item">
-          <div><strong>${sensor.name}</strong> <span class="pill secondary">${sensor.sensor_type}</span></div>
-          <div class="muted">${sensor.entity_id}</div>
-          <div class="muted">Pattern <span class="code-chip">${formatHex(sensor.matcher?.pattern)}</span> &middot; byte ${sensor.value_config?.start_byte}</div>
-        </div>
-      `
-    )
-    .join("");
-}
-
-function renderDevices() {
-  const container = document.getElementById("devices-list");
-  const count = state.config.devices.length;
-  document.getElementById("device-count").textContent = `${count} device${count === 1 ? "" : "s"}`;
-
-  if (!count) {
-    container.className = "device-list empty-state";
-    container.textContent = "No devices configured yet.";
-    return;
-  }
-
-  container.className = "device-list";
-  container.innerHTML = state.config.devices
-    .map((device, index) => {
-      const summary =
-        device.type === "bloc7"
-          ? summarizeSensors(device.sensors || [])
-          : summarizeOutputs(device.outputs || {});
-      return `
-        <article class="device-card">
-          <div class="device-card-header">
-            <div>
-              <h3>${deviceLabel(device)}</h3>
-              <div class="muted">${device.name || "Unnamed device"}</div>
-            </div>
-            <div class="inline-actions">
-              <button data-action="edit-device" data-index="${index}">Edit</button>
-              <button data-action="delete-device" data-index="${index}">Delete</button>
-            </div>
-          </div>
-          <div class="muted">${device.description || "No description"}</div>
-          <div class="output-summary">${summary}</div>
-        </article>
-      `;
-    })
-    .join("");
-}
-
-function renderOutputEditor(device) {
-  const container = document.getElementById("outputs-editor");
-  container.innerHTML = outputs
-    .map((name) => {
-      const output = device.outputs?.[name] || blankOutput();
-      const role = output.enabled ? output.role : "";
-      const entityDisabled = !role;
-      const brightnessDisabled = role !== "light";
-      return `
-        <div class="output-row">
-          <label>
-            <span>Output</span>
-            <input type="text" value="${name.toUpperCase()}" disabled>
-          </label>
-          <label>
-            <span>Role</span>
-            <select data-output="${name}" data-field="role">
-              <option value="">Not configured yet</option>
-              <option value="light" ${role === "light" ? "selected" : ""}>Light</option>
-              <option value="switch" ${role === "switch" ? "selected" : ""}>Switch</option>
-            </select>
-          </label>
-          <label>
-            <span>Name</span>
-            <input type="text" data-output="${name}" data-field="name" value="${output.name || ""}">
-          </label>
-          <label>
-            <span>Entity ID</span>
-            <input type="text" data-output="${name}" data-field="entity_id" value="${output.entity_id || ""}" placeholder="Required once a role is selected" ${entityDisabled ? "disabled" : ""}>
-          </label>
-          <label>
-            <span>Initial brightness</span>
-            <input type="number" min="0" max="255" data-output="${name}" data-field="initial_brightness" value="${output.initial_brightness ?? ""}" ${brightnessDisabled ? "disabled" : ""}>
-          </label>
-        </div>
-      `;
-    })
-    .join("");
-}
-
-function renderSensorEditor(device) {
-  const container = document.getElementById("sensors-editor");
-  const sensors = device.sensors || [];
-  if (!sensors.length) {
-    container.innerHTML = `<div class="empty-state">No sensors configured yet.</div>`;
-    return;
-  }
-
-  container.innerHTML = sensors
-    .map((sensor, index) => {
-      const matcher = sensor.matcher || {};
-      const valueConfig = sensor.value_config || {};
-      return `
-        <div class="sensor-row">
-          <div class="section-header">
-            <strong>Sensor ${index + 1}</strong>
-            <button type="button" data-action="remove-sensor" data-sensor-index="${index}">Remove</button>
-          </div>
-          <div class="sensor-row-grid">
-            <label>
-              <span>Name</span>
-              <input type="text" data-sensor-index="${index}" data-sensor-field="name" value="${sensor.name || ""}">
-            </label>
-            <label>
-              <span>Entity ID</span>
-              <input type="text" data-sensor-index="${index}" data-sensor-field="entity_id" value="${sensor.entity_id || ""}">
-            </label>
-            <label>
-              <span>Sensor type</span>
-              <select data-sensor-index="${index}" data-sensor-field="sensor_type">
-                <option value="level" ${sensor.sensor_type === "level" ? "selected" : ""}>Level</option>
-                <option value="voltage" ${sensor.sensor_type === "voltage" ? "selected" : ""}>Voltage</option>
-              </select>
-            </label>
-            <label>
-              <span>Matcher pattern</span>
-              <input type="text" data-sensor-index="${index}" data-sensor-field="matcher.pattern" value="${formatHex(matcher.pattern)}" placeholder="0x02040582">
-            </label>
-            <label>
-              <span>Matcher mask</span>
-              <input type="text" data-sensor-index="${index}" data-sensor-field="matcher.mask" value="${formatHex(matcher.mask)}" placeholder="0xFFFFFFFF">
-            </label>
-            <label>
-              <span>Start byte</span>
-              <input type="number" min="0" data-sensor-index="${index}" data-sensor-field="value_config.start_byte" value="${valueConfig.start_byte ?? 0}">
-            </label>
-            <label>
-              <span>Bit length</span>
-              <input type="number" min="1" data-sensor-index="${index}" data-sensor-field="value_config.bit_length" value="${valueConfig.bit_length ?? 8}">
-            </label>
-            <label>
-              <span>Endian</span>
-              <select data-sensor-index="${index}" data-sensor-field="value_config.endian">
-                <option value="little" ${valueConfig.endian === "little" ? "selected" : ""}>Little</option>
-                <option value="big" ${valueConfig.endian === "big" ? "selected" : ""}>Big</option>
-              </select>
-            </label>
-            <label>
-              <span>Scale</span>
-              <input type="number" step="any" data-sensor-index="${index}" data-sensor-field="value_config.scale" value="${valueConfig.scale ?? 1}">
-            </label>
-          </div>
-        </div>
-      `;
-    })
-    .join("");
-}
-
-function updateEditorSections(deviceType) {
-  const isBloc7 = deviceType === "bloc7";
-  document.getElementById("bloc9-editor-section").classList.toggle("hidden", isBloc7);
-  document.getElementById("bloc7-editor-section").classList.toggle("hidden", !isBloc7);
-  document.getElementById("segment-id-field").classList.toggle("hidden", isBloc7);
-  const busIdInput = document.getElementById("device-bus-id");
-  busIdInput.max = isBloc7 ? "255" : "15";
-}
-
-function openEditor(device = blankDevice("bloc9"), index = null) {
-  state.editingIndex = index;
-  document.getElementById("editor-card").classList.remove("hidden");
-  document.getElementById("device-type").value = device.type || "bloc9";
-  document.getElementById("device-bus-id").value = device.bus_id ?? "";
-  document.getElementById("device-segment-id").value = device.segment_id ?? 0;
-  document.getElementById("device-name").value = device.name || "";
-  document.getElementById("device-description").value = device.description || "";
-  document.getElementById("editor-title").textContent =
-    index === null ? `Add ${(device.type || "bloc9").toUpperCase()} device` : `Edit ${deviceLabel(device)}`;
-  updateEditorSections(device.type || "bloc9");
-  renderOutputEditor(device);
-  renderSensorEditor(device);
-  clearMessage();
-}
-
-function closeEditor() {
-  state.editingIndex = null;
-  document.getElementById("editor-card").classList.add("hidden");
-}
-
-function parseIntegerLike(value) {
-  const text = String(value ?? "").trim();
-  if (!text) return "";
-  if (/^0x/i.test(text)) {
-    const parsed = Number.parseInt(text, 16);
-    return Number.isNaN(parsed) ? text : parsed;
-  }
-  const parsed = Number.parseInt(text, 10);
-  return Number.isNaN(parsed) ? text : parsed;
-}
-
-function parseFloatLike(value) {
-  const text = String(value ?? "").trim();
-  if (!text) return "";
-  const parsed = Number.parseFloat(text);
-  return Number.isNaN(parsed) ? text : parsed;
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 function formatHex(value) {
@@ -348,73 +82,944 @@ function formatHex(value) {
   return `0x${Number(value).toString(16).toUpperCase()}`;
 }
 
-function readDeviceForm() {
-  const type = document.getElementById("device-type").value;
-  const device = blankDevice(type);
-  device.type = type;
-  device.bus_id = Number(document.getElementById("device-bus-id").value);
-  device.segment_id =
-    type === "bloc7"
-      ? 0
-      : Number(document.getElementById("device-segment-id").value || 0);
-  device.name = document.getElementById("device-name").value.trim();
-  device.description = document.getElementById("device-description").value.trim();
+function routeSlug(busId, segmentId = 0) {
+  return Number(segmentId || 0) === 0 ? `${busId}` : `${busId}_${segmentId}`;
+}
 
-  if (type === "bloc7") {
-    const sensors = [];
-    document.querySelectorAll("#sensors-editor [data-sensor-index]").forEach((input) => {
-      const index = Number(input.dataset.sensorIndex);
-      const field = input.dataset.sensorField;
-      if (!sensors[index]) {
-        sensors[index] = blankSensor();
+function bloc9KeyFor(deviceOrCandidate) {
+  return routeSlug(deviceOrCandidate.bus_id, deviceOrCandidate.segment_id || 0);
+}
+
+function deviceLabel(device) {
+  return `${String(device.type || "device").toUpperCase()} #${routeSlug(
+    device.bus_id,
+    device.segment_id || 0,
+  )}`;
+}
+
+function toneLabel(status) {
+  if (status === "synced") return "discovered + configured";
+  if (status === "discovered") return "discovered";
+  if (status === "configured") return "configured";
+  return "draft";
+}
+
+function candidateLastSeen(candidate) {
+  if (!candidate?.last_seen_at) return "No live updates yet";
+  const seconds = Math.max(0, Math.round(Date.now() / 1000 - candidate.last_seen_at));
+  if (seconds < 1) return "Updated just now";
+  if (seconds < 60) return `Updated ${seconds}s ago`;
+  return `Updated ${Math.floor(seconds / 60)}m ago`;
+}
+
+function devicesEqual(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function captureActiveField() {
+  const active = document.activeElement;
+  if (!active || !active.dataset) return null;
+  const selectorParts = [];
+  for (const [name, value] of Object.entries(active.dataset)) {
+    if (value !== undefined && value !== "") {
+      selectorParts.push(`[data-${name.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)}="${CSS.escape(value)}"]`);
+    }
+  }
+  if (!selectorParts.length) return null;
+  return {
+    selector: `${active.tagName.toLowerCase()}${selectorParts.join("")}`,
+    selectionStart:
+      typeof active.selectionStart === "number" ? active.selectionStart : null,
+    selectionEnd: typeof active.selectionEnd === "number" ? active.selectionEnd : null,
+  };
+}
+
+function restoreActiveField(snapshot) {
+  if (!snapshot?.selector) return;
+  const target = document.querySelector(snapshot.selector);
+  if (!target) return;
+  target.focus({ preventScroll: true });
+  if (
+    typeof snapshot.selectionStart === "number" &&
+    typeof target.setSelectionRange === "function"
+  ) {
+    target.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
+  }
+}
+
+function rerender(callback) {
+  const active = captureActiveField();
+  callback();
+  restoreActiveField(active);
+}
+
+function showToast(message, level = "success") {
+  const region = document.getElementById("toast-region");
+  const toast = document.createElement("div");
+  toast.className = `toast ${level}`;
+  toast.textContent = message;
+  region.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add("visible"));
+  window.setTimeout(() => {
+    toast.classList.remove("visible");
+    window.setTimeout(() => toast.remove(), 220);
+  }, 4200);
+}
+
+function setBusy(actionKey, isBusy) {
+  state.busyActions[actionKey] = isBusy;
+  rerender(renderActiveTab);
+}
+
+function actionAttrs(actionKey, disabled = false, extra = "") {
+  const isBusy = !!state.busyActions[actionKey];
+  const attrs = [];
+  if (disabled || isBusy) attrs.push("disabled");
+  const classes = [];
+  if (isBusy) classes.push("is-busy");
+  if (extra) classes.push(extra);
+  if (classes.length) attrs.push(`class="${classes.join(" ")}"`);
+  return attrs.join(" ");
+}
+
+function updateOutputActivity(previousCandidates, nextCandidates) {
+  const previousMap = Object.fromEntries(
+    (previousCandidates || []).map((candidate) => [String(candidate.candidate_key), candidate]),
+  );
+
+  for (const candidate of nextCandidates || []) {
+    const key = String(candidate.candidate_key);
+    const previousOutputs = previousMap[key]?.latest_outputs || {};
+    const nextOutputs = candidate.latest_outputs || {};
+    for (const outputName of outputs) {
+      const previousValue = previousOutputs[outputName];
+      const nextValue = nextOutputs[outputName];
+      if (!nextValue) continue;
+      if (!previousValue || JSON.stringify(previousValue) !== JSON.stringify(nextValue)) {
+        state.outputActivity[key] = state.outputActivity[key] || {};
+        state.outputActivity[key][outputName] = Date.now();
       }
-      const value = input.value;
-      if (field === "matcher.pattern" || field === "matcher.mask") {
-        sensors[index].matcher[field.split(".")[1]] = parseIntegerLike(value);
-      } else if (field === "value_config.start_byte" || field === "value_config.bit_length") {
-        sensors[index].value_config[field.split(".")[1]] = parseIntegerLike(value);
-      } else if (field === "value_config.scale") {
-        sensors[index].value_config.scale = parseFloatLike(value);
-      } else if (field.startsWith("value_config.")) {
-        sensors[index].value_config[field.split(".")[1]] = value;
-      } else {
-        sensors[index][field] = value.trim ? value.trim() : value;
-      }
-    });
-    device.sensors = sensors.filter(Boolean);
-    return device;
+    }
+  }
+}
+
+function outputIsActive(candidateKey, outputName) {
+  const changedAt = state.outputActivity[String(candidateKey)]?.[outputName];
+  return Boolean(changedAt && Date.now() - changedAt < 3200);
+}
+
+function renderDiagnostics() {
+  const container = document.getElementById("global-diagnostics");
+  const warnings = state.diagnostics.warnings || [];
+  const errors = state.diagnostics.errors || [];
+  if (!warnings.length && !errors.length) {
+    container.className = "global-diagnostics hidden";
+    container.innerHTML = "";
+    return;
   }
 
-  document.querySelectorAll("#outputs-editor [data-output]").forEach((input) => {
-    const outputName = input.dataset.output;
-    const field = input.dataset.field;
-    if (!device.outputs[outputName]) {
-      device.outputs[outputName] = blankOutput();
-    }
-    if (field === "initial_brightness") {
-      device.outputs[outputName][field] = input.value === "" ? null : Number(input.value);
-      return;
-    }
-    device.outputs[outputName][field] = input.value;
+  const items = [
+    ...errors.map(
+      (error) =>
+        `<div class="diagnostic-item error">${escapeHtml(error.message || "Validation error")}</div>`,
+    ),
+    ...warnings.map(
+      (warning) => `<div class="diagnostic-item warning">${escapeHtml(warning)}</div>`,
+    ),
+  ];
+  container.className = "global-diagnostics";
+  container.innerHTML = items.join("");
+}
+
+function renderHeader() {
+  const pill = document.getElementById("bridge-pill");
+  const stateLabel = document.getElementById("bridge-state-label");
+  const errorWrap = document.getElementById("bridge-error");
+  const errorText = document.getElementById("bridge-error-text");
+  const running = !!state.runtime.running;
+
+  pill.className = `runtime-pill ${running ? "running" : "stopped"}`;
+  stateLabel.textContent = running ? "Bridge running" : "Bridge stopped";
+
+  if (state.runtime.last_error) {
+    errorWrap.classList.remove("hidden");
+    errorText.textContent = state.runtime.last_error;
+  } else {
+    errorWrap.classList.add("hidden");
+    errorText.textContent = "";
+  }
+}
+
+function renderTabs() {
+  document.querySelectorAll(".tab-button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.tab === state.activeTab);
   });
+  document.querySelectorAll("[data-tab-panel]").forEach((panel) => {
+    panel.classList.toggle("active", panel.dataset.tabPanel === state.activeTab);
+  });
+}
+
+function getControlState(cardKey, outputName) {
+  const key = String(cardKey);
+  state.controlState[key] = state.controlState[key] || {};
+  state.controlState[key][outputName] = state.controlState[key][outputName] || {
+    brightness: 128,
+  };
+  return state.controlState[key][outputName];
+}
+
+function getConfiguredBloc9Map() {
+  return Object.fromEntries(
+    state.config.devices
+      .filter((device) => device.type === "bloc9")
+      .map((device) => [bloc9KeyFor(device), device]),
+  );
+}
+
+function getDiscoveredBloc9Map() {
+  return Object.fromEntries(
+    (state.discovery.candidates || []).map((candidate) => [bloc9KeyFor(candidate), candidate]),
+  );
+}
+
+function ensureBloc9Draft(cardKey, configuredDevice, discoveredCandidate) {
+  if (state.bloc9Drafts[cardKey]) return state.bloc9Drafts[cardKey];
+  if (configuredDevice) {
+    state.bloc9Drafts[cardKey] = clone(configuredDevice);
+    return state.bloc9Drafts[cardKey];
+  }
+  const draft = blankBloc9Device();
+  draft.bus_id = Number(discoveredCandidate?.bus_id ?? "");
+  draft.segment_id = Number(discoveredCandidate?.segment_id || 0);
+  state.bloc9Drafts[cardKey] = draft;
+  return draft;
+}
+
+function collectEntityIds(excludedDevicePredicate) {
+  const entityIds = new Set();
+  for (const device of state.config.devices) {
+    if (excludedDevicePredicate?.(device)) continue;
+    if (device.type === "bloc9") {
+      for (const outputName of outputs) {
+        const output = device.outputs?.[outputName];
+        if (output?.enabled && output.entity_id) entityIds.add(output.entity_id);
+      }
+      continue;
+    }
+    for (const sensor of device.sensors || []) {
+      if (sensor.entity_id) entityIds.add(sensor.entity_id);
+    }
+  }
+  return entityIds;
+}
+
+function validateBloc9Draft(draft, cardKey) {
+  const errors = {};
+  const seenEntityIds = collectEntityIds(
+    (device) => device.type === "bloc9" && bloc9KeyFor(device) === cardKey,
+  );
+  const localEntityIds = new Set();
+
+  if (!Number.isInteger(Number(draft.bus_id)) || Number(draft.bus_id) < 0 || Number(draft.bus_id) > 15) {
+    errors["device.bus_id"] = "Bus ID must be between 0 and 15.";
+  }
+  if (
+    !Number.isInteger(Number(draft.segment_id)) ||
+    Number(draft.segment_id) < 0 ||
+    Number(draft.segment_id) > 7
+  ) {
+    errors["device.segment_id"] = "Segment ID must be between 0 and 7.";
+  }
 
   for (const outputName of outputs) {
-    const output = device.outputs[outputName];
-    output.name = (output.name || "").trim();
-    output.entity_id = (output.entity_id || "").trim();
-    output.enabled = Boolean(output.role);
-    if (!output.enabled) {
-      device.outputs[outputName] = { ...blankOutput(), name: output.name };
+    const output = draft.outputs?.[outputName] || blankOutput();
+    const role = output.role || "";
+    const basePath = `outputs.${outputName}`;
+
+    if (!role) continue;
+    if (!["light", "switch"].includes(role)) {
+      errors[`${basePath}.role`] = "Choose light or switch.";
+      continue;
+    }
+    if (!String(output.name || "").trim()) {
+      errors[`${basePath}.name`] = "Configured outputs need a name.";
+    }
+    const entityId = String(output.entity_id || "").trim();
+    if (!entityId) {
+      errors[`${basePath}.entity_id`] = "Configured outputs need an entity ID.";
+    } else if (entityId.startsWith("light.") || entityId.startsWith("switch.")) {
+      errors[`${basePath}.entity_id`] = "Do not include the Home Assistant domain.";
+    } else if (!entityIdPattern.test(entityId)) {
+      errors[`${basePath}.entity_id`] =
+        "Use lowercase letters, numbers, and underscores only.";
+    } else if (seenEntityIds.has(entityId) || localEntityIds.has(entityId)) {
+      errors[`${basePath}.entity_id`] = "This entity ID is already in use.";
+    } else {
+      localEntityIds.add(entityId);
+    }
+
+    const brightness = output.initial_brightness;
+    if (role === "light" && brightness !== null && brightness !== "") {
+      if (!Number.isInteger(Number(brightness)) || Number(brightness) < 0 || Number(brightness) > 255) {
+        errors[`${basePath}.initial_brightness`] = "Use a brightness from 0 to 255.";
+      }
+    }
+    if (role !== "light" && brightness !== null && brightness !== "") {
+      errors[`${basePath}.initial_brightness`] =
+        "Initial brightness is only supported for lights.";
     }
   }
 
-  return device;
+  return { valid: Object.keys(errors).length === 0, errors };
+}
+
+function buildBloc9DraftForSave(draft) {
+  const next = blankBloc9Device();
+  next.bus_id = Number(draft.bus_id);
+  next.segment_id = Number(draft.segment_id || 0);
+  next.name = String(draft.name || "").trim();
+  next.description = String(draft.description || "").trim();
+  next.outputs = Object.fromEntries(
+    outputs.map((outputName) => {
+      const output = draft.outputs?.[outputName] || blankOutput();
+      const role = output.role || null;
+      return [
+        outputName,
+        {
+          enabled: Boolean(role),
+          role,
+          name: String(output.name || "").trim(),
+          entity_id: String(output.entity_id || "").trim(),
+          initial_brightness:
+            output.initial_brightness === "" || output.initial_brightness === null
+              ? null
+              : Number(output.initial_brightness),
+        },
+      ];
+    }),
+  );
+  return next;
+}
+
+function bloc9FieldClass(validation, fieldPath, dirty) {
+  const classes = ["field-shell"];
+  if (validation.errors[fieldPath]) classes.push("invalid");
+  if (dirty) classes.push("dirty");
+  return classes.join(" ");
+}
+
+function renderBloc9OutputRow(cardKey, draft, baseline, candidate, outputName, validation) {
+  const output = draft.outputs?.[outputName] || blankOutput();
+  const baselineOutput = baseline?.outputs?.[outputName] || blankOutput();
+  const live = candidate?.latest_outputs?.[outputName];
+  const control = getControlState(cardKey, outputName);
+  const liveState = live
+    ? live.state
+      ? `On · ${live.effective_brightness}`
+      : "Off"
+    : "No live status";
+  const liveTone = live ? (live.state ? "on" : "off") : "unknown";
+  const liveFlash = candidate && outputIsActive(candidate.candidate_key, outputName);
+  const brightnessValue =
+    output.initial_brightness === null || output.initial_brightness === undefined
+      ? ""
+      : output.initial_brightness;
+
+  return `
+    <section class="output-card${liveFlash ? " live-change" : ""}">
+      <div class="output-card-header">
+        <div>
+          <h4>${escapeHtml(outputName.toUpperCase())}</h4>
+          <p>${candidateLastSeen(candidate)}</p>
+        </div>
+        <span class="live-state ${liveTone}">
+          <span class="state-beacon${liveFlash ? " flashing" : ""}"></span>
+          ${escapeHtml(liveState)}
+        </span>
+      </div>
+
+      <div class="card-grid">
+        <label class="${bloc9FieldClass(validation, `outputs.${outputName}.role`, output.role !== baselineOutput.role)}">
+          <span>Role</span>
+          <select data-card-kind="bloc9" data-card-key="${escapeHtml(cardKey)}" data-output="${outputName}" data-field="role">
+            <option value="" ${!output.role ? "selected" : ""}>Not configured</option>
+            <option value="light" ${output.role === "light" ? "selected" : ""}>Light</option>
+            <option value="switch" ${output.role === "switch" ? "selected" : ""}>Switch</option>
+          </select>
+          ${validation.errors[`outputs.${outputName}.role`] ? `<small>${escapeHtml(validation.errors[`outputs.${outputName}.role`])}</small>` : ""}
+        </label>
+
+        <label class="${bloc9FieldClass(validation, `outputs.${outputName}.name`, output.name !== baselineOutput.name)}">
+          <span>Name</span>
+          <input
+            type="text"
+            value="${escapeHtml(output.name || "")}"
+            data-card-kind="bloc9"
+            data-card-key="${escapeHtml(cardKey)}"
+            data-output="${outputName}"
+            data-field="name"
+          >
+          ${validation.errors[`outputs.${outputName}.name`] ? `<small>${escapeHtml(validation.errors[`outputs.${outputName}.name`])}</small>` : ""}
+        </label>
+
+        <label class="${bloc9FieldClass(validation, `outputs.${outputName}.entity_id`, output.entity_id !== baselineOutput.entity_id)}">
+          <span>Entity ID</span>
+          <input
+            type="text"
+            value="${escapeHtml(output.entity_id || "")}"
+            placeholder="Required when a role is selected"
+            data-card-kind="bloc9"
+            data-card-key="${escapeHtml(cardKey)}"
+            data-output="${outputName}"
+            data-field="entity_id"
+          >
+          ${validation.errors[`outputs.${outputName}.entity_id`] ? `<small>${escapeHtml(validation.errors[`outputs.${outputName}.entity_id`])}</small>` : ""}
+        </label>
+
+        <label class="${bloc9FieldClass(validation, `outputs.${outputName}.initial_brightness`, brightnessValue !== (baselineOutput.initial_brightness ?? ""))}">
+          <span>Initial brightness</span>
+          <input
+            type="number"
+            min="0"
+            max="255"
+            value="${escapeHtml(brightnessValue)}"
+            placeholder="Optional for lights"
+            data-card-kind="bloc9"
+            data-card-key="${escapeHtml(cardKey)}"
+            data-output="${outputName}"
+            data-field="initial_brightness"
+          >
+          ${validation.errors[`outputs.${outputName}.initial_brightness`] ? `<small>${escapeHtml(validation.errors[`outputs.${outputName}.initial_brightness`])}</small>` : ""}
+        </label>
+      </div>
+
+      <div class="test-controls">
+        <div class="test-controls-header">
+          <strong>Live test</strong>
+          <span class="muted">Commands are sent immediately and never saved by themselves.</span>
+        </div>
+        <div class="test-controls-row">
+          <label class="slider-field">
+            <span>Brightness</span>
+            <input
+              type="range"
+              min="0"
+              max="255"
+              value="${control.brightness}"
+              data-card-kind="bloc9-control"
+              data-card-key="${escapeHtml(cardKey)}"
+              data-output="${outputName}"
+              data-field="brightness"
+            >
+            <span class="slider-value">${control.brightness}</span>
+          </label>
+          <div class="button-group">
+            <button
+              type="button"
+              data-action="send-control"
+              data-card-key="${escapeHtml(cardKey)}"
+              data-output="${outputName}"
+              data-on="1"
+              ${actionAttrs(`control:${cardKey}:${outputName}:on`, !state.runtime.running || state.runtime.read_only)}
+            >On</button>
+            <button
+              type="button"
+              data-action="send-control"
+              data-card-key="${escapeHtml(cardKey)}"
+              data-output="${outputName}"
+              data-on="0"
+              ${actionAttrs(`control:${cardKey}:${outputName}:off`, !state.runtime.running || state.runtime.read_only)}
+            >Off</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderBloc9Cards() {
+  const configuredMap = getConfiguredBloc9Map();
+  const discoveredMap = getDiscoveredBloc9Map();
+  const keys = [...new Set([...Object.keys(configuredMap), ...Object.keys(discoveredMap)])].sort(
+    (left, right) => left.localeCompare(right, undefined, { numeric: true }),
+  );
+  const container = document.getElementById("bloc9-list");
+  const summary = document.getElementById("bloc9-summary");
+  const isRunning = state.discovery.status === "running";
+
+  document.getElementById("discovery-toggle-button").textContent = isRunning
+    ? "Stop discovery"
+    : "Start discovery";
+  document.getElementById("discovery-toggle-button").className = isRunning
+    ? ""
+    : "primary";
+
+  summary.innerHTML = `
+    <span class="summary-chip ${isRunning ? "positive" : "negative"}">Discovery ${escapeHtml(state.discovery.status || "idle")}</span>
+    <span class="summary-chip">State updates ${(state.discovery.message_counts?.state_update || 0)}</span>
+    <span class="summary-chip">Heartbeats ${(state.discovery.message_counts?.heartbeat || 0)}</span>
+    <span class="summary-chip">Cards ${keys.length}</span>
+  `;
+
+  if (!keys.length) {
+    container.className = "card-list empty-state";
+    container.textContent = "No Bloc9 devices are visible yet. Leave discovery running and interact with the panel.";
+    return;
+  }
+
+  container.className = "card-list";
+  container.innerHTML = keys
+    .map((cardKey) => {
+      const configured = configuredMap[cardKey] || null;
+      const candidate = discoveredMap[cardKey] || null;
+      const draft = ensureBloc9Draft(cardKey, configured, candidate);
+      const validation = validateBloc9Draft(draft, cardKey);
+      const normalizedDraft = buildBloc9DraftForSave(draft);
+      const dirty = configured ? !devicesEqual(normalizedDraft, configured) : true;
+      const status = configured && candidate ? "synced" : candidate ? "discovered" : "configured";
+      const actionKey = `save-bloc9:${cardKey}`;
+      const buttonDisabled = !validation.valid || (configured ? !dirty : false);
+      const buttonLabel = configured ? "Save" : "Add to configuration";
+      const readonlyId = routeSlug(draft.bus_id, draft.segment_id || 0);
+
+      return `
+        <article class="setup-card tone-${status}">
+          <div class="card-banner">
+            <span class="status-badge">${escapeHtml(toneLabel(status))}</span>
+            <span class="status-meta">ID ${escapeHtml(readonlyId)}</span>
+          </div>
+
+          <div class="card-header">
+            <div>
+              <h3>${escapeHtml(deviceLabel({ type: "bloc9", bus_id: draft.bus_id, segment_id: draft.segment_id || 0 }))}</h3>
+              <p>${escapeHtml(candidate ? candidateLastSeen(candidate) : "Configured without live discovery yet")}</p>
+            </div>
+          </div>
+
+          <div class="card-grid">
+            <label class="${bloc9FieldClass(validation, "device.name", draft.name !== (configured?.name || ""))}">
+              <span>Name</span>
+              <input type="text" value="${escapeHtml(draft.name || "")}" data-card-kind="bloc9" data-card-key="${escapeHtml(cardKey)}" data-field="name">
+            </label>
+
+            <label class="field-shell readonly">
+              <span>Bloc9 ID</span>
+              <input type="text" value="${escapeHtml(readonlyId)}" readonly>
+            </label>
+
+            <label class="${bloc9FieldClass(validation, "device.description", draft.description !== (configured?.description || ""))} full-width">
+              <span>Description</span>
+              <textarea rows="2" data-card-kind="bloc9" data-card-key="${escapeHtml(cardKey)}" data-field="description">${escapeHtml(draft.description || "")}</textarea>
+            </label>
+          </div>
+
+          <div class="output-list">
+            ${outputs
+              .map((outputName) =>
+                renderBloc9OutputRow(cardKey, draft, configured, candidate, outputName, validation),
+              )
+              .join("")}
+          </div>
+
+          <div class="card-footer">
+            <div class="card-hint">
+              ${validation.valid ? (configured ? (dirty ? "Unsaved changes ready to apply." : "No unsaved changes.") : "Ready to add once you want it in the saved configuration.") : "Complete the highlighted fields before saving."}
+            </div>
+            <button
+              type="button"
+              data-action="save-bloc9"
+              data-card-key="${escapeHtml(cardKey)}"
+              ${actionAttrs(actionKey, buttonDisabled, "primary")}
+            >${escapeHtml(buttonLabel)}</button>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function nextBloc7BusId() {
+  const ids = state.config.devices
+    .filter((device) => device.type === "bloc7")
+    .map((device) => Number(device.bus_id))
+    .filter((value) => Number.isInteger(value));
+  Object.values(state.bloc7Drafts).forEach((draft) => {
+    const busId = Number(draft.bus_id);
+    if (Number.isInteger(busId)) ids.push(busId);
+  });
+  return ids.length ? Math.max(...ids) + 1 : 1;
+}
+
+function getBloc7ConfiguredCards() {
+  return state.config.devices
+    .filter((device) => device.type === "bloc7")
+    .map((device) => ({ key: `bloc7:${device.bus_id}`, configured: device, draft: ensureBloc7Draft(`bloc7:${device.bus_id}`, device) }));
+}
+
+function ensureBloc7Draft(cardKey, configuredDevice) {
+  if (state.bloc7Drafts[cardKey]) return state.bloc7Drafts[cardKey];
+  state.bloc7Drafts[cardKey] = configuredDevice ? clone(configuredDevice) : blankBloc7Device();
+  return state.bloc7Drafts[cardKey];
+}
+
+function validateBloc7Draft(draft, cardKey) {
+  const errors = {};
+  const excludedBusId = cardKey.startsWith("bloc7:") ? Number(cardKey.split(":")[1]) : null;
+  const usedEntityIds = collectEntityIds(
+    (device) => device.type === "bloc7" && Number(device.bus_id) === excludedBusId,
+  );
+  const usedBusIds = new Set(
+    state.config.devices
+      .filter((device) => device.type === "bloc7" && Number(device.bus_id) !== excludedBusId)
+      .map((device) => Number(device.bus_id)),
+  );
+
+  if (!Number.isInteger(Number(draft.bus_id)) || Number(draft.bus_id) < 0 || Number(draft.bus_id) > 255) {
+    errors["device.bus_id"] = "Bus ID must be between 0 and 255.";
+  } else if (usedBusIds.has(Number(draft.bus_id))) {
+    errors["device.bus_id"] = "This Bloc7 bus ID is already configured.";
+  }
+
+  const localEntityIds = new Set();
+  (draft.sensors || []).forEach((sensor, index) => {
+    const basePath = `sensors.${index}`;
+    if (!String(sensor.name || "").trim()) {
+      errors[`${basePath}.name`] = "Sensor name is required.";
+    }
+    const entityId = String(sensor.entity_id || "").trim();
+    if (!entityId) {
+      errors[`${basePath}.entity_id`] = "Entity ID is required.";
+    } else if (entityId.startsWith("sensor.")) {
+      errors[`${basePath}.entity_id`] = "Do not include the Home Assistant domain.";
+    } else if (!entityIdPattern.test(entityId)) {
+      errors[`${basePath}.entity_id`] = "Use lowercase letters, numbers, and underscores only.";
+    } else if (usedEntityIds.has(entityId) || localEntityIds.has(entityId)) {
+      errors[`${basePath}.entity_id`] = "This entity ID is already in use.";
+    } else {
+      localEntityIds.add(entityId);
+    }
+
+    if (!["level", "voltage"].includes(sensor.sensor_type)) {
+      errors[`${basePath}.sensor_type`] = "Choose level or voltage.";
+    }
+    if (!String(sensor.matcher?.pattern ?? "").trim()) {
+      errors[`${basePath}.matcher.pattern`] = "Matcher pattern is required.";
+    }
+    if (!String(sensor.matcher?.mask ?? "").trim()) {
+      errors[`${basePath}.matcher.mask`] = "Matcher mask is required.";
+    }
+    if (!Number.isInteger(Number(sensor.value_config?.start_byte))) {
+      errors[`${basePath}.value_config.start_byte`] = "Start byte must be an integer.";
+    }
+    if (!Number.isInteger(Number(sensor.value_config?.bit_length)) || Number(sensor.value_config?.bit_length) <= 0) {
+      errors[`${basePath}.value_config.bit_length`] = "Bit length must be a positive integer.";
+    }
+    if (!["little", "big"].includes(sensor.value_config?.endian)) {
+      errors[`${basePath}.value_config.endian`] = "Endian must be little or big.";
+    }
+    if (Number.isNaN(Number(sensor.value_config?.scale))) {
+      errors[`${basePath}.value_config.scale`] = "Scale must be numeric.";
+    }
+  });
+
+  return { valid: Object.keys(errors).length === 0, errors };
+}
+
+function buildBloc7DraftForSave(draft) {
+  return {
+    type: "bloc7",
+    bus_id: Number(draft.bus_id),
+    segment_id: 0,
+    name: String(draft.name || "").trim(),
+    description: String(draft.description || "").trim(),
+    sensors: (draft.sensors || []).map((sensor) => ({
+      name: String(sensor.name || "").trim(),
+      entity_id: String(sensor.entity_id || "").trim(),
+      sensor_type: sensor.sensor_type,
+      matcher: {
+        pattern: String(sensor.matcher?.pattern || "").trim(),
+        mask: String(sensor.matcher?.mask || "").trim(),
+      },
+      value_config: {
+        start_byte: Number(sensor.value_config?.start_byte),
+        bit_length: Number(sensor.value_config?.bit_length),
+        endian: sensor.value_config?.endian || "little",
+        scale: Number(sensor.value_config?.scale),
+      },
+    })),
+  };
+}
+
+function renderSensorDraft(cardKey, sensor, index, validation, baselineSensor = null) {
+  const basePath = `sensors.${index}`;
+  const fieldClass = (field, dirty) => {
+    const classes = ["field-shell"];
+    if (validation.errors[`${basePath}.${field}`]) classes.push("invalid");
+    if (dirty) classes.push("dirty");
+    return classes.join(" ");
+  };
+
+  return `
+    <section class="sensor-card">
+      <div class="sensor-card-header">
+        <h4>Sensor ${index + 1}</h4>
+        <button type="button" data-action="remove-bloc7-sensor" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}">Remove</button>
+      </div>
+      <div class="card-grid">
+        <label class="${fieldClass("name", sensor.name !== (baselineSensor?.name || ""))}">
+          <span>Name</span>
+          <input type="text" value="${escapeHtml(sensor.name || "")}" data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="name">
+          ${validation.errors[`${basePath}.name`] ? `<small>${escapeHtml(validation.errors[`${basePath}.name`])}</small>` : ""}
+        </label>
+        <label class="${fieldClass("entity_id", sensor.entity_id !== (baselineSensor?.entity_id || ""))}">
+          <span>Entity ID</span>
+          <input type="text" value="${escapeHtml(sensor.entity_id || "")}" data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="entity_id">
+          ${validation.errors[`${basePath}.entity_id`] ? `<small>${escapeHtml(validation.errors[`${basePath}.entity_id`])}</small>` : ""}
+        </label>
+        <label class="${fieldClass("sensor_type", sensor.sensor_type !== (baselineSensor?.sensor_type || "level"))}">
+          <span>Type</span>
+          <select data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="sensor_type">
+            <option value="level" ${sensor.sensor_type === "level" ? "selected" : ""}>Level</option>
+            <option value="voltage" ${sensor.sensor_type === "voltage" ? "selected" : ""}>Voltage</option>
+          </select>
+          ${validation.errors[`${basePath}.sensor_type`] ? `<small>${escapeHtml(validation.errors[`${basePath}.sensor_type`])}</small>` : ""}
+        </label>
+        <label class="${fieldClass("matcher.pattern", String(sensor.matcher?.pattern || "") !== String(baselineSensor?.matcher?.pattern || ""))}">
+          <span>Matcher pattern</span>
+          <input type="text" value="${escapeHtml(formatHex(sensor.matcher?.pattern) || "")}" data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="matcher.pattern">
+          ${validation.errors[`${basePath}.matcher.pattern`] ? `<small>${escapeHtml(validation.errors[`${basePath}.matcher.pattern`])}</small>` : ""}
+        </label>
+        <label class="${fieldClass("matcher.mask", String(sensor.matcher?.mask || "") !== String(baselineSensor?.matcher?.mask || ""))}">
+          <span>Matcher mask</span>
+          <input type="text" value="${escapeHtml(formatHex(sensor.matcher?.mask) || "")}" data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="matcher.mask">
+          ${validation.errors[`${basePath}.matcher.mask`] ? `<small>${escapeHtml(validation.errors[`${basePath}.matcher.mask`])}</small>` : ""}
+        </label>
+        <label class="${fieldClass("value_config.start_byte", Number(sensor.value_config?.start_byte) !== Number(baselineSensor?.value_config?.start_byte ?? 0))}">
+          <span>Start byte</span>
+          <input type="number" min="0" value="${escapeHtml(sensor.value_config?.start_byte ?? 0)}" data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="value_config.start_byte">
+          ${validation.errors[`${basePath}.value_config.start_byte`] ? `<small>${escapeHtml(validation.errors[`${basePath}.value_config.start_byte`])}</small>` : ""}
+        </label>
+        <label class="${fieldClass("value_config.bit_length", Number(sensor.value_config?.bit_length) !== Number(baselineSensor?.value_config?.bit_length ?? 8))}">
+          <span>Bit length</span>
+          <input type="number" min="1" value="${escapeHtml(sensor.value_config?.bit_length ?? 8)}" data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="value_config.bit_length">
+          ${validation.errors[`${basePath}.value_config.bit_length`] ? `<small>${escapeHtml(validation.errors[`${basePath}.value_config.bit_length`])}</small>` : ""}
+        </label>
+        <label class="${fieldClass("value_config.endian", sensor.value_config?.endian !== (baselineSensor?.value_config?.endian || "little"))}">
+          <span>Endian</span>
+          <select data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="value_config.endian">
+            <option value="little" ${sensor.value_config?.endian === "little" ? "selected" : ""}>Little</option>
+            <option value="big" ${sensor.value_config?.endian === "big" ? "selected" : ""}>Big</option>
+          </select>
+          ${validation.errors[`${basePath}.value_config.endian`] ? `<small>${escapeHtml(validation.errors[`${basePath}.value_config.endian`])}</small>` : ""}
+        </label>
+        <label class="${fieldClass("value_config.scale", Number(sensor.value_config?.scale) !== Number(baselineSensor?.value_config?.scale ?? 1))}">
+          <span>Scale</span>
+          <input type="number" step="any" value="${escapeHtml(sensor.value_config?.scale ?? 1)}" data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="value_config.scale">
+          ${validation.errors[`${basePath}.value_config.scale`] ? `<small>${escapeHtml(validation.errors[`${basePath}.value_config.scale`])}</small>` : ""}
+        </label>
+      </div>
+    </section>
+  `;
+}
+
+function renderBloc7Cards() {
+  const configuredCards = getBloc7ConfiguredCards();
+  const newDraftEntries = Object.entries(state.bloc7Drafts)
+    .filter(([key]) => key.startsWith("new-bloc7:"))
+    .map(([key, draft]) => ({ key, configured: null, draft }));
+  const allDraftCards = [...configuredCards, ...newDraftEntries].sort((left, right) =>
+    Number(left.draft.bus_id || 0) - Number(right.draft.bus_id || 0),
+  );
+  const container = document.getElementById("bloc7-list");
+  const summary = document.getElementById("bloc7-summary");
+
+  summary.innerHTML = `
+    <span class="summary-chip">Configured ${configuredCards.length}</span>
+    <span class="summary-chip">Drafts ${newDraftEntries.length}</span>
+    <span class="summary-chip">Live candidates ${(state.bloc7Discovery.candidates || []).length}</span>
+    <span class="summary-chip ${state.bloc7Discovery.status === "running" ? "positive" : "neutral"}">Inspector ${escapeHtml(state.bloc7Discovery.status || "idle")}</span>
+  `;
+
+  const draftCardsHtml = allDraftCards
+    .map(({ key, configured, draft }) => {
+      const validation = validateBloc7Draft(draft, key);
+      const normalizedDraft = buildBloc7DraftForSave(draft);
+      const dirty = configured ? !devicesEqual(normalizedDraft, configured) : true;
+      const actionKey = `save-bloc7:${key}`;
+      const buttonDisabled = !validation.valid || (configured ? !dirty : false);
+      const bannerTone = configured ? "configured" : "draft";
+      return `
+        <article class="setup-card tone-${bannerTone}">
+          <div class="card-banner">
+            <span class="status-badge">${escapeHtml(configured ? "configured" : "draft")}</span>
+            <span class="status-meta">Bus ID ${escapeHtml(draft.bus_id || "—")}</span>
+          </div>
+          <div class="card-header">
+            <div>
+              <h3>${escapeHtml(deviceLabel({ type: "bloc7", bus_id: draft.bus_id || "?", segment_id: 0 }))}</h3>
+              <p>${escapeHtml(configured ? "Saved device ready for edits." : "Draft device not saved yet.")}</p>
+            </div>
+          </div>
+          <div class="card-grid">
+            <label class="field-shell ${validation.errors["device.bus_id"] ? "invalid" : ""}">
+              <span>Bus ID</span>
+              <input type="number" min="0" max="255" value="${escapeHtml(draft.bus_id ?? "")}" data-card-kind="bloc7" data-card-key="${escapeHtml(key)}" data-field="bus_id">
+              ${validation.errors["device.bus_id"] ? `<small>${escapeHtml(validation.errors["device.bus_id"])}</small>` : ""}
+            </label>
+            <label class="field-shell ${draft.name !== (configured?.name || "") ? "dirty" : ""}">
+              <span>Name</span>
+              <input type="text" value="${escapeHtml(draft.name || "")}" data-card-kind="bloc7" data-card-key="${escapeHtml(key)}" data-field="name">
+            </label>
+            <label class="field-shell full-width ${draft.description !== (configured?.description || "") ? "dirty" : ""}">
+              <span>Description</span>
+              <textarea rows="2" data-card-kind="bloc7" data-card-key="${escapeHtml(key)}" data-field="description">${escapeHtml(draft.description || "")}</textarea>
+            </label>
+          </div>
+          <div class="section-subheader">
+            <h4>Sensors</h4>
+            <button type="button" data-action="add-bloc7-sensor" data-card-key="${escapeHtml(key)}">Add sensor</button>
+          </div>
+          <div class="sensor-list">
+            ${(draft.sensors || []).length
+              ? draft.sensors
+                  .map((sensor, index) =>
+                    renderSensorDraft(key, sensor, index, validation, configured?.sensors?.[index] || null),
+                  )
+                  .join("")
+              : '<div class="empty-inline">No sensors yet.</div>'}
+          </div>
+          <div class="card-footer">
+            <div class="card-hint">
+              ${validation.valid ? (configured ? (dirty ? "Unsaved changes ready to apply." : "No unsaved changes.") : "Ready to add to the saved configuration.") : "Complete the highlighted sensor fields before saving."}
+            </div>
+            <button type="button" data-action="save-bloc7" data-card-key="${escapeHtml(key)}" ${actionAttrs(actionKey, buttonDisabled, "primary")}>${escapeHtml(configured ? "Save" : "Add to configuration")}</button>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  const candidateCardsHtml = (state.bloc7Discovery.candidates || [])
+    .map((candidate) => {
+      const suggestions = (candidate.suggested_sensors || [])
+        .map(
+          (suggestion) => `
+            <div class="candidate-suggestion">
+              <div>
+                <strong>${escapeHtml(suggestion.label)}</strong>
+                <div class="muted">${escapeHtml(suggestion.notes || "")}</div>
+              </div>
+              <div class="candidate-tags">
+                <span class="summary-chip">${escapeHtml(suggestion.sensor_type)}</span>
+                <span class="summary-chip">byte ${escapeHtml(suggestion.value_config?.start_byte)}</span>
+                <span class="summary-chip">${escapeHtml(formatHex(suggestion.matcher?.pattern))}</span>
+              </div>
+              <button type="button" data-action="create-bloc7-draft" data-candidate-key="${escapeHtml(candidate.candidate_key)}" data-suggestion-key="${escapeHtml(suggestion.suggestion_key)}">Use suggestion</button>
+            </div>
+          `,
+        )
+        .join("");
+      return `
+        <article class="setup-card tone-discovered">
+          <div class="card-banner">
+            <span class="status-badge">discovered</span>
+            <span class="status-meta">${escapeHtml(candidate.arbitration_id)}</span>
+          </div>
+          <div class="card-header">
+            <div>
+              <h3>${escapeHtml(candidate.title)}</h3>
+              <p>${escapeHtml(candidate.summary)}</p>
+            </div>
+          </div>
+          <div class="summary-bar compact">
+            <span class="summary-chip">${escapeHtml(candidate.family)}</span>
+            <span class="summary-chip">${escapeHtml(candidate.confidence.level)} ${escapeHtml(candidate.confidence.score)}</span>
+            <span class="summary-chip">${escapeHtml(candidate.freq_hz)} Hz</span>
+          </div>
+          <div class="candidate-list">${suggestions}</div>
+        </article>
+      `;
+    })
+    .join("");
+
+  const html = [draftCardsHtml, candidateCardsHtml].filter(Boolean).join("");
+  if (!html) {
+    container.className = "card-list empty-state";
+    container.textContent = "No Bloc7 devices or candidates are visible yet.";
+    return;
+  }
+  container.className = "card-list";
+  container.innerHTML = html;
+}
+
+function renderInspectPanel() {
+  if (state.activeTab !== "inspect" || state.inspectLoaded) return;
+  const frame = document.getElementById("inspect-frame");
+  frame.src = "./inspect?embedded=1";
+  state.inspectLoaded = true;
+}
+
+function renderActiveTab() {
+  renderTabs();
+  if (state.activeTab === "bloc9") {
+    renderBloc9Cards();
+    return;
+  }
+  if (state.activeTab === "bloc7") {
+    renderBloc7Cards();
+    return;
+  }
+  renderInspectPanel();
+}
+
+function parseNumberOrNull(value) {
+  if (value === "" || value === null || value === undefined) return null;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? value : parsed;
+}
+
+function updateBloc9DraftField(cardKey, field, value, outputName = null) {
+  const draft = state.bloc9Drafts[cardKey];
+  if (!draft) return;
+  if (outputName) {
+    draft.outputs[outputName] = draft.outputs[outputName] || blankOutput();
+    draft.outputs[outputName][field] =
+      field === "initial_brightness" ? parseNumberOrNull(value) : value;
+    return;
+  }
+  draft[field] = value;
+}
+
+function updateBloc7DraftField(cardKey, field, value, sensorIndex = null) {
+  const draft = state.bloc7Drafts[cardKey];
+  if (!draft) return;
+  if (sensorIndex === null) {
+    draft[field] = field === "bus_id" ? parseNumberOrNull(value) : value;
+    return;
+  }
+
+  draft.sensors[sensorIndex] = draft.sensors[sensorIndex] || blankSensor();
+  const sensor = draft.sensors[sensorIndex];
+  if (field.startsWith("matcher.")) {
+    sensor.matcher[field.split(".")[1]] = value;
+    return;
+  }
+  if (field.startsWith("value_config.")) {
+    const key = field.split(".")[1];
+    sensor.value_config[key] =
+      key === "start_byte" || key === "bit_length" || key === "scale"
+        ? parseNumberOrNull(value)
+        : value;
+    return;
+  }
+  sensor[field] = value;
 }
 
 async function refreshStatus() {
   const response = await fetch("./api/status");
   const payload = await response.json();
-  renderStatus(payload.runtime, payload.config);
+  state.runtime = payload.runtime || state.runtime;
+  renderHeader();
 }
 
 async function loadConfig() {
@@ -423,209 +1028,25 @@ async function loadConfig() {
   state.config = payload.config || { schema_version: 1, devices: [] };
   state.baseRevision = payload.revision;
   state.diagnostics = payload.diagnostics || { errors: [], warnings: [] };
-  renderDiagnostics();
-  renderDevices();
-}
 
-function getControlState(candidateKey) {
-  const key = String(candidateKey);
-  if (!state.controlState[key]) {
-    state.controlState[key] = {};
-    for (const name of outputs) {
-      state.controlState[key][name] = { role: "none", brightness: 128 };
+  for (const device of state.config.devices) {
+    if (device.type === "bloc9") {
+      state.bloc9Drafts[bloc9KeyFor(device)] = clone(device);
+    }
+    if (device.type === "bloc7") {
+      state.bloc7Drafts[`bloc7:${device.bus_id}`] = clone(device);
     }
   }
-  return state.controlState[key];
-}
-
-function renderOutputControls(candidate) {
-  const candidateKey = String(candidate.candidate_key);
-  const busId = Number(candidate.bus_id);
-  const segmentId = Number(candidate.segment_id || 0);
-  const ctrl = getControlState(candidateKey);
-  const rows = outputs
-    .map((name, switchNr) => {
-      const current = ctrl[name];
-      const roleOptions = ["none", "switch", "light"]
-        .map(
-          (role) =>
-            `<option value="${role}" ${current.role === role ? "selected" : ""}>${role === "none" ? "—" : role.charAt(0).toUpperCase() + role.slice(1)}</option>`
-        )
-        .join("");
-
-      let controls = "";
-      if (current.role !== "none") {
-        const dimControls =
-          current.role === "light"
-            ? `<input type="range" class="brightness-slider" min="0" max="255" value="${current.brightness}"
-                data-action="set-brightness" data-candidate-key="${candidateKey}" data-output="${name}">
-               <span class="brightness-value">${current.brightness}</span>`
-            : "";
-        controls = `
-          <button data-action="send-control" data-bus-id="${busId}" data-segment-id="${segmentId}" data-candidate-key="${candidateKey}" data-switch-nr="${switchNr}" data-on="1" class="primary">On</button>
-          <button data-action="send-control" data-bus-id="${busId}" data-segment-id="${segmentId}" data-candidate-key="${candidateKey}" data-switch-nr="${switchNr}" data-on="0">Off</button>
-          ${dimControls}`;
-      }
-
-      return `
-        <div class="output-control-row">
-          <span class="output-label">${name.toUpperCase()}</span>
-          <select data-action="set-output-role" data-candidate-key="${candidateKey}" data-output="${name}">${roleOptions}</select>
-          <div class="control-widget">${controls}</div>
-        </div>`;
-    })
-    .join("");
-
-  return `
-    <div class="output-controls">
-      <div class="control-hint">Live test — commands are sent with bus ID ${busId} on segment ${segmentId}; nothing is saved.</div>
-      ${rows}
-    </div>`;
-}
-
-async function sendControl(busId, switchNr, on, brightness, segmentId) {
-  const response = await fetch("./api/discovery/control", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ bus_id: busId, segment_id: segmentId, switch_nr: switchNr, on, brightness }),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    showMessage(payload.error || "Failed to send CAN command", "error");
-    return;
-  }
-  const routeSlug = Number(payload.segment_id || 0) === 0 ? `${payload.bus_id}` : `${payload.bus_id}_${payload.segment_id}`;
-  showMessage(`Sent ${payload.can_id || "CAN command"} to Bloc9 #${routeSlug}`, "success");
-}
-
-function renderDiscovery() {
-  const container = document.getElementById("discovery-list");
-  const status = document.getElementById("discovery-status");
-  const toggleBtn = document.getElementById("discovery-toggle-button");
-  const isRunning = state.discovery.status === "running";
-
-  toggleBtn.textContent = isRunning ? "Stop discovery" : "Start discovery";
-  toggleBtn.className = isRunning ? "secondary" : "primary";
-  status.innerHTML = `
-    <div class="status-item"><span class="label">State</span><span class="value">${state.discovery.status || "idle"}</span></div>
-    <div class="status-item"><span class="label">State updates</span><span class="value">${state.discovery.message_counts?.state_update || 0}</span></div>
-    <div class="status-item"><span class="label">Heartbeats</span><span class="value">${state.discovery.message_counts?.heartbeat || 0}</span></div>
-  `;
-
-  if (!state.discovery.candidates?.length) {
-    container.className = "device-list empty-state";
-    container.textContent = "Discovery has not found any Bloc9 candidates yet.";
-    return;
-  }
-
-  container.className = "device-list";
-  container.innerHTML = state.discovery.candidates
-    .map((candidate) => {
-      const candidateKey = String(candidate.candidate_key);
-      const expanded = !!state.expandedCandidates[candidateKey];
-      const expandLabel = expanded ? "▲ Hide controls" : "▼ Test outputs";
-      return `
-        <article class="discovery-card">
-          <div class="device-card-header">
-            <div>
-              <h3>${bloc9CandidateLabel(candidate)}</h3>
-              <div class="muted">Confidence: ${candidate.confidence.level} (${candidate.confidence.score})</div>
-            </div>
-            <div class="inline-actions">
-              <button data-action="toggle-expand" data-candidate-key="${candidateKey}">${expandLabel}</button>
-              <button data-action="promote-candidate" data-bus-id="${candidate.bus_id}" data-segment-id="${candidate.segment_id || 0}">Use as device</button>
-            </div>
-          </div>
-          <div class="muted">Bus/segment: <strong>${candidate.route_slug || deviceRouteSlug(candidate)}</strong></div>
-          <div class="muted">${bloc9CandidateRouteDescription(candidate)}</div>
-          <div class="muted">Groups seen: ${candidate.groups_seen.join(", ") || "heartbeat only"}</div>
-          <div class="muted">Arbitration IDs: ${candidate.sample_arbitration_ids.join(", ")}</div>
-          ${expanded ? renderOutputControls(candidate) : ""}
-        </article>`;
-    })
-    .join("");
-}
-
-function renderBloc7Candidates() {
-  const status = document.getElementById("bloc7-discovery-status");
-  const container = document.getElementById("bloc7-discovery-list");
-  status.innerHTML = `
-    <div class="status-item"><span class="label">Inspector</span><span class="value">${state.bloc7Discovery.status || "idle"}</span></div>
-    <div class="status-item"><span class="label">Frames seen</span><span class="value">${state.bloc7Discovery.total_messages || 0}</span></div>
-    <div class="status-item"><span class="label">Unique CAN IDs</span><span class="value">${state.bloc7Discovery.unique_ids || 0}</span></div>
-  `;
-
-  if (!state.bloc7Discovery.candidates?.length) {
-    container.className = "device-list empty-state";
-    container.textContent = "No Bloc7 candidate frames have been identified yet.";
-    return;
-  }
-
-  container.className = "device-list";
-  container.innerHTML = state.bloc7Discovery.candidates
-    .map((candidate) => {
-      const reasons = (candidate.confidence?.reasons || [])
-        .map((reason) => `<div class="muted">${reason}</div>`)
-        .join("");
-      const suggestions = (candidate.suggested_sensors || [])
-        .map(
-          (suggestion) => `
-            <div class="candidate-suggestion">
-              <div class="device-card-header">
-                <div>
-                  <strong>${suggestion.label}</strong>
-                  <div class="muted">${suggestion.sensor_type} &middot; entity hint ${suggestion.entity_id_hint}</div>
-                </div>
-                <button data-action="draft-bloc7-sensor" data-candidate-key="${candidate.candidate_key}" data-suggestion-key="${suggestion.suggestion_key}">Create draft</button>
-              </div>
-              <div class="candidate-metadata">
-                <span class="code-chip">pattern ${formatHex(suggestion.matcher.pattern)}</span>
-                <span class="code-chip">mask ${formatHex(suggestion.matcher.mask)}</span>
-                <span class="code-chip">byte ${suggestion.value_config.start_byte}</span>
-                <span class="code-chip">scale ${suggestion.value_config.scale}</span>
-              </div>
-              <div class="muted">${suggestion.notes}</div>
-              ${
-                suggestion.history?.length
-                  ? `<div class="candidate-history">${suggestion.history
-                      .map((value) => `<span class="code-chip">${value}</span>`)
-                      .join("")}</div>`
-                  : ""
-              }
-            </div>
-          `
-        )
-        .join("");
-
-      return `
-        <article class="discovery-card">
-          <div class="device-card-header">
-            <div>
-              <h3>${candidate.title}</h3>
-              <div class="muted">Confidence: ${candidate.confidence.level} (${candidate.confidence.score})</div>
-            </div>
-            <span class="code-chip">${candidate.arbitration_id}</span>
-          </div>
-          <div class="candidate-summary">
-            <div class="muted">${candidate.summary}</div>
-            <div class="candidate-metadata">
-              <span class="code-chip">last ${candidate.last_data.join(" ")}</span>
-              <span class="code-chip">${candidate.family}</span>
-              <span class="code-chip">${candidate.freq_hz} Hz</span>
-            </div>
-            ${reasons}
-            <div class="candidate-suggestion-list">${suggestions}</div>
-          </div>
-        </article>
-      `;
-    })
-    .join("");
+  renderDiagnostics();
 }
 
 async function refreshDiscovery() {
+  const previousCandidates = state.discovery.candidates || [];
   const response = await fetch("./api/discovery");
-  state.discovery = await response.json();
-  renderDiscovery();
+  const payload = await response.json();
+  updateOutputActivity(previousCandidates, payload.candidates || []);
+  state.discovery = payload;
+  rerender(renderActiveTab);
 }
 
 async function refreshBloc7Candidates() {
@@ -633,271 +1054,298 @@ async function refreshBloc7Candidates() {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     state.bloc7Discovery = { status: "error", candidates: [], total_messages: 0, unique_ids: 0 };
-    renderBloc7Candidates();
-    if (payload.error) {
-      showMessage(payload.error, "warning");
-    }
+    if (payload.error) showToast(payload.error, "warning");
+    rerender(renderActiveTab);
     return;
   }
   state.bloc7Discovery = payload;
-  renderBloc7Candidates();
+  rerender(renderActiveTab);
+}
+
+async function ensureDiscoveryRunning() {
+  if (!state.runtime.running || state.discovery.status === "running") return;
+  const response = await fetch("./api/discovery/start", { method: "POST" });
+  const payload = await response.json().catch(() => ({}));
+  if (response.ok) {
+    state.discovery = payload;
+  }
+  rerender(renderActiveTab);
 }
 
 async function toggleDiscovery() {
-  if (state.discovery.status === "running") {
-    const response = await fetch("./api/discovery/stop", { method: "POST" });
-    state.discovery = await response.json();
-    renderDiscovery();
-    showMessage("Bloc9 discovery stopped", "success");
-  } else {
-    const response = await fetch("./api/discovery/start", { method: "POST" });
-    const payload = await response.json();
-    if (!response.ok) {
-      showMessage(payload.error || "Failed to start discovery", "error");
-      return;
-    }
-    state.discovery = payload;
-    renderDiscovery();
-    showMessage("Bloc9 discovery started", "success");
+  const action = state.discovery.status === "running" ? "stop" : "start";
+  const response = await fetch(`./api/discovery/${action}`, { method: "POST" });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    showToast(payload.error || "Failed to change discovery state", "error");
+    return;
   }
+  state.discovery = payload;
+  rerender(renderActiveTab);
+  showToast(
+    action === "start" ? "Bloc9 discovery started." : "Bloc9 discovery stopped.",
+    "success",
+  );
 }
 
-async function validateAndApply() {
-  clearMessage();
+async function applyConfig(nextConfig, successMessage) {
   const response = await fetch("./api/config/apply", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ config: state.config, base_revision: state.baseRevision }),
+    body: JSON.stringify({ config: nextConfig, base_revision: state.baseRevision }),
   });
-  const payload = await response.json();
+  const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    showMessage(payload.details || payload.error || "Failed to apply configuration", "error");
-    if (payload.diagnostics) {
-      state.diagnostics = payload.diagnostics;
-      renderDiagnostics();
-    }
-    return;
+    state.diagnostics = payload.diagnostics || state.diagnostics;
+    renderDiagnostics();
+    showToast(payload.details || payload.error || "Failed to apply configuration.", "error");
+    return false;
   }
   state.config = payload.config;
   state.baseRevision = payload.revision;
-  state.diagnostics = payload.diagnostics;
+  state.diagnostics = payload.diagnostics || { errors: [], warnings: [] };
   renderDiagnostics();
-  renderDevices();
-  await refreshStatus();
-  showMessage("Configuration saved and bridge reloaded", "success");
+  showToast(successMessage, "success");
+  return true;
 }
 
-function promoteCandidate(busId, segmentId = 0) {
-  const existingIndex = state.config.devices.findIndex(
-    (device) =>
-      device.type === "bloc9" &&
-      Number(device.bus_id) === Number(busId) &&
-      Number(device.segment_id || 0) === Number(segmentId)
+async function saveBloc9Card(cardKey) {
+  const configuredIndex = state.config.devices.findIndex(
+    (device) => device.type === "bloc9" && bloc9KeyFor(device) === cardKey,
   );
-  if (existingIndex >= 0) {
-    openEditor(state.config.devices[existingIndex], existingIndex);
-    return;
+  const draft = buildBloc9DraftForSave(state.bloc9Drafts[cardKey]);
+  const nextConfig = clone(state.config);
+  if (configuredIndex >= 0) {
+    nextConfig.devices[configuredIndex] = draft;
+  } else {
+    nextConfig.devices.push(draft);
   }
-  const device = blankDevice("bloc9");
-  device.bus_id = Number(busId);
-  device.segment_id = Number(segmentId);
-  openEditor(device, null);
+
+  const actionKey = `save-bloc9:${cardKey}`;
+  setBusy(actionKey, true);
+  try {
+    const success = await applyConfig(
+      nextConfig,
+      configuredIndex >= 0 ? `Saved Bloc9 #${cardKey}.` : `Added Bloc9 #${cardKey}.`,
+    );
+    if (!success) return;
+    state.bloc9Drafts[cardKey] = clone(draft);
+    await refreshStatus();
+    rerender(renderActiveTab);
+  } finally {
+    setBusy(actionKey, false);
+  }
 }
 
-function nextBloc7BusId() {
-  const ids = state.config.devices
-    .filter((device) => device.type === "bloc7")
-    .map((device) => Number(device.bus_id))
-    .filter((value) => Number.isFinite(value));
-  return ids.length ? Math.max(...ids) + 1 : 1;
+async function sendControl(cardKey, outputName, on) {
+  const draft = state.bloc9Drafts[cardKey];
+  const switchNr = outputs.indexOf(outputName);
+  const control = getControlState(cardKey, outputName);
+  const actionKey = `control:${cardKey}:${outputName}:${on ? "on" : "off"}`;
+  setBusy(actionKey, true);
+  try {
+    const response = await fetch("./api/discovery/control", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        bus_id: Number(draft.bus_id),
+        segment_id: Number(draft.segment_id || 0),
+        switch_nr: switchNr,
+        on,
+        brightness: on ? Number(control.brightness) : null,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      showToast(payload.error || "Failed to send command.", "error");
+      return;
+    }
+    showToast(
+      `Sent ${on ? "on" : "off"} command to ${outputName.toUpperCase()} on Bloc9 #${cardKey}.`,
+      "success",
+    );
+  } finally {
+    setBusy(actionKey, false);
+  }
 }
 
 function createBloc7DraftFromSuggestion(candidateKey, suggestionKey) {
   const candidate = (state.bloc7Discovery.candidates || []).find(
-    (item) => item.candidate_key === candidateKey
+    (entry) => entry.candidate_key === candidateKey,
   );
   const suggestion = candidate?.suggested_sensors?.find(
-    (item) => item.suggestion_key === suggestionKey
+    (entry) => entry.suggestion_key === suggestionKey,
   );
   if (!candidate || !suggestion) {
-    showMessage("The selected Bloc7 suggestion is no longer available", "error");
+    showToast("The selected Bloc7 suggestion is no longer available.", "error");
     return;
   }
 
-  const device = blankDevice("bloc7");
-  device.bus_id = nextBloc7BusId();
-  device.name = `Bloc7 candidate ${device.bus_id}`;
-  device.description = `Provisional draft from ${candidate.arbitration_id} (${candidate.family})`;
-  device.sensors = [
-    {
-      name: suggestion.name_hint,
-      entity_id: suggestion.entity_id_hint,
-      sensor_type: suggestion.sensor_type,
-      matcher: {
-        pattern: suggestion.matcher.pattern,
-        mask: suggestion.matcher.mask,
+  const draftKey = `new-bloc7:${Date.now()}`;
+  const busId = nextBloc7BusId();
+  state.bloc7Drafts[draftKey] = {
+    type: "bloc7",
+    bus_id: busId,
+    segment_id: 0,
+    name: `Bloc7 candidate ${busId}`,
+    description: `Draft from ${candidate.arbitration_id} (${candidate.family})`,
+    sensors: [
+      {
+        name: suggestion.name_hint,
+        entity_id: suggestion.entity_id_hint,
+        sensor_type: suggestion.sensor_type,
+        matcher: {
+          pattern: formatHex(suggestion.matcher.pattern),
+          mask: formatHex(suggestion.matcher.mask),
+        },
+        value_config: {
+          start_byte: suggestion.value_config.start_byte,
+          bit_length: suggestion.value_config.bit_length,
+          endian: suggestion.value_config.endian,
+          scale: suggestion.value_config.scale,
+        },
       },
-      value_config: {
-        start_byte: suggestion.value_config.start_byte,
-        bit_length: suggestion.value_config.bit_length,
-        endian: suggestion.value_config.endian,
-        scale: suggestion.value_config.scale,
-      },
-    },
-  ];
-  openEditor(device, null);
-  showMessage("Created a provisional Bloc7 sensor draft from the selected CAN frame", "success");
+    ],
+  };
+  state.activeTab = "bloc7";
+  rerender(renderActiveTab);
+  showToast("Created a Bloc7 draft from the live candidate.", "success");
+}
+
+function addManualBloc7Draft() {
+  const draftKey = `new-bloc7:${Date.now()}`;
+  state.bloc7Drafts[draftKey] = {
+    ...blankBloc7Device(),
+    bus_id: nextBloc7BusId(),
+    sensors: [blankSensor()],
+  };
+  state.activeTab = "bloc7";
+  rerender(renderActiveTab);
+}
+
+async function saveBloc7Card(cardKey) {
+  const draft = buildBloc7DraftForSave(state.bloc7Drafts[cardKey]);
+  const configuredIndex = state.config.devices.findIndex(
+    (device) => device.type === "bloc7" && Number(device.bus_id) === Number(draft.bus_id),
+  );
+  const nextConfig = clone(state.config);
+  if (configuredIndex >= 0) {
+    nextConfig.devices[configuredIndex] = draft;
+  } else {
+    nextConfig.devices.push(draft);
+  }
+
+  const actionKey = `save-bloc7:${cardKey}`;
+  setBusy(actionKey, true);
+  try {
+    const success = await applyConfig(
+      nextConfig,
+      configuredIndex >= 0 ? `Saved Bloc7 #${draft.bus_id}.` : `Added Bloc7 #${draft.bus_id}.`,
+    );
+    if (!success) return;
+    delete state.bloc7Drafts[cardKey];
+    state.bloc7Drafts[`bloc7:${draft.bus_id}`] = clone(draft);
+    await refreshStatus();
+    rerender(renderActiveTab);
+  } finally {
+    setBusy(actionKey, false);
+  }
 }
 
 document.addEventListener("click", async (event) => {
-  const action = event.target.dataset.action;
-  if (!action) return;
-
-  if (action === "edit-device") {
-    const index = Number(event.target.dataset.index);
-    openEditor(state.config.devices[index], index);
+  const tabButton = event.target.closest("[data-tab]");
+  if (tabButton && tabButton.classList.contains("tab-button")) {
+    state.activeTab = tabButton.dataset.tab;
+    rerender(renderActiveTab);
+    return;
   }
 
-  if (action === "delete-device") {
-    const index = Number(event.target.dataset.index);
-    state.config.devices.splice(index, 1);
-    renderDevices();
-    showMessage("Device removed from the local draft", "warning");
-  }
+  const actionTarget = event.target.closest("[data-action]");
+  if (!actionTarget) return;
+  const action = actionTarget.dataset.action;
 
-  if (action === "promote-candidate") {
-    promoteCandidate(event.target.dataset.busId, event.target.dataset.segmentId || 0);
+  if (action === "save-bloc9") {
+    await saveBloc9Card(actionTarget.dataset.cardKey);
+    return;
   }
-
-  if (action === "toggle-expand") {
-    const candidateKey = event.target.dataset.candidateKey;
-    state.expandedCandidates[candidateKey] = !state.expandedCandidates[candidateKey];
-    renderDiscovery();
-  }
-
   if (action === "send-control") {
-    const busId = Number(event.target.dataset.busId);
-    const segmentId = Number(event.target.dataset.segmentId || 0);
-    const candidateKey = event.target.dataset.candidateKey;
-    const switchNr = Number(event.target.dataset.switchNr);
-    const on = event.target.dataset.on === "1";
-    const output = outputs[switchNr];
-    const ctrl = getControlState(candidateKey);
-    const brightness = on && ctrl[output]?.role === "light" ? ctrl[output].brightness : null;
-    await sendControl(busId, switchNr, on, brightness, segmentId);
+    await sendControl(
+      actionTarget.dataset.cardKey,
+      actionTarget.dataset.output,
+      actionTarget.dataset.on === "1",
+    );
+    return;
   }
-
-  if (action === "remove-sensor") {
-    const device = readDeviceForm();
-    device.sensors.splice(Number(event.target.dataset.sensorIndex), 1);
-    renderSensorEditor(device);
+  if (action === "save-bloc7") {
+    await saveBloc7Card(actionTarget.dataset.cardKey);
+    return;
   }
-
-  if (action === "draft-bloc7-sensor") {
+  if (action === "add-bloc7-sensor") {
+    state.bloc7Drafts[actionTarget.dataset.cardKey].sensors.push(blankSensor());
+    rerender(renderActiveTab);
+    return;
+  }
+  if (action === "remove-bloc7-sensor") {
+    state.bloc7Drafts[actionTarget.dataset.cardKey].sensors.splice(
+      Number(actionTarget.dataset.sensorIndex),
+      1,
+    );
+    rerender(renderActiveTab);
+    return;
+  }
+  if (action === "create-bloc7-draft") {
     createBloc7DraftFromSuggestion(
-      event.target.dataset.candidateKey,
-      event.target.dataset.suggestionKey
+      actionTarget.dataset.candidateKey,
+      actionTarget.dataset.suggestionKey,
     );
   }
 });
 
-document.addEventListener("change", (event) => {
-  if (event.target.dataset.action === "set-output-role") {
-    const candidateKey = event.target.dataset.candidateKey;
-    const output = event.target.dataset.output;
-    const ctrl = getControlState(candidateKey);
-    ctrl[output].role = event.target.value;
-    renderDiscovery();
-    return;
-  }
-
-  if (event.target.id === "device-type") {
-    const current = readDeviceForm();
-    const nextType = event.target.value;
-    const nextDevice =
-      nextType === current.type
-        ? current
-        : {
-            ...blankDevice(nextType),
-            bus_id: current.bus_id,
-            name: current.name,
-            description: current.description,
-          };
-    openEditor(nextDevice, state.editingIndex);
-    return;
-  }
-
-  if (event.target.dataset.field !== "role") return;
-  renderOutputEditor(readDeviceForm());
-});
-
 document.addEventListener("input", (event) => {
-  if (event.target.dataset.action === "set-brightness") {
-    const candidateKey = event.target.dataset.candidateKey;
-    const output = event.target.dataset.output;
-    const value = Number(event.target.value);
-    const ctrl = getControlState(candidateKey);
-    ctrl[output].brightness = value;
-    const label = event.target.closest(".output-control-row")?.querySelector(".brightness-value");
-    if (label) label.textContent = value;
+  const target = event.target;
+  if (target.dataset.cardKind === "bloc9") {
+    updateBloc9DraftField(
+      target.dataset.cardKey,
+      target.dataset.field,
+      target.value,
+      target.dataset.output || null,
+    );
+    rerender(renderActiveTab);
+    return;
+  }
+  if (target.dataset.cardKind === "bloc7") {
+    updateBloc7DraftField(
+      target.dataset.cardKey,
+      target.dataset.field,
+      target.value,
+      target.dataset.sensorIndex !== undefined ? Number(target.dataset.sensorIndex) : null,
+    );
+    rerender(renderActiveTab);
+    return;
+  }
+  if (target.dataset.cardKind === "bloc9-control") {
+    const control = getControlState(target.dataset.cardKey, target.dataset.output);
+    control.brightness = Number(target.value);
+    const valueLabel = target.closest(".slider-field")?.querySelector(".slider-value");
+    if (valueLabel) valueLabel.textContent = String(control.brightness);
   }
 });
 
-document.getElementById("add-bloc9-button").addEventListener("click", () => openEditor(blankDevice("bloc9")));
-document.getElementById("add-bloc7-button").addEventListener("click", () => {
-  const device = blankDevice("bloc7");
-  device.bus_id = nextBloc7BusId();
-  openEditor(device);
-});
-document.getElementById("add-sensor-button").addEventListener("click", () => {
-  const device = readDeviceForm();
-  device.sensors.push(blankSensor());
-  renderSensorEditor(device);
-});
-document.getElementById("cancel-edit-button").addEventListener("click", closeEditor);
-document.getElementById("apply-button").addEventListener("click", validateAndApply);
 document.getElementById("discovery-toggle-button").addEventListener("click", toggleDiscovery);
 document.getElementById("bloc7-refresh-button").addEventListener("click", refreshBloc7Candidates);
-
-document.getElementById("device-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const device = readDeviceForm();
-  const draft = structuredClone(state.config);
-  if (state.editingIndex === null) {
-    draft.devices.push(device);
-  } else {
-    draft.devices[state.editingIndex] = device;
-  }
-
-  const response = await fetch("./api/config/validate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ config: draft }),
-  });
-  const payload = await response.json();
-
-  if (!response.ok || !payload.valid) {
-    state.diagnostics = payload.diagnostics || { errors: [], warnings: [] };
-    renderDiagnostics();
-    showMessage("Fix validation errors before saving the device", "error");
-    return;
-  }
-
-  state.config = payload.config;
-  state.diagnostics = payload.diagnostics;
-  renderDiagnostics();
-  renderDevices();
-  closeEditor();
-  showMessage("Device saved to the local draft", "success");
-});
+document.getElementById("add-bloc7-button").addEventListener("click", addManualBloc7Draft);
 
 async function initialize() {
-  await Promise.all([loadConfig(), refreshStatus(), refreshDiscovery(), refreshBloc7Candidates()]);
-  setInterval(refreshStatus, 5000);
-  setInterval(refreshDiscovery, 2000);
-  setInterval(refreshBloc7Candidates, 4000);
+  await Promise.all([refreshStatus(), loadConfig(), refreshDiscovery(), refreshBloc7Candidates()]);
+  renderHeader();
+  renderDiagnostics();
+  renderActiveTab();
+  await ensureDiscoveryRunning();
+  window.setInterval(refreshStatus, 5000);
+  window.setInterval(refreshDiscovery, 2000);
+  window.setInterval(refreshBloc7Candidates, 4000);
 }
 
 initialize().catch((error) => {
-  showMessage(error.message || "Failed to initialize the setup UI", "error");
+  showToast(error.message || "Failed to load the setup UI.", "error");
 });

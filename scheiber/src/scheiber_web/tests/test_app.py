@@ -139,6 +139,30 @@ def test_get_config_returns_normalized_editor_payload(tmp_path):
     assert payload["config"]["devices"][0]["outputs"]["s1"]["role"] == "light"
 
 
+def test_index_page_uses_setup_heading_and_tabbed_navigation(tmp_path):
+    client, _ = create_test_client(tmp_path)
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    page = response.get_data(as_text=True)
+    assert "<h1>Setup</h1>" in page
+    assert 'data-tab="bloc9"' in page
+    assert 'data-tab="bloc7"' in page
+    assert 'data-tab="inspect"' in page
+
+
+def test_embedded_inspect_page_hides_back_link(tmp_path):
+    client, _ = create_test_client(tmp_path)
+
+    response = client.get("/inspect?embedded=1")
+
+    assert response.status_code == 200
+    page = response.get_data(as_text=True)
+    assert "inspect-embedded" in page
+    assert "Back to Setup" not in page
+
+
 def test_apply_config_saves_and_reloads_runtime(tmp_path):
     runtime = FakeRuntimeController()
     client, config_path = create_test_client(tmp_path, runtime_controller=runtime)

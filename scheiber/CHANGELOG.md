@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.9.0] - 2026-05-17
+
+### Changed
+- Refactored the setup UI into a mobile-first tabbed workflow with a sticky **Setup** header, bridge health/error indicator, horizontally scrolling navigation, and toast-style action feedback
+- Reworked Bloc9 setup into direct-edit cards that combine discovery, live output testing, and saved configuration so discovered devices can be added and configured devices can be updated in place
+- Reworked Bloc7 setup into card-based saved drafts plus live candidate promotion, while keeping the CAN inspector available as the third setup tab
+
 ## [6.8.1] - 2026-05-17
 
 ### Fixed
@@ -787,7 +794,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.7.2...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.0...HEAD
+[6.9.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.8.1...v6.9.0
+[6.8.1]: https://github.com/eburi/ha_addon_scheiber/compare/v6.8.0...v6.8.1
+[6.8.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.7.2...v6.8.0
 [6.7.2]: https://github.com/eburi/ha_addon_scheiber/compare/v6.7.1...v6.7.2
 [6.7.1]: https://github.com/eburi/ha_addon_scheiber/compare/v6.7.0...v6.7.1
 [6.7.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.6.3...v6.7.0

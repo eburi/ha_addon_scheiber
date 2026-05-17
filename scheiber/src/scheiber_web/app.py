@@ -254,7 +254,9 @@ def create_app(
     @app.get("/inspect")
     def inspect_page():
         require_web_ui()
-        return render_template("inspect.html")
+        return render_template(
+            "inspect.html", embedded=request.args.get("embedded") == "1"
+        )
 
     @app.get("/api/inspect")
     def get_inspect():
