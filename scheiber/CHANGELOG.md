@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.9.2] - 2026-05-18
+
+### Fixed
+- Stopped the setup editor from re-rendering the visible tab on every keystroke and from unrelated background polling, which makes Bloc9 and Bloc7 field editing responsive again instead of fighting focus/caret resets
+- Prevented hidden-tab background refreshes from rebuilding the active tab, reducing the gradual slowdown seen while leaving the setup page open
+
 ## [6.9.1] - 2026-05-18
 
 ### Changed
@@ -801,7 +807,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.1...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.2...HEAD
+[6.9.2]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.1...v6.9.2
 [6.9.1]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.0...v6.9.1
 [6.9.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.8.1...v6.9.0
 [6.8.1]: https://github.com/eburi/ha_addon_scheiber/compare/v6.8.0...v6.8.1

@@ -154,6 +154,29 @@ function rerender(callback) {
   restoreActiveField(active);
 }
 
+function renderCurrentTab() {
+  renderTabs();
+  if (state.activeTab === "bloc9") {
+    renderBloc9Cards();
+    return;
+  }
+  if (state.activeTab === "bloc7") {
+    renderBloc7Cards();
+    return;
+  }
+  renderInspectPanel();
+}
+
+function renderTabIfVisible(tabName) {
+  if (state.activeTab !== tabName) return;
+  renderCurrentTab();
+}
+
+function hasActiveEditor(kind) {
+  const active = document.activeElement;
+  return Boolean(active?.dataset?.cardKind === kind);
+}
+
 function showToast(message, level = "success") {
   const region = document.getElementById("toast-region");
   const toast = document.createElement("div");
@@ -169,7 +192,7 @@ function showToast(message, level = "success") {
 
 function setBusy(actionKey, isBusy) {
   state.busyActions[actionKey] = isBusy;
-  rerender(renderActiveTab);
+  rerender(renderCurrentTab);
 }
 
 function actionAttrs(actionKey, disabled = false, extra = "") {
@@ -984,16 +1007,7 @@ function renderInspectPanel() {
 }
 
 function renderActiveTab() {
-  renderTabs();
-  if (state.activeTab === "bloc9") {
-    renderBloc9Cards();
-    return;
-  }
-  if (state.activeTab === "bloc7") {
-    renderBloc7Cards();
-    return;
-  }
-  renderInspectPanel();
+  renderCurrentTab();
 }
 
 function parseNumberOrNull(value) {
@@ -1070,7 +1084,8 @@ async function refreshDiscovery() {
   const payload = await response.json();
   updateOutputActivity(previousCandidates, payload.candidates || []);
   state.discovery = payload;
-  rerender(renderActiveTab);
+  if (hasActiveEditor("bloc9")) return;
+  rerender(() => renderTabIfVisible("bloc9"));
 }
 
 async function refreshBloc7Candidates() {
@@ -1079,11 +1094,13 @@ async function refreshBloc7Candidates() {
   if (!response.ok) {
     state.bloc7Discovery = { status: "error", candidates: [], total_messages: 0, unique_ids: 0 };
     if (payload.error) showToast(payload.error, "warning");
-    rerender(renderActiveTab);
+    if (hasActiveEditor("bloc7")) return;
+    rerender(() => renderTabIfVisible("bloc7"));
     return;
   }
   state.bloc7Discovery = payload;
-  rerender(renderActiveTab);
+  if (hasActiveEditor("bloc7")) return;
+  rerender(() => renderTabIfVisible("bloc7"));
 }
 
 async function ensureDiscoveryRunning() {
@@ -1093,7 +1110,7 @@ async function ensureDiscoveryRunning() {
   if (response.ok) {
     state.discovery = payload;
   }
-  rerender(renderActiveTab);
+  rerender(() => renderTabIfVisible("bloc9"));
 }
 
 async function toggleDiscovery() {
@@ -1105,7 +1122,7 @@ async function toggleDiscovery() {
     return;
   }
   state.discovery = payload;
-  rerender(renderActiveTab);
+  rerender(() => renderTabIfVisible("bloc9"));
   showToast(
     action === "start" ? "Bloc9 discovery started." : "Bloc9 discovery stopped.",
     "success",
@@ -1155,7 +1172,7 @@ async function saveBloc9Card(cardKey) {
     if (!success) return;
     state.bloc9Drafts[cardKey] = clone(draft);
     await refreshStatus();
-    rerender(renderActiveTab);
+    rerender(() => renderTabIfVisible("bloc9"));
   } finally {
     setBusy(actionKey, false);
   }
@@ -1232,7 +1249,7 @@ function createBloc7DraftFromSuggestion(candidateKey, suggestionKey) {
     ],
   };
   state.activeTab = "bloc7";
-  rerender(renderActiveTab);
+  rerender(renderCurrentTab);
   showToast("Created a Bloc7 draft from the live candidate.", "success");
 }
 
@@ -1244,7 +1261,7 @@ function addManualBloc7Draft() {
     sensors: [blankSensor()],
   };
   state.activeTab = "bloc7";
-  rerender(renderActiveTab);
+  rerender(renderCurrentTab);
 }
 
 async function saveBloc7Card(cardKey) {
@@ -1270,7 +1287,7 @@ async function saveBloc7Card(cardKey) {
     delete state.bloc7Drafts[cardKey];
     state.bloc7Drafts[`bloc7:${draft.bus_id}`] = clone(draft);
     await refreshStatus();
-    rerender(renderActiveTab);
+    rerender(() => renderTabIfVisible("bloc7"));
   } finally {
     setBusy(actionKey, false);
   }
@@ -1280,7 +1297,7 @@ document.addEventListener("click", async (event) => {
   const tabButton = event.target.closest("[data-tab]");
   if (tabButton && tabButton.classList.contains("tab-button")) {
     state.activeTab = tabButton.dataset.tab;
-    rerender(renderActiveTab);
+    rerender(renderCurrentTab);
     return;
   }
 
@@ -1306,7 +1323,7 @@ document.addEventListener("click", async (event) => {
   }
   if (action === "add-bloc7-sensor") {
     state.bloc7Drafts[actionTarget.dataset.cardKey].sensors.push(blankSensor());
-    rerender(renderActiveTab);
+    rerender(() => renderTabIfVisible("bloc7"));
     return;
   }
   if (action === "remove-bloc7-sensor") {
@@ -1314,7 +1331,7 @@ document.addEventListener("click", async (event) => {
       Number(actionTarget.dataset.sensorIndex),
       1,
     );
-    rerender(renderActiveTab);
+    rerender(() => renderTabIfVisible("bloc7"));
     return;
   }
   if (action === "create-bloc7-draft") {
@@ -1334,7 +1351,6 @@ document.addEventListener("input", (event) => {
       target.value,
       target.dataset.output || null,
     );
-    rerender(renderActiveTab);
     return;
   }
   if (target.dataset.cardKind === "bloc7") {
@@ -1344,7 +1360,6 @@ document.addEventListener("input", (event) => {
       target.value,
       target.dataset.sensorIndex !== undefined ? Number(target.dataset.sensorIndex) : null,
     );
-    rerender(renderActiveTab);
     return;
   }
   if (target.dataset.cardKind === "bloc9-control") {
@@ -1352,6 +1367,29 @@ document.addEventListener("input", (event) => {
     control.brightness = Number(target.value);
     const valueLabel = target.closest(".slider-field")?.querySelector(".slider-value");
     if (valueLabel) valueLabel.textContent = String(control.brightness);
+  }
+});
+
+document.addEventListener("change", (event) => {
+  const target = event.target;
+  if (target.dataset.cardKind === "bloc9") {
+    updateBloc9DraftField(
+      target.dataset.cardKey,
+      target.dataset.field,
+      target.value,
+      target.dataset.output || null,
+    );
+    rerender(() => renderTabIfVisible("bloc9"));
+    return;
+  }
+  if (target.dataset.cardKind === "bloc7") {
+    updateBloc7DraftField(
+      target.dataset.cardKey,
+      target.dataset.field,
+      target.value,
+      target.dataset.sensorIndex !== undefined ? Number(target.dataset.sensorIndex) : null,
+    );
+    rerender(() => renderTabIfVisible("bloc7"));
   }
 });
 
@@ -1363,7 +1401,7 @@ async function initialize() {
   await Promise.all([refreshStatus(), loadConfig(), refreshDiscovery(), refreshBloc7Candidates()]);
   renderHeader();
   renderDiagnostics();
-  renderActiveTab();
+  renderCurrentTab();
   await ensureDiscoveryRunning();
   window.setInterval(refreshStatus, 5000);
   window.setInterval(refreshDiscovery, 2000);
