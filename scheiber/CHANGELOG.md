@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.9.4] - 2026-05-18
+
+### Changed
+- Reworked Bloc7 setup discovery around per-message cards so a discovered arbitration ID now configures both reported channels in one place instead of spawning one-sensor suggestion flows
+- Simplified mapped Bloc7 sensor editing by keeping matcher and byte mapping fixed for discovered channels while still showing live readings to help identify tanks during setup
+
+### Fixed
+- Bloc7 MQTT discovery for configured fluid sensors now publishes Home Assistant volume metadata with liters and measurement state classification
+
+## [6.9.3] - 2026-05-18
+
+### Fixed
+- Added browser heartbeats for the setup web UI so frontend-only services no longer keep running after the last browser page goes away
+- Stopped live Bloc9 discovery and standalone CAN inspector capture automatically when all setup browser sessions have expired or disconnected
+
 ## [6.9.2] - 2026-05-18
 
 ### Fixed
@@ -807,7 +822,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.2...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.4...HEAD
+[6.9.4]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.3...v6.9.4
+[6.9.3]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.2...v6.9.3
 [6.9.2]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.1...v6.9.2
 [6.9.1]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.0...v6.9.1
 [6.9.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.8.1...v6.9.0

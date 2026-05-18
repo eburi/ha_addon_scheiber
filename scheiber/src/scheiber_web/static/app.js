@@ -15,12 +15,17 @@ const state = {
   activeTab: "bloc9",
   bloc9Drafts: {},
   bloc7Drafts: {},
+  bloc7CandidateDrafts: {},
   busyActions: {},
   controlState: {},
   outputActivity: {},
   bloc9ToastHistory: {},
   inspectLoaded: false,
+  bloc9CardExpansion: {},
+  bloc9OutputExpansion: {},
 };
+
+const heartbeatManager = window.ScheiberHeartbeat?.createHeartbeatManager("setup");
 
 function blankOutput() {
   return {
@@ -87,6 +92,10 @@ function routeSlug(busId, segmentId = 0) {
   return Number(segmentId || 0) === 0 ? `${busId}` : `${busId}_${segmentId}`;
 }
 
+function domSafeId(value) {
+  return String(value).replace(/[^a-zA-Z0-9_-]/g, "-");
+}
+
 function bloc9KeyFor(deviceOrCandidate) {
   return routeSlug(deviceOrCandidate.bus_id, deviceOrCandidate.segment_id || 0);
 }
@@ -115,6 +124,16 @@ function candidateLastSeen(candidate) {
 
 function devicesEqual(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function parseArbitrationId(value) {
+  if (typeof value === "number" && Number.isInteger(value)) return value;
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  const parsed = text.startsWith("0x") || text.startsWith("0X")
+    ? Number.parseInt(text, 16)
+    : Number.parseInt(text, 10);
+  return Number.isNaN(parsed) ? null : parsed;
 }
 
 function captureActiveField() {
@@ -234,6 +253,27 @@ function describeBloc9OutputState(outputName, value) {
   if (!value) return `${outputName.toUpperCase()} unknown`;
   if (!value.state) return `${outputName.toUpperCase()} OFF`;
   return `${outputName.toUpperCase()} ON (${value.effective_brightness})`;
+}
+
+function bloc9OutputDisplayName(outputName, output) {
+  return String(output?.name || "").trim() || outputName.toUpperCase();
+}
+
+function bloc9CardStateSummary(draft, candidate) {
+  const liveOutputs = candidate?.latest_outputs || {};
+  const summaries = outputs
+    .filter((outputName) => liveOutputs[outputName])
+    .map((outputName) => {
+      const output = draft.outputs?.[outputName] || blankOutput();
+      const live = liveOutputs[outputName];
+      return `${bloc9OutputDisplayName(outputName, output)}: ${live.state ? `On ${live.effective_brightness}` : "Off"}`;
+    });
+
+  if (summaries.length) {
+    return summaries.join(" · ");
+  }
+
+  return candidate ? "No live output status yet" : "Configured without live discovery yet";
 }
 
 function announceBloc9StatusChange(candidate, outputName, previousValue, nextValue) {
@@ -455,6 +495,22 @@ function bloc9FieldClass(validation, fieldPath, dirty) {
   return classes.join(" ");
 }
 
+function isBloc9CardExpanded(cardKey) {
+  if (!(cardKey in state.bloc9CardExpansion)) {
+    state.bloc9CardExpansion[cardKey] = true;
+  }
+  return state.bloc9CardExpansion[cardKey];
+}
+
+function isBloc9OutputExpanded(cardKey, outputName) {
+  const key = String(cardKey);
+  state.bloc9OutputExpansion[key] = state.bloc9OutputExpansion[key] || {};
+  if (!(outputName in state.bloc9OutputExpansion[key])) {
+    state.bloc9OutputExpansion[key][outputName] = true;
+  }
+  return state.bloc9OutputExpansion[key][outputName];
+}
+
 function renderBloc9OutputRow(cardKey, draft, baseline, candidate, outputName, validation) {
   const output = draft.outputs?.[outputName] || blankOutput();
   const baselineOutput = baseline?.outputs?.[outputName] || blankOutput();
@@ -471,112 +527,129 @@ function renderBloc9OutputRow(cardKey, draft, baseline, candidate, outputName, v
     output.initial_brightness === null || output.initial_brightness === undefined
       ? ""
       : output.initial_brightness;
+  const isExpanded = isBloc9OutputExpanded(cardKey, outputName);
+  const outputPanelId = `bloc9-output-${domSafeId(cardKey)}-${outputName}`;
+  const outputLabel = bloc9OutputDisplayName(outputName, output);
+  const outputSummary = output.role ? `${output.role} configured` : "Not configured";
 
   return `
     <section class="output-card${liveFlash ? " live-change" : ""}">
-      <div class="output-card-header">
-        <div>
-          <h4>${escapeHtml(outputName.toUpperCase())}</h4>
-          <p>${candidateLastSeen(candidate)}</p>
+      <button
+        type="button"
+        class="collapse-toggle output-card-header"
+        data-action="toggle-bloc9-output"
+        data-card-key="${escapeHtml(cardKey)}"
+        data-output="${outputName}"
+        aria-expanded="${isExpanded ? "true" : "false"}"
+        aria-controls="${outputPanelId}"
+      >
+        <div class="collapse-toggle-main">
+          <div>
+            <h4>${escapeHtml(outputLabel)}</h4>
+            <p>${escapeHtml(outputName.toUpperCase())} · ${escapeHtml(outputSummary)} · ${escapeHtml(candidateLastSeen(candidate))}</p>
+          </div>
+          <span class="live-state ${liveTone}">
+            <span class="state-beacon${liveFlash ? " flashing" : ""}"></span>
+            ${escapeHtml(liveState)}
+          </span>
         </div>
-        <span class="live-state ${liveTone}">
-          <span class="state-beacon${liveFlash ? " flashing" : ""}"></span>
-          ${escapeHtml(liveState)}
-        </span>
-      </div>
+        <span class="collapse-indicator" aria-hidden="true">${isExpanded ? "−" : "+"}</span>
+      </button>
 
-      <div class="card-grid">
-        <label class="${bloc9FieldClass(validation, `outputs.${outputName}.role`, output.role !== baselineOutput.role)}">
-          <span>Role</span>
-          <select data-card-kind="bloc9" data-card-key="${escapeHtml(cardKey)}" data-output="${outputName}" data-field="role">
-            <option value="" ${!output.role ? "selected" : ""}>Not configured</option>
-            <option value="light" ${output.role === "light" ? "selected" : ""}>Light</option>
-            <option value="switch" ${output.role === "switch" ? "selected" : ""}>Switch</option>
-          </select>
-          ${validation.errors[`outputs.${outputName}.role`] ? `<small>${escapeHtml(validation.errors[`outputs.${outputName}.role`])}</small>` : ""}
-        </label>
+      <div id="${outputPanelId}" class="collapse-body${isExpanded ? "" : " hidden"}">
+        <div class="card-grid compact-grid">
+          <label class="${bloc9FieldClass(validation, `outputs.${outputName}.role`, output.role !== baselineOutput.role)}">
+            <span>Role</span>
+            <select data-card-kind="bloc9" data-card-key="${escapeHtml(cardKey)}" data-output="${outputName}" data-field="role">
+              <option value="" ${!output.role ? "selected" : ""}>Not configured</option>
+              <option value="light" ${output.role === "light" ? "selected" : ""}>Light</option>
+              <option value="switch" ${output.role === "switch" ? "selected" : ""}>Switch</option>
+            </select>
+            ${validation.errors[`outputs.${outputName}.role`] ? `<small>${escapeHtml(validation.errors[`outputs.${outputName}.role`])}</small>` : ""}
+          </label>
 
-        <label class="${bloc9FieldClass(validation, `outputs.${outputName}.name`, output.name !== baselineOutput.name)}">
-          <span>Name</span>
-          <input
-            type="text"
-            value="${escapeHtml(output.name || "")}"
-            data-card-kind="bloc9"
-            data-card-key="${escapeHtml(cardKey)}"
-            data-output="${outputName}"
-            data-field="name"
-          >
-          ${validation.errors[`outputs.${outputName}.name`] ? `<small>${escapeHtml(validation.errors[`outputs.${outputName}.name`])}</small>` : ""}
-        </label>
-
-        <label class="${bloc9FieldClass(validation, `outputs.${outputName}.entity_id`, output.entity_id !== baselineOutput.entity_id)}">
-          <span>Entity ID</span>
-          <input
-            type="text"
-            value="${escapeHtml(output.entity_id || "")}"
-            placeholder="Required when a role is selected"
-            data-card-kind="bloc9"
-            data-card-key="${escapeHtml(cardKey)}"
-            data-output="${outputName}"
-            data-field="entity_id"
-          >
-          ${validation.errors[`outputs.${outputName}.entity_id`] ? `<small>${escapeHtml(validation.errors[`outputs.${outputName}.entity_id`])}</small>` : ""}
-        </label>
-
-        <label class="${bloc9FieldClass(validation, `outputs.${outputName}.initial_brightness`, brightnessValue !== (baselineOutput.initial_brightness ?? ""))}">
-          <span>Initial brightness</span>
-          <input
-            type="number"
-            min="0"
-            max="255"
-            value="${escapeHtml(brightnessValue)}"
-            placeholder="Optional for lights"
-            data-card-kind="bloc9"
-            data-card-key="${escapeHtml(cardKey)}"
-            data-output="${outputName}"
-            data-field="initial_brightness"
-          >
-          ${validation.errors[`outputs.${outputName}.initial_brightness`] ? `<small>${escapeHtml(validation.errors[`outputs.${outputName}.initial_brightness`])}</small>` : ""}
-        </label>
-      </div>
-
-      <div class="test-controls">
-        <div class="test-controls-header">
-          <strong>Live test</strong>
-          <span class="muted">Commands are sent immediately and never saved by themselves.</span>
-        </div>
-        <div class="test-controls-row">
-          <label class="slider-field">
-            <span>Brightness</span>
+          <label class="${bloc9FieldClass(validation, `outputs.${outputName}.name`, output.name !== baselineOutput.name)}">
+            <span>Name</span>
             <input
-              type="range"
+              type="text"
+              value="${escapeHtml(output.name || "")}"
+              data-card-kind="bloc9"
+              data-card-key="${escapeHtml(cardKey)}"
+              data-output="${outputName}"
+              data-field="name"
+            >
+            ${validation.errors[`outputs.${outputName}.name`] ? `<small>${escapeHtml(validation.errors[`outputs.${outputName}.name`])}</small>` : ""}
+          </label>
+
+          <label class="${bloc9FieldClass(validation, `outputs.${outputName}.entity_id`, output.entity_id !== baselineOutput.entity_id)}">
+            <span>Entity ID</span>
+            <input
+              type="text"
+              value="${escapeHtml(output.entity_id || "")}"
+              placeholder="Required when a role is selected"
+              data-card-kind="bloc9"
+              data-card-key="${escapeHtml(cardKey)}"
+              data-output="${outputName}"
+              data-field="entity_id"
+            >
+            ${validation.errors[`outputs.${outputName}.entity_id`] ? `<small>${escapeHtml(validation.errors[`outputs.${outputName}.entity_id`])}</small>` : ""}
+          </label>
+
+          <label class="${bloc9FieldClass(validation, `outputs.${outputName}.initial_brightness`, brightnessValue !== (baselineOutput.initial_brightness ?? ""))}">
+            <span>Initial brightness</span>
+            <input
+              type="number"
               min="0"
               max="255"
-              value="${control.brightness}"
-              data-card-kind="bloc9-control"
+              value="${escapeHtml(brightnessValue)}"
+              placeholder="Optional for lights"
+              data-card-kind="bloc9"
               data-card-key="${escapeHtml(cardKey)}"
               data-output="${outputName}"
-              data-field="brightness"
+              data-field="initial_brightness"
             >
-            <span class="slider-value">${control.brightness}</span>
+            ${validation.errors[`outputs.${outputName}.initial_brightness`] ? `<small>${escapeHtml(validation.errors[`outputs.${outputName}.initial_brightness`])}</small>` : ""}
           </label>
-          <div class="button-group">
-            <button
-              type="button"
-              data-action="send-control"
-              data-card-key="${escapeHtml(cardKey)}"
-              data-output="${outputName}"
-              data-on="1"
-              ${actionAttrs(`control:${cardKey}:${outputName}:on`, !state.runtime.running || state.runtime.read_only)}
-            >On</button>
-            <button
-              type="button"
-              data-action="send-control"
-              data-card-key="${escapeHtml(cardKey)}"
-              data-output="${outputName}"
-              data-on="0"
-              ${actionAttrs(`control:${cardKey}:${outputName}:off`, !state.runtime.running || state.runtime.read_only)}
-            >Off</button>
+        </div>
+
+        <div class="test-controls">
+          <div class="test-controls-header">
+            <strong>Live test</strong>
+            <span class="muted">Commands are sent immediately and never saved by themselves.</span>
+          </div>
+          <div class="test-controls-row">
+            <label class="slider-field">
+              <span>Brightness</span>
+              <input
+                type="range"
+                min="0"
+                max="255"
+                value="${control.brightness}"
+                data-card-kind="bloc9-control"
+                data-card-key="${escapeHtml(cardKey)}"
+                data-output="${outputName}"
+                data-field="brightness"
+              >
+              <span class="slider-value">${control.brightness}</span>
+            </label>
+            <div class="button-group">
+              <button
+                type="button"
+                data-action="send-control"
+                data-card-key="${escapeHtml(cardKey)}"
+                data-output="${outputName}"
+                data-on="1"
+                ${actionAttrs(`control:${cardKey}:${outputName}:on`, !state.runtime.running || state.runtime.read_only)}
+              >On</button>
+              <button
+                type="button"
+                data-action="send-control"
+                data-card-key="${escapeHtml(cardKey)}"
+                data-output="${outputName}"
+                data-on="0"
+                ${actionAttrs(`control:${cardKey}:${outputName}:off`, !state.runtime.running || state.runtime.read_only)}
+              >Off</button>
+            </div>
           </div>
         </div>
       </div>
@@ -628,56 +701,76 @@ function renderBloc9Cards() {
       const buttonDisabled = !validation.valid || (configured ? !dirty : false);
       const buttonLabel = configured ? "Save" : "Add to configuration";
       const readonlyId = routeSlug(draft.bus_id, draft.segment_id || 0);
+      const isExpanded = isBloc9CardExpanded(cardKey);
+      const cardPanelId = `bloc9-card-${domSafeId(cardKey)}`;
+      const cardTitle = String(draft.name || "").trim() || deviceLabel({ type: "bloc9", bus_id: draft.bus_id, segment_id: draft.segment_id || 0 });
+      const cardSubtitle = `${deviceLabel({ type: "bloc9", bus_id: draft.bus_id, segment_id: draft.segment_id || 0 })} · ${candidateLastSeen(candidate)}`;
+      const cardStateSummary = bloc9CardStateSummary(draft, candidate);
 
       return `
         <article class="setup-card tone-${status}">
-          <div class="card-banner">
-            <span class="status-badge">${escapeHtml(toneLabel(status))}</span>
-            <span class="status-meta">ID ${escapeHtml(readonlyId)}</span>
-          </div>
+          <button
+            type="button"
+            class="collapse-toggle bloc9-card-toggle"
+            data-action="toggle-bloc9-card"
+            data-card-key="${escapeHtml(cardKey)}"
+            aria-expanded="${isExpanded ? "true" : "false"}"
+            aria-controls="${cardPanelId}"
+          >
+            <div class="collapse-toggle-main">
+              <div class="card-banner">
+                <span class="status-badge">${escapeHtml(toneLabel(status))}</span>
+                <span class="status-meta">ID ${escapeHtml(readonlyId)}</span>
+              </div>
 
-          <div class="card-header">
-            <div>
-              <h3>${escapeHtml(deviceLabel({ type: "bloc9", bus_id: draft.bus_id, segment_id: draft.segment_id || 0 }))}</h3>
-              <p>${escapeHtml(candidate ? candidateLastSeen(candidate) : "Configured without live discovery yet")}</p>
+              <div class="card-header">
+                <div>
+                  <h3>${escapeHtml(cardTitle)}</h3>
+                  <p>${escapeHtml(cardSubtitle)}</p>
+                  <p class="card-state-summary">${escapeHtml(cardStateSummary)}</p>
+                </div>
+              </div>
             </div>
-          </div>
+            <span class="collapse-indicator" aria-hidden="true">${isExpanded ? "−" : "+"}</span>
+          </button>
 
-          <div class="card-grid">
-            <label class="${bloc9FieldClass(validation, "device.name", draft.name !== (configured?.name || ""))}">
-              <span>Name</span>
-              <input type="text" value="${escapeHtml(draft.name || "")}" data-card-kind="bloc9" data-card-key="${escapeHtml(cardKey)}" data-field="name">
-            </label>
+          <div id="${cardPanelId}" class="collapse-body${isExpanded ? "" : " hidden"}">
+            <div class="card-grid">
+              <label class="${bloc9FieldClass(validation, "device.name", draft.name !== (configured?.name || ""))}">
+                <span>Name</span>
+                <input type="text" value="${escapeHtml(draft.name || "")}" data-card-kind="bloc9" data-card-key="${escapeHtml(cardKey)}" data-field="name">
+              </label>
 
-            <label class="field-shell readonly">
-              <span>Bloc9 ID</span>
-              <input type="text" value="${escapeHtml(readonlyId)}" readonly>
-            </label>
+              <label class="field-shell readonly">
+                <span>Bloc9 ID</span>
+                <input type="text" value="${escapeHtml(readonlyId)}" readonly>
+              </label>
 
-            <label class="${bloc9FieldClass(validation, "device.description", draft.description !== (configured?.description || ""))} full-width">
-              <span>Description</span>
-              <textarea rows="2" data-card-kind="bloc9" data-card-key="${escapeHtml(cardKey)}" data-field="description">${escapeHtml(draft.description || "")}</textarea>
-            </label>
-          </div>
-
-          <div class="output-list">
-            ${outputs
-              .map((outputName) =>
-                renderBloc9OutputRow(cardKey, draft, configured, candidate, outputName, validation),
-              )
-              .join("")}
-          </div>
-
-          <div class="card-footer">
-            <div class="card-hint">
-              ${validation.valid ? (configured ? (dirty ? "Unsaved changes ready to apply." : "No unsaved changes.") : "Ready to add once you want it in the saved configuration.") : "Complete the highlighted fields before saving."}
+              <label class="${bloc9FieldClass(validation, "device.description", draft.description !== (configured?.description || ""))} full-width">
+                <span>Description</span>
+                <textarea rows="2" data-card-kind="bloc9" data-card-key="${escapeHtml(cardKey)}" data-field="description">${escapeHtml(draft.description || "")}</textarea>
+              </label>
             </div>
-            <button
-              type="button"
-              data-action="save-bloc9"
-              data-card-key="${escapeHtml(cardKey)}"
-              ${actionAttrs(actionKey, buttonDisabled, "primary")}
-            >${escapeHtml(buttonLabel)}</button>
+
+            <div class="output-list">
+              ${outputs
+                .map((outputName) =>
+                  renderBloc9OutputRow(cardKey, draft, configured, candidate, outputName, validation),
+                )
+                .join("")}
+            </div>
+
+            <div class="card-footer">
+              <div class="card-hint">
+                ${validation.valid ? (configured ? (dirty ? "Unsaved changes ready to apply." : "No unsaved changes.") : "Ready to add once you want it in the saved configuration.") : "Complete the highlighted fields before saving."}
+              </div>
+              <button
+                type="button"
+                data-action="save-bloc9"
+                data-card-key="${escapeHtml(cardKey)}"
+                ${actionAttrs(actionKey, buttonDisabled, "primary")}
+              >${escapeHtml(buttonLabel)}</button>
+            </div>
           </div>
         </article>
       `;
@@ -797,8 +890,220 @@ function buildBloc7DraftForSave(draft) {
   };
 }
 
+function getBloc7LiveReading(sensor) {
+  const matcherPattern = parseArbitrationId(sensor?.matcher?.pattern);
+  const startByte = Number(sensor?.value_config?.start_byte);
+  if (matcherPattern === null || !Number.isInteger(startByte)) return null;
+
+  for (const candidate of state.bloc7Discovery.candidates || []) {
+    for (const suggestion of candidate.suggested_sensors || []) {
+      if (
+        Number(suggestion?.matcher?.pattern) === matcherPattern &&
+        Number(suggestion?.value_config?.start_byte) === startByte
+      ) {
+        return {
+          value: suggestion.current_value,
+          history: suggestion.history || [],
+          family: candidate.family,
+          arbitrationId: candidate.arbitration_id,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+function formatBloc7LiveValue(sensor, liveReading) {
+  if (!liveReading || liveReading.value === null || liveReading.value === undefined) {
+    return "No live value";
+  }
+
+  const scale = Number(sensor?.value_config?.scale ?? 1);
+  const scaled = liveReading.value * scale;
+  const rounded = Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(2);
+  const unit = sensor?.sensor_type === "voltage" ? " V" : "";
+  return `${rounded}${unit}`;
+}
+
+function matchesBloc7Suggestion(sensor, suggestion) {
+  return (
+    parseArbitrationId(sensor?.matcher?.pattern) === Number(suggestion?.matcher?.pattern) &&
+    Number(sensor?.value_config?.start_byte) === Number(suggestion?.value_config?.start_byte)
+  );
+}
+
+function getBloc7ConfiguredMessageDevice(candidate) {
+  return (
+    state.config.devices.find((device) => {
+      if (device.type !== "bloc7") return false;
+      const sensors = device.sensors || [];
+      if (!sensors.length) return false;
+      return sensors.every(
+        (sensor) => parseArbitrationId(sensor?.matcher?.pattern) === candidate.arbitration_id_int,
+      );
+    }) || null
+  );
+}
+
+function nextBloc7MessageBusId(excludedCandidateKey = null) {
+  const ids = state.config.devices
+    .filter((device) => device.type === "bloc7")
+    .map((device) => Number(device.bus_id))
+    .filter((value) => Number.isInteger(value));
+
+  Object.values(state.bloc7Drafts).forEach((draft) => {
+    const busId = Number(draft.bus_id);
+    if (Number.isInteger(busId)) ids.push(busId);
+  });
+
+  Object.entries(state.bloc7CandidateDrafts || {}).forEach(([candidateKey, draft]) => {
+    if (candidateKey === excludedCandidateKey) return;
+    const busId = Number(draft?.bus_id);
+    if (Number.isInteger(busId)) ids.push(busId);
+  });
+
+  return ids.length ? Math.max(...ids) + 1 : 1;
+}
+
+function ensureBloc7CandidateDraft(candidate) {
+  const key = String(candidate.candidate_key);
+  if (state.bloc7CandidateDrafts[key]) return state.bloc7CandidateDrafts[key];
+
+  const configuredDevice = getBloc7ConfiguredMessageDevice(candidate);
+  const channels = Object.fromEntries(
+    (candidate.suggested_sensors || []).map((suggestion) => {
+      const configuredSensor = (configuredDevice?.sensors || []).find((sensor) =>
+        matchesBloc7Suggestion(sensor, suggestion),
+      );
+      return [
+        suggestion.suggestion_key,
+        {
+          name: configuredSensor?.name || "",
+          entity_id: configuredSensor?.entity_id || "",
+        },
+      ];
+    }),
+  );
+
+  state.bloc7CandidateDrafts[key] = {
+    bus_id: configuredDevice?.bus_id ?? nextBloc7MessageBusId(key),
+    channels,
+  };
+  return state.bloc7CandidateDrafts[key];
+}
+
+function updateBloc7CandidateDraftField(candidateKey, suggestionKey, field, value) {
+  const draft = state.bloc7CandidateDrafts[candidateKey];
+  if (!draft) return;
+  draft.channels[suggestionKey] = draft.channels[suggestionKey] || {
+    name: "",
+    entity_id: "",
+  };
+  draft.channels[suggestionKey][field] = value;
+}
+
+function validateBloc7CandidateDraft(candidate, candidateDraft) {
+  const errors = {};
+  const configuredDevice = getBloc7ConfiguredMessageDevice(candidate);
+  const usedEntityIds = collectEntityIds(
+    (device) => device.type === "bloc7" && Number(device.bus_id) === Number(configuredDevice?.bus_id),
+  );
+  let configuredCount = 0;
+
+  for (const suggestion of candidate.suggested_sensors || []) {
+    const channel = candidateDraft.channels[suggestion.suggestion_key] || {
+      name: "",
+      entity_id: "",
+    };
+    const basePath = `channels.${suggestion.suggestion_key}`;
+    const name = String(channel.name || "").trim();
+    const entityId = String(channel.entity_id || "").trim();
+
+    if (!name && !entityId) {
+      continue;
+    }
+
+    if (!name) {
+      errors[`${basePath}.name`] = "Name is required when this channel is enabled.";
+    }
+
+    if (!entityId) {
+      errors[`${basePath}.entity_id`] = "Entity ID is required when this channel is enabled.";
+      continue;
+    }
+
+    if (entityId.startsWith("sensor.")) {
+      errors[`${basePath}.entity_id`] = "Do not include the Home Assistant domain.";
+    } else if (!entityIdPattern.test(entityId)) {
+      errors[`${basePath}.entity_id`] =
+        "Use lowercase letters, numbers, and underscores only.";
+    } else if (usedEntityIds.has(entityId)) {
+      errors[`${basePath}.entity_id`] = "This entity ID is already in use.";
+    } else {
+      usedEntityIds.add(entityId);
+    }
+
+    if (name && entityId) {
+      configuredCount += 1;
+    }
+  }
+
+  return {
+    valid: Object.keys(errors).length === 0 && configuredCount > 0,
+    errors,
+    configuredCount,
+    configuredDevice,
+  };
+}
+
+function buildBloc7DeviceFromCandidate(candidate, candidateDraft, configuredDevice = null) {
+  const sensors = (candidate.suggested_sensors || [])
+    .map((suggestion) => {
+      const channel = candidateDraft.channels[suggestion.suggestion_key] || {
+        name: "",
+        entity_id: "",
+      };
+      const name = String(channel.name || "").trim();
+      const entityId = String(channel.entity_id || "").trim();
+      if (!name || !entityId) return null;
+      return {
+        name,
+        entity_id: entityId,
+        sensor_type: suggestion.sensor_type,
+        matcher: {
+          pattern: suggestion.matcher.pattern,
+          mask: suggestion.matcher.mask,
+        },
+        value_config: {
+          start_byte: suggestion.value_config.start_byte,
+          bit_length: suggestion.value_config.bit_length,
+          endian: suggestion.value_config.endian,
+          scale: suggestion.value_config.scale,
+        },
+      };
+    })
+    .filter(Boolean);
+
+  return {
+    type: "bloc7",
+    bus_id: Number(configuredDevice?.bus_id ?? candidateDraft.bus_id),
+    segment_id: 0,
+    name: String(configuredDevice?.name || "").trim() || `Bloc7 message ${candidate.arbitration_id}`,
+    description:
+      String(configuredDevice?.description || "").trim()
+      || `Configured from ${candidate.arbitration_id} (${candidate.family})`,
+    sensors,
+  };
+}
+
 function renderSensorDraft(cardKey, sensor, index, validation, baselineSensor = null) {
   const basePath = `sensors.${index}`;
+  const liveReading = getBloc7LiveReading(sensor);
+  const liveValue = formatBloc7LiveValue(sensor, liveReading);
+  const matcherPattern = parseArbitrationId(sensor?.matcher?.pattern);
+  const hasFixedMapping =
+    matcherPattern !== null && Number.isInteger(Number(sensor?.value_config?.start_byte));
   const fieldClass = (field, dirty) => {
     const classes = ["field-shell"];
     if (validation.errors[`${basePath}.${field}`]) classes.push("invalid");
@@ -809,8 +1114,17 @@ function renderSensorDraft(cardKey, sensor, index, validation, baselineSensor = 
   return `
     <section class="sensor-card">
       <div class="sensor-card-header">
-        <h4>Sensor ${index + 1}</h4>
-        <button type="button" data-action="remove-bloc7-sensor" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}">Remove</button>
+        <div>
+          <h4>${escapeHtml(String(sensor.name || "").trim() || `Sensor ${index + 1}`)}</h4>
+          <p class="sensor-live-summary">
+            Live value ${escapeHtml(liveValue)}
+            ${liveReading?.arbitrationId ? ` · ${escapeHtml(liveReading.arbitrationId)}` : ""}
+          </p>
+        </div>
+        <div class="sensor-card-actions">
+          <span class="summary-chip">${escapeHtml(sensor.sensor_type || "sensor")}</span>
+          <button type="button" data-action="remove-bloc7-sensor" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}">Remove</button>
+        </div>
       </div>
       <div class="card-grid">
         <label class="${fieldClass("name", sensor.name !== (baselineSensor?.name || ""))}">
@@ -823,47 +1137,58 @@ function renderSensorDraft(cardKey, sensor, index, validation, baselineSensor = 
           <input type="text" value="${escapeHtml(sensor.entity_id || "")}" data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="entity_id">
           ${validation.errors[`${basePath}.entity_id`] ? `<small>${escapeHtml(validation.errors[`${basePath}.entity_id`])}</small>` : ""}
         </label>
-        <label class="${fieldClass("sensor_type", sensor.sensor_type !== (baselineSensor?.sensor_type || "level"))}">
-          <span>Type</span>
-          <select data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="sensor_type">
-            <option value="level" ${sensor.sensor_type === "level" ? "selected" : ""}>Level</option>
-            <option value="voltage" ${sensor.sensor_type === "voltage" ? "selected" : ""}>Voltage</option>
-          </select>
-          ${validation.errors[`${basePath}.sensor_type`] ? `<small>${escapeHtml(validation.errors[`${basePath}.sensor_type`])}</small>` : ""}
-        </label>
-        <label class="${fieldClass("matcher.pattern", String(sensor.matcher?.pattern || "") !== String(baselineSensor?.matcher?.pattern || ""))}">
-          <span>Matcher pattern</span>
-          <input type="text" value="${escapeHtml(formatHex(sensor.matcher?.pattern) || "")}" data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="matcher.pattern">
-          ${validation.errors[`${basePath}.matcher.pattern`] ? `<small>${escapeHtml(validation.errors[`${basePath}.matcher.pattern`])}</small>` : ""}
-        </label>
-        <label class="${fieldClass("matcher.mask", String(sensor.matcher?.mask || "") !== String(baselineSensor?.matcher?.mask || ""))}">
-          <span>Matcher mask</span>
-          <input type="text" value="${escapeHtml(formatHex(sensor.matcher?.mask) || "")}" data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="matcher.mask">
-          ${validation.errors[`${basePath}.matcher.mask`] ? `<small>${escapeHtml(validation.errors[`${basePath}.matcher.mask`])}</small>` : ""}
-        </label>
-        <label class="${fieldClass("value_config.start_byte", Number(sensor.value_config?.start_byte) !== Number(baselineSensor?.value_config?.start_byte ?? 0))}">
-          <span>Start byte</span>
-          <input type="number" min="0" value="${escapeHtml(sensor.value_config?.start_byte ?? 0)}" data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="value_config.start_byte">
-          ${validation.errors[`${basePath}.value_config.start_byte`] ? `<small>${escapeHtml(validation.errors[`${basePath}.value_config.start_byte`])}</small>` : ""}
-        </label>
-        <label class="${fieldClass("value_config.bit_length", Number(sensor.value_config?.bit_length) !== Number(baselineSensor?.value_config?.bit_length ?? 8))}">
-          <span>Bit length</span>
-          <input type="number" min="1" value="${escapeHtml(sensor.value_config?.bit_length ?? 8)}" data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="value_config.bit_length">
-          ${validation.errors[`${basePath}.value_config.bit_length`] ? `<small>${escapeHtml(validation.errors[`${basePath}.value_config.bit_length`])}</small>` : ""}
-        </label>
-        <label class="${fieldClass("value_config.endian", sensor.value_config?.endian !== (baselineSensor?.value_config?.endian || "little"))}">
-          <span>Endian</span>
-          <select data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="value_config.endian">
-            <option value="little" ${sensor.value_config?.endian === "little" ? "selected" : ""}>Little</option>
-            <option value="big" ${sensor.value_config?.endian === "big" ? "selected" : ""}>Big</option>
-          </select>
-          ${validation.errors[`${basePath}.value_config.endian`] ? `<small>${escapeHtml(validation.errors[`${basePath}.value_config.endian`])}</small>` : ""}
-        </label>
-        <label class="${fieldClass("value_config.scale", Number(sensor.value_config?.scale) !== Number(baselineSensor?.value_config?.scale ?? 1))}">
-          <span>Scale</span>
-          <input type="number" step="any" value="${escapeHtml(sensor.value_config?.scale ?? 1)}" data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="value_config.scale">
-          ${validation.errors[`${basePath}.value_config.scale`] ? `<small>${escapeHtml(validation.errors[`${basePath}.value_config.scale`])}</small>` : ""}
-        </label>
+        ${
+          hasFixedMapping
+            ? `<div class="sensor-metadata full-width">
+                <span class="summary-chip">${escapeHtml(sensor.sensor_type || "level")}</span>
+                <span class="summary-chip">${escapeHtml(formatHex(matcherPattern))}</span>
+                <span class="summary-chip">byte ${escapeHtml(sensor.value_config?.start_byte ?? 0)}</span>
+                <span class="summary-chip">scale ${escapeHtml(sensor.value_config?.scale ?? 1)}</span>
+              </div>`
+            : `
+              <label class="${fieldClass("sensor_type", sensor.sensor_type !== (baselineSensor?.sensor_type || "level"))}">
+                <span>Type</span>
+                <select data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="sensor_type">
+                  <option value="level" ${sensor.sensor_type === "level" ? "selected" : ""}>Level</option>
+                  <option value="voltage" ${sensor.sensor_type === "voltage" ? "selected" : ""}>Voltage</option>
+                </select>
+                ${validation.errors[`${basePath}.sensor_type`] ? `<small>${escapeHtml(validation.errors[`${basePath}.sensor_type`])}</small>` : ""}
+              </label>
+              <label class="${fieldClass("matcher.pattern", String(sensor.matcher?.pattern || "") !== String(baselineSensor?.matcher?.pattern || ""))}">
+                <span>Matcher pattern</span>
+                <input type="text" value="${escapeHtml(formatHex(sensor.matcher?.pattern) || "")}" data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="matcher.pattern">
+                ${validation.errors[`${basePath}.matcher.pattern`] ? `<small>${escapeHtml(validation.errors[`${basePath}.matcher.pattern`])}</small>` : ""}
+              </label>
+              <label class="${fieldClass("matcher.mask", String(sensor.matcher?.mask || "") !== String(baselineSensor?.matcher?.mask || ""))}">
+                <span>Matcher mask</span>
+                <input type="text" value="${escapeHtml(formatHex(sensor.matcher?.mask) || "")}" data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="matcher.mask">
+                ${validation.errors[`${basePath}.matcher.mask`] ? `<small>${escapeHtml(validation.errors[`${basePath}.matcher.mask`])}</small>` : ""}
+              </label>
+              <label class="${fieldClass("value_config.start_byte", Number(sensor.value_config?.start_byte) !== Number(baselineSensor?.value_config?.start_byte ?? 0))}">
+                <span>Start byte</span>
+                <input type="number" min="0" value="${escapeHtml(sensor.value_config?.start_byte ?? 0)}" data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="value_config.start_byte">
+                ${validation.errors[`${basePath}.value_config.start_byte`] ? `<small>${escapeHtml(validation.errors[`${basePath}.value_config.start_byte`])}</small>` : ""}
+              </label>
+              <label class="${fieldClass("value_config.bit_length", Number(sensor.value_config?.bit_length) !== Number(baselineSensor?.value_config?.bit_length ?? 8))}">
+                <span>Bit length</span>
+                <input type="number" min="1" value="${escapeHtml(sensor.value_config?.bit_length ?? 8)}" data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="value_config.bit_length">
+                ${validation.errors[`${basePath}.value_config.bit_length`] ? `<small>${escapeHtml(validation.errors[`${basePath}.value_config.bit_length`])}</small>` : ""}
+              </label>
+              <label class="${fieldClass("value_config.endian", sensor.value_config?.endian !== (baselineSensor?.value_config?.endian || "little"))}">
+                <span>Endian</span>
+                <select data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="value_config.endian">
+                  <option value="little" ${sensor.value_config?.endian === "little" ? "selected" : ""}>Little</option>
+                  <option value="big" ${sensor.value_config?.endian === "big" ? "selected" : ""}>Big</option>
+                </select>
+                ${validation.errors[`${basePath}.value_config.endian`] ? `<small>${escapeHtml(validation.errors[`${basePath}.value_config.endian`])}</small>` : ""}
+              </label>
+              <label class="${fieldClass("value_config.scale", Number(sensor.value_config?.scale) !== Number(baselineSensor?.value_config?.scale ?? 1))}">
+                <span>Scale</span>
+                <input type="number" step="any" value="${escapeHtml(sensor.value_config?.scale ?? 1)}" data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="value_config.scale">
+                ${validation.errors[`${basePath}.value_config.scale`] ? `<small>${escapeHtml(validation.errors[`${basePath}.value_config.scale`])}</small>` : ""}
+              </label>
+            `
+        }
       </div>
     </section>
   `;
@@ -895,6 +1220,7 @@ function renderBloc7Cards() {
       const actionKey = `save-bloc7:${key}`;
       const buttonDisabled = !validation.valid || (configured ? !dirty : false);
       const bannerTone = configured ? "configured" : "draft";
+      const liveSensorCount = (draft.sensors || []).filter((sensor) => getBloc7LiveReading(sensor)).length;
       return `
         <article class="setup-card tone-${bannerTone}">
           <div class="card-banner">
@@ -903,8 +1229,9 @@ function renderBloc7Cards() {
           </div>
           <div class="card-header">
             <div>
-              <h3>${escapeHtml(deviceLabel({ type: "bloc7", bus_id: draft.bus_id || "?", segment_id: 0 }))}</h3>
+              <h3>${escapeHtml(String(draft.name || "").trim() || deviceLabel({ type: "bloc7", bus_id: draft.bus_id || "?", segment_id: 0 }))}</h3>
               <p>${escapeHtml(configured ? "Saved device ready for edits." : "Draft device not saved yet.")}</p>
+              <p class="card-state-summary">${escapeHtml(liveSensorCount ? `${liveSensorCount} sensor${liveSensorCount === 1 ? "" : "s"} currently reporting live values.` : "No matched live readings yet.")}</p>
             </div>
           </div>
           <div class="card-grid">
@@ -948,34 +1275,75 @@ function renderBloc7Cards() {
 
   const candidateCardsHtml = (state.bloc7Discovery.candidates || [])
     .map((candidate) => {
+      const configuredDevice = getBloc7ConfiguredMessageDevice(candidate);
+      const candidateDraft = ensureBloc7CandidateDraft(candidate);
+      const validation = validateBloc7CandidateDraft(candidate, candidateDraft);
       const suggestions = (candidate.suggested_sensors || [])
         .map(
           (suggestion) => `
-            <div class="candidate-suggestion">
-              <div>
-                <strong>${escapeHtml(suggestion.label)}</strong>
-                <div class="muted">${escapeHtml(suggestion.notes || "")}</div>
+            <div class="candidate-suggestion candidate-channel-card">
+              <div class="candidate-channel-header">
+                <div>
+                  <strong>${escapeHtml(suggestion.label)}</strong>
+                  <div class="muted">${escapeHtml(suggestion.notes || "")}</div>
+                </div>
+                <span class="live-state ${suggestion.current_value === null || suggestion.current_value === undefined ? "unknown" : "on"}">
+                  <span class="state-beacon"></span>
+                  ${escapeHtml(
+                    suggestion.current_value === null || suggestion.current_value === undefined
+                      ? "No live value"
+                      : `${suggestion.current_value} L`,
+                  )}
+                </span>
               </div>
               <div class="candidate-tags">
                 <span class="summary-chip">${escapeHtml(suggestion.sensor_type)}</span>
                 <span class="summary-chip">byte ${escapeHtml(suggestion.value_config?.start_byte)}</span>
                 <span class="summary-chip">${escapeHtml(formatHex(suggestion.matcher?.pattern))}</span>
               </div>
-              <button type="button" data-action="create-bloc7-draft" data-candidate-key="${escapeHtml(candidate.candidate_key)}" data-suggestion-key="${escapeHtml(suggestion.suggestion_key)}">Use suggestion</button>
+              <div class="card-grid compact-grid">
+                <label class="field-shell ${validation.errors[`channels.${suggestion.suggestion_key}.name`] ? "invalid" : ""}">
+                  <span>Name</span>
+                  <input
+                    type="text"
+                    value="${escapeHtml(candidateDraft.channels[suggestion.suggestion_key]?.name || "")}"
+                    placeholder="e.g. Fresh water"
+                    data-card-kind="bloc7-candidate"
+                    data-candidate-key="${escapeHtml(candidate.candidate_key)}"
+                    data-suggestion-key="${escapeHtml(suggestion.suggestion_key)}"
+                    data-field="name"
+                  >
+                  ${validation.errors[`channels.${suggestion.suggestion_key}.name`] ? `<small>${escapeHtml(validation.errors[`channels.${suggestion.suggestion_key}.name`])}</small>` : ""}
+                </label>
+                <label class="field-shell ${validation.errors[`channels.${suggestion.suggestion_key}.entity_id`] ? "invalid" : ""}">
+                  <span>Entity ID</span>
+                  <input
+                    type="text"
+                    value="${escapeHtml(candidateDraft.channels[suggestion.suggestion_key]?.entity_id || "")}"
+                    placeholder="fresh_water"
+                    data-card-kind="bloc7-candidate"
+                    data-candidate-key="${escapeHtml(candidate.candidate_key)}"
+                    data-suggestion-key="${escapeHtml(suggestion.suggestion_key)}"
+                    data-field="entity_id"
+                  >
+                  ${validation.errors[`channels.${suggestion.suggestion_key}.entity_id`] ? `<small>${escapeHtml(validation.errors[`channels.${suggestion.suggestion_key}.entity_id`])}</small>` : ""}
+                </label>
+              </div>
             </div>
           `,
         )
         .join("");
       return `
-        <article class="setup-card tone-discovered">
+        <article class="setup-card tone-${configuredDevice ? "configured" : "discovered"}">
           <div class="card-banner">
-            <span class="status-badge">discovered</span>
+            <span class="status-badge">${escapeHtml(configuredDevice ? "configured" : "discovered")}</span>
             <span class="status-meta">${escapeHtml(candidate.arbitration_id)}</span>
           </div>
           <div class="card-header">
             <div>
-              <h3>${escapeHtml(candidate.title)}</h3>
+              <h3>${escapeHtml(configuredDevice?.name || candidate.title)}</h3>
               <p>${escapeHtml(candidate.summary)}</p>
+              <p class="card-state-summary">Configure each reported channel by name and entity ID. The matcher and byte mapping stay fixed to this message.</p>
             </div>
           </div>
           <div class="summary-bar compact">
@@ -984,6 +1352,19 @@ function renderBloc7Cards() {
             <span class="summary-chip">${escapeHtml(candidate.freq_hz)} Hz</span>
           </div>
           <div class="candidate-list">${suggestions}</div>
+          <div class="card-footer">
+            <div class="card-hint">
+              ${validation.configuredCount
+                ? `${validation.configuredCount} channel${validation.configuredCount === 1 ? "" : "s"} ready to save for this message.`
+                : "Fill in at least one channel to save this message."}
+            </div>
+            <button
+              type="button"
+              data-action="save-bloc7-candidate"
+              data-candidate-key="${escapeHtml(candidate.candidate_key)}"
+              ${actionAttrs(`save-bloc7-candidate:${candidate.candidate_key}`, !validation.valid, "primary")}
+            >${escapeHtml(configuredDevice ? "Save channels" : "Add message to configuration")}</button>
+          </div>
         </article>
       `;
     })
@@ -1210,47 +1591,72 @@ async function sendControl(cardKey, outputName, on) {
   }
 }
 
-function createBloc7DraftFromSuggestion(candidateKey, suggestionKey) {
+async function saveBloc7Candidate(candidateKey) {
   const candidate = (state.bloc7Discovery.candidates || []).find(
     (entry) => entry.candidate_key === candidateKey,
   );
-  const suggestion = candidate?.suggested_sensors?.find(
-    (entry) => entry.suggestion_key === suggestionKey,
-  );
-  if (!candidate || !suggestion) {
-    showToast("The selected Bloc7 suggestion is no longer available.", "error");
+  if (!candidate) {
+    showToast("The selected Bloc7 message is no longer available.", "error");
     return;
   }
 
-  const draftKey = `new-bloc7:${Date.now()}`;
-  const busId = nextBloc7BusId();
-  state.bloc7Drafts[draftKey] = {
-    type: "bloc7",
-    bus_id: busId,
-    segment_id: 0,
-    name: `Bloc7 candidate ${busId}`,
-    description: `Draft from ${candidate.arbitration_id} (${candidate.family})`,
-    sensors: [
-      {
-        name: suggestion.name_hint,
-        entity_id: suggestion.entity_id_hint,
-        sensor_type: suggestion.sensor_type,
-        matcher: {
-          pattern: formatHex(suggestion.matcher.pattern),
-          mask: formatHex(suggestion.matcher.mask),
-        },
-        value_config: {
-          start_byte: suggestion.value_config.start_byte,
-          bit_length: suggestion.value_config.bit_length,
-          endian: suggestion.value_config.endian,
-          scale: suggestion.value_config.scale,
-        },
-      },
-    ],
-  };
-  state.activeTab = "bloc7";
-  rerender(renderCurrentTab);
-  showToast("Created a Bloc7 draft from the live candidate.", "success");
+  const candidateDraft = ensureBloc7CandidateDraft(candidate);
+  const validation = validateBloc7CandidateDraft(candidate, candidateDraft);
+  if (!validation.valid) {
+    rerender(() => renderTabIfVisible("bloc7"));
+    showToast("Complete the channel names and entity IDs before saving.", "error");
+    return;
+  }
+
+  const device = buildBloc7DeviceFromCandidate(
+    candidate,
+    candidateDraft,
+    validation.configuredDevice,
+  );
+  const nextConfig = clone(state.config);
+  const configuredIndex = nextConfig.devices.findIndex(
+    (entry) =>
+      entry.type === "bloc7"
+      && Number(entry.bus_id) === Number(validation.configuredDevice?.bus_id),
+  );
+  if (configuredIndex >= 0) {
+    nextConfig.devices[configuredIndex] = device;
+  } else {
+    nextConfig.devices.push(device);
+  }
+
+  const actionKey = `save-bloc7-candidate:${candidateKey}`;
+  setBusy(actionKey, true);
+  try {
+    const success = await applyConfig(
+      nextConfig,
+      configuredIndex >= 0
+        ? `Saved Bloc7 message ${candidate.arbitration_id}.`
+        : `Added Bloc7 message ${candidate.arbitration_id}.`,
+    );
+    if (!success) return;
+    state.bloc7CandidateDrafts[candidateKey] = {
+      bus_id: device.bus_id,
+      channels: Object.fromEntries(
+        (candidate.suggested_sensors || []).map((suggestion) => {
+          const savedSensor = (device.sensors || []).find((sensor) =>
+            matchesBloc7Suggestion(sensor, suggestion),
+          );
+          return [
+            suggestion.suggestion_key,
+            {
+              name: savedSensor?.name || "",
+              entity_id: savedSensor?.entity_id || "",
+            },
+          ];
+        }),
+      ),
+    };
+    await refreshStatus();
+    rerender(() => renderTabIfVisible("bloc7"));
+  } finally {
+    setBusy(actionKey, false);
+  }
 }
 
 function addManualBloc7Draft() {
@@ -1309,6 +1715,19 @@ document.addEventListener("click", async (event) => {
     await saveBloc9Card(actionTarget.dataset.cardKey);
     return;
   }
+  if (action === "toggle-bloc9-card") {
+    const cardKey = actionTarget.dataset.cardKey;
+    state.bloc9CardExpansion[cardKey] = !isBloc9CardExpanded(cardKey);
+    rerender(() => renderTabIfVisible("bloc9"));
+    return;
+  }
+  if (action === "toggle-bloc9-output") {
+    const { cardKey, output } = actionTarget.dataset;
+    state.bloc9OutputExpansion[cardKey] = state.bloc9OutputExpansion[cardKey] || {};
+    state.bloc9OutputExpansion[cardKey][output] = !isBloc9OutputExpanded(cardKey, output);
+    rerender(() => renderTabIfVisible("bloc9"));
+    return;
+  }
   if (action === "send-control") {
     await sendControl(
       actionTarget.dataset.cardKey,
@@ -1319,6 +1738,10 @@ document.addEventListener("click", async (event) => {
   }
   if (action === "save-bloc7") {
     await saveBloc7Card(actionTarget.dataset.cardKey);
+    return;
+  }
+  if (action === "save-bloc7-candidate") {
+    await saveBloc7Candidate(actionTarget.dataset.candidateKey);
     return;
   }
   if (action === "add-bloc7-sensor") {
@@ -1333,12 +1756,6 @@ document.addEventListener("click", async (event) => {
     );
     rerender(() => renderTabIfVisible("bloc7"));
     return;
-  }
-  if (action === "create-bloc7-draft") {
-    createBloc7DraftFromSuggestion(
-      actionTarget.dataset.candidateKey,
-      actionTarget.dataset.suggestionKey,
-    );
   }
 });
 
@@ -1359,6 +1776,15 @@ document.addEventListener("input", (event) => {
       target.dataset.field,
       target.value,
       target.dataset.sensorIndex !== undefined ? Number(target.dataset.sensorIndex) : null,
+    );
+    return;
+  }
+  if (target.dataset.cardKind === "bloc7-candidate") {
+    updateBloc7CandidateDraftField(
+      target.dataset.candidateKey,
+      target.dataset.suggestionKey,
+      target.dataset.field,
+      target.value,
     );
     return;
   }
@@ -1390,6 +1816,16 @@ document.addEventListener("change", (event) => {
       target.dataset.sensorIndex !== undefined ? Number(target.dataset.sensorIndex) : null,
     );
     rerender(() => renderTabIfVisible("bloc7"));
+    return;
+  }
+  if (target.dataset.cardKind === "bloc7-candidate") {
+    updateBloc7CandidateDraftField(
+      target.dataset.candidateKey,
+      target.dataset.suggestionKey,
+      target.dataset.field,
+      target.value,
+    );
+    rerender(() => renderTabIfVisible("bloc7"));
   }
 });
 
@@ -1398,6 +1834,7 @@ document.getElementById("bloc7-refresh-button").addEventListener("click", refres
 document.getElementById("add-bloc7-button").addEventListener("click", addManualBloc7Draft);
 
 async function initialize() {
+  heartbeatManager?.start();
   await Promise.all([refreshStatus(), loadConfig(), refreshDiscovery(), refreshBloc7Candidates()]);
   renderHeader();
   renderDiagnostics();

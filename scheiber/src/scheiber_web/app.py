@@ -16,6 +16,7 @@ from scheiber.config import (
 from .bloc7_candidates import build_bloc7_candidate_snapshot
 from .config_ops import ConfigApplyError, apply_editor_config
 from .discovery import Bloc9DiscoveryService
+from .frontend_heartbeat import FrontendHeartbeatMonitor
 from .inspector import CanInspector
 from .mcp import MCPRequestError, ScheiberMCPServer
 from .runtime import BridgeRuntimeController, RuntimeSettings
@@ -48,6 +49,8 @@ def create_app(
     settings: RuntimeSettings,
     runtime_controller: Optional[BridgeRuntimeController] = None,
     discovery_service: Optional[Bloc9DiscoveryService] = None,
+    inspector: Optional[CanInspector] = None,
+    frontend_monitor: Optional[FrontendHeartbeatMonitor] = None,
 ) -> Flask:
     """Create the Scheiber web application."""
     app = Flask(__name__)
@@ -56,7 +59,10 @@ def create_app(
 
     runtime_controller = runtime_controller or BridgeRuntimeController(settings)
     discovery_service = discovery_service or Bloc9DiscoveryService(runtime_controller)
-    inspector = CanInspector(runtime_controller)
+    inspector = inspector or CanInspector(runtime_controller)
+    frontend_monitor = frontend_monitor or FrontendHeartbeatMonitor(logger=app.logger)
+    frontend_monitor.add_idle_callback(discovery_service.stop)
+    frontend_monitor.add_idle_callback(inspector.stop)
     mcp_server = (
         ScheiberMCPServer(settings, runtime_controller, inspector)
         if settings.mcp_server_enabled
@@ -67,6 +73,7 @@ def create_app(
     app.config["RUNTIME_CONTROLLER"] = runtime_controller
     app.config["DISCOVERY_SERVICE"] = discovery_service
     app.config["INSPECTOR"] = inspector
+    app.config["FRONTEND_MONITOR"] = frontend_monitor
     app.config["MCP_SERVER"] = mcp_server
 
     def require_web_ui() -> None:
@@ -109,6 +116,7 @@ def create_app(
         return jsonify(
             {
                 "runtime": runtime_controller.get_status(),
+                "frontend": frontend_monitor.snapshot(),
                 "config": {
                     "status": config_state["status"],
                     "path": config_state["path"],
@@ -122,6 +130,36 @@ def create_app(
     def get_config():
         require_web_ui()
         return jsonify(load_editor_state(settings.config_path))
+
+    @app.post("/api/frontend/heartbeat")
+    def frontend_heartbeat():
+        require_web_ui()
+        payload = request.get_json(silent=True) or {}
+        client_id = str(payload.get("client_id") or "").strip()
+        if not client_id:
+            return (
+                jsonify({"error": "client_id is required", "code": "invalid_request"}),
+                400,
+            )
+
+        return jsonify(
+            frontend_monitor.heartbeat(
+                client_id, page=str(payload.get("page") or "").strip() or None
+            )
+        )
+
+    @app.post("/api/frontend/disconnect")
+    def frontend_disconnect():
+        require_web_ui()
+        payload = request.get_json(silent=True) or {}
+        client_id = str(payload.get("client_id") or "").strip()
+        if not client_id:
+            return (
+                jsonify({"error": "client_id is required", "code": "invalid_request"}),
+                400,
+            )
+
+        return jsonify(frontend_monitor.disconnect(client_id))
 
     @app.post("/api/config/validate")
     def validate_config():

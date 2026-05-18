@@ -89,10 +89,74 @@ class FakeDiscoveryService:
         return self.snapshot()
 
 
+class FakeInspector:
+    def __init__(self):
+        self.stop_calls = 0
+
+    def snapshot(self):
+        return {
+            "status": "stopped",
+            "can_interface": "can1",
+            "started_at": None,
+            "last_message_at": None,
+            "total_messages": 0,
+            "unique_ids": 0,
+            "entries": [],
+        }
+
+    def start(self):
+        return self.snapshot()
+
+    def stop(self):
+        self.stop_calls += 1
+        return self.snapshot()
+
+    def detail(self, _arb_id):
+        return None
+
+
+class FakeFrontendMonitor:
+    def __init__(self):
+        self.callbacks = []
+        self.heartbeats = []
+        self.disconnects = []
+
+    def add_idle_callback(self, callback):
+        self.callbacks.append(callback)
+
+    def heartbeat(self, client_id, page=None):
+        self.heartbeats.append({"client_id": client_id, "page": page})
+        return {
+            "active_clients": 1,
+            "timeout_seconds": 15,
+            "last_client_seen_at": 1.0,
+            "clients": [{"client_id": client_id, "page": page, "last_seen_at": 1.0}],
+        }
+
+    def disconnect(self, client_id):
+        self.disconnects.append(client_id)
+        return {
+            "active_clients": 0,
+            "timeout_seconds": 15,
+            "last_client_seen_at": 1.0,
+            "clients": [],
+        }
+
+    def snapshot(self):
+        return {
+            "active_clients": 0,
+            "timeout_seconds": 15,
+            "last_client_seen_at": None,
+            "clients": [],
+        }
+
+
 def create_test_client(
     tmp_path,
     runtime_controller=None,
     discovery_service=None,
+    inspector=None,
+    frontend_monitor=None,
     *,
     web_ui_enabled=True,
     mcp_server_enabled=False,
@@ -121,6 +185,8 @@ devices:
         settings,
         runtime_controller=runtime,
         discovery_service=discovery_service or FakeDiscoveryService(),
+        inspector=inspector,
+        frontend_monitor=frontend_monitor or FakeFrontendMonitor(),
     )
     app.testing = True
     return app.test_client(), config_path
@@ -298,6 +364,29 @@ def test_discovery_start_returns_conflict_when_runtime_is_unavailable(tmp_path):
     assert response.get_json()["code"] == "runtime_not_running"
 
 
+def test_frontend_heartbeat_updates_browser_session(tmp_path):
+    frontend_monitor = FakeFrontendMonitor()
+    client, _ = create_test_client(tmp_path, frontend_monitor=frontend_monitor)
+
+    response = client.post(
+        "/api/frontend/heartbeat",
+        json={"client_id": "browser-1", "page": "setup"},
+    )
+
+    assert response.status_code == 200
+    assert frontend_monitor.heartbeats == [{"client_id": "browser-1", "page": "setup"}]
+    assert response.get_json()["active_clients"] == 1
+
+
+def test_frontend_disconnect_requires_client_id(tmp_path):
+    client, _ = create_test_client(tmp_path)
+
+    response = client.post("/api/frontend/disconnect", json={})
+
+    assert response.status_code == 400
+    assert response.get_json()["code"] == "invalid_request"
+
+
 def test_discovery_control_accepts_segment_id(tmp_path):
     runtime = FakeRuntimeController()
     client, _config_path = create_test_client(tmp_path, runtime_controller=runtime)
@@ -394,6 +483,7 @@ def test_bloc7_discovery_endpoint_returns_candidates(tmp_path):
         payload["candidates"][0]["suggested_sensors"][0]["matcher"]["pattern"]
         == 0x0204058A
     )
+    assert payload["candidates"][0]["suggested_sensors"][0]["current_value"] == 8
 
 
 def test_mcp_route_returns_404_when_disabled(tmp_path):

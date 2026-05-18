@@ -17,6 +17,10 @@ const state = {
   detailInterval: null,
 };
 
+const heartbeatManager = document.body.classList.contains("inspect-embedded")
+  ? null
+  : window.ScheiberHeartbeat?.createHeartbeatManager("inspect");
+
 // -----------------------------------------------------------------------
 // Utilities
 // -----------------------------------------------------------------------
@@ -504,6 +508,7 @@ document.getElementById("inspect-detail-download").addEventListener("click", dow
 // -----------------------------------------------------------------------
 
 (async () => {
+  heartbeatManager?.start();
   try {
     const resp = await fetch("./api/inspect");
     if (resp.ok) {

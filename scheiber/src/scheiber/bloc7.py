@@ -107,9 +107,9 @@ class Level(SensorOutput):
     def __init__(
         self, name: str, entity_id: str, matcher: Matcher, value_config: ValueConfig
     ):
-        super().__init__(name, entity_id, matcher, value_config, "%")
+        super().__init__(name, entity_id, matcher, value_config, "L")
         self.type = "level"
-        self.icon = "mdi:gauge"
+        self.device_class = "volume"
 
 
 class Bloc7Device(ScheiberCanDevice):

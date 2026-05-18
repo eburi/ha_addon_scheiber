@@ -325,9 +325,15 @@ a.button.secondary {
 
 .toolbar-text p,
 .card-header p,
-.output-card-header p {
+.output-card-header p,
+.sensor-card-header p {
   margin: 6px 0 0;
   color: #94a3b8;
+}
+
+.card-state-summary {
+  color: #cbd5e1 !important;
+  font-size: 0.9rem;
 }
 
 .summary-bar {
@@ -394,6 +400,64 @@ a.button.secondary {
 
 .card-banner {
   margin-bottom: 14px;
+}
+
+.collapse-toggle {
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+}
+
+.collapse-toggle:hover,
+.collapse-toggle:active {
+  transform: none;
+  box-shadow: none;
+}
+
+.collapse-toggle-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.collapse-indicator {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(96, 165, 250, 0.28);
+  background: rgba(8, 15, 28, 0.7);
+  color: #cbd5e1;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.collapse-body {
+  display: grid;
+  gap: 12px;
+}
+
+.bloc9-card-toggle {
+  margin-bottom: 6px;
+}
+
+.bloc9-card-toggle .card-banner {
+  margin-bottom: 10px;
+}
+
+.bloc9-card-toggle .card-header {
+  gap: 0;
 }
 
 .status-badge {
@@ -465,23 +529,43 @@ a.button.secondary {
   background: #101d32;
 }
 
+.sensor-card {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.sensor-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.sensor-live-summary {
+  color: #cbd5e1 !important;
+}
+
+.sensor-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .output-card {
   border: 1px solid rgba(96, 165, 250, 0.22);
+  border-radius: 16px;
+  padding: 10px;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.02),
     0 10px 24px rgba(2, 6, 23, 0.2);
 }
 
 .output-card-header {
-  position: sticky;
-  top: calc(env(safe-area-inset-top, 0px) + 92px);
-  z-index: 4;
-  margin: -2px -2px 12px;
-  padding: 12px 12px 10px;
-  border-bottom: 1px solid rgba(71, 85, 105, 0.35);
-  background: rgba(16, 29, 50, 0.96);
-  backdrop-filter: blur(10px);
-  border-radius: 14px 14px 10px 10px;
+  align-items: center;
+  padding: 2px 2px 8px;
+  border-bottom: 1px solid rgba(71, 85, 105, 0.25);
 }
 
 .live-state {
@@ -533,9 +617,13 @@ a.button.secondary {
 .test-controls {
   display: grid;
   gap: 10px;
-  margin-top: 14px;
-  padding-top: 14px;
+  margin-top: 10px;
+  padding-top: 10px;
   border-top: 1px solid rgba(71, 85, 105, 0.28);
+}
+
+.compact-grid {
+  margin-top: 6px;
 }
 
 .test-controls-row {
@@ -587,6 +675,20 @@ a.button.secondary {
 
 .candidate-suggestion {
   gap: 10px;
+}
+
+.candidate-channel-card {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.3);
+}
+
+.candidate-channel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .candidate-tags {
@@ -944,10 +1046,6 @@ a.button {
   .card-footer > button {
     width: auto;
     min-width: 200px;
-  }
-
-  .output-card-header {
-    top: calc(env(safe-area-inset-top, 0px) + 106px);
   }
 }
 

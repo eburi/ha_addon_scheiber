@@ -23,6 +23,16 @@ def _history_summary(detail: Optional[Dict[str, Any]], start_byte: int) -> List[
     return values[-6:]
 
 
+def _current_value(detail: Optional[Dict[str, Any]], start_byte: int) -> Optional[int]:
+    if not detail:
+        return None
+
+    data = detail.get("last_data", [])
+    if start_byte >= len(data):
+        return None
+    return int(data[start_byte])
+
+
 def _sensor_suggestion(
     arbitration_id: int,
     label: str,
@@ -47,6 +57,7 @@ def _sensor_suggestion(
             "endian": "little",
             "scale": scale,
         },
+        "current_value": _current_value(detail, start_byte),
         "notes": notes,
         "history": _history_summary(detail, start_byte),
     }
