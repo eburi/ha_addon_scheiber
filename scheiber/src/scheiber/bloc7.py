@@ -147,7 +147,7 @@ class Bloc7Device(ScheiberCanDevice):
                     )
 
         for sensor_config in runtime_sensors:
-            matcher = Matcher(sensor_config["matcher"])
+            matcher = Matcher(**sensor_config["matcher"])
             value_config = ValueConfig(**sensor_config["value_config"])
             entity_id = sensor_config.get(
                 "entity_id", sensor_config["name"].lower().replace(" ", "_")
