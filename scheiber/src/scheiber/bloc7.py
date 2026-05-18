@@ -10,7 +10,6 @@ from typing import Any, Dict, List
 
 from .base_device import ScheiberCanDevice
 from .matchers import Matcher
-from .output import Output
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +43,7 @@ class ValueConfig:
         return round(raw_value * self.scale, 2)
 
 
-class SensorOutput(Output):
+class SensorOutput:
     """Base class for a sensor output (e.g., Voltage, Level)."""
 
     def __init__(
@@ -55,8 +54,9 @@ class SensorOutput(Output):
         value_config: ValueConfig,
         unit: str,
     ):
-        super().__init__(name, matcher)
+        self.name = name
         self.entity_id = entity_id
+        self.matcher = matcher
         self.value_config = value_config
         self.unit_of_measurement = unit
         self.value = None

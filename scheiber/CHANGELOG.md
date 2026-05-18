@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.9.6] - 2026-05-18
+
+### Fixed
+- Fixed Bloc7 sensor construction so tank and voltage sensors no longer go through the Bloc9 output constructor path, which removes the `Output.__init__()` error when adding a Bloc7 from the web UI
+
 ## [6.9.5] - 2026-05-18
 
 ### Fixed
@@ -827,7 +832,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.5...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.6...HEAD
+[6.9.6]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.5...v6.9.6
 [6.9.5]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.4...v6.9.5
 [6.9.4]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.3...v6.9.4
 [6.9.3]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.2...v6.9.3
