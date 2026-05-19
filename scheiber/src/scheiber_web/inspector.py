@@ -9,10 +9,12 @@ from typing import Any, Dict, List, Optional
 import can
 
 from scheiber.discovery import (
+    BLOC9_STATE_GROUPS,
     classify_bloc9_message,
     decode_bloc9_address,
     format_bloc9_route_slug,
 )
+from scheiber.protocol import classify_message_family
 
 MAX_HISTORY = 30
 BLOC9_COMMAND_PREFIX = 0x02360600
@@ -86,16 +88,10 @@ def _describe_known_message(arbitration_id: int, data: bytes) -> Dict[str, Any]:
         is_extended_id=arbitration_id > 0x7FF,
     )
 
-    bloc9 = classify_bloc9_message(msg)
+    prefix = arbitration_id & 0xFFFFFF00
+    bloc9 = classify_bloc9_message(msg) if prefix in BLOC9_STATE_GROUPS else None
     if bloc9 is not None:
         route_slug = bloc9["route_slug"]
-        if bloc9["kind"] == "heartbeat":
-            return {
-                "is_known": True,
-                "known_kind": "bloc9_heartbeat",
-                "known_messages": [f"Bloc9 #{route_slug} heartbeat"],
-            }
-
         output_states = ", ".join(
             _format_output_state(name, state)
             for name, state in bloc9["outputs"].items()
@@ -123,6 +119,32 @@ def _describe_known_message(arbitration_id: int, data: bytes) -> Dict[str, Any]:
                     _format_command_state(switch_nr, mode, brightness),
                 ],
             }
+
+    family = classify_message_family(arbitration_id)
+    if family is not None:
+        route_slug = family["route_slug"]
+        device_type = family["device_type"]
+        family_name = family["family"]
+        if family_name == "status":
+            label = f"{device_type.replace('_', ' ').title()} #{route_slug} status"
+        elif family_name == "ac_measurement":
+            label = f"SourceSelector #{route_slug} AC measurement"
+        elif family_name == "normalized_level":
+            label = f"Bloc7 #{route_slug} normalized value"
+        elif family_name == "raw_sender":
+            label = f"Bloc7 #{route_slug} raw sender value"
+        else:
+            label = f"{device_type} #{route_slug} {family_name}"
+        return {
+            "is_known": True,
+            "known_kind": f"{device_type}_{family_name}",
+            "known_messages": [label],
+            "route": {
+                "bus_id": family["bus_id"],
+                "segment_id": family["segment_id"],
+                "route_slug": route_slug,
+            },
+        }
 
     return {"is_known": False, "known_kind": None, "known_messages": []}
 

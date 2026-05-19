@@ -1,8 +1,10 @@
-"""Heuristics for surfacing likely Bloc7 sensor candidates from raw CAN traffic."""
+"""Heuristics for surfacing protocol-aware Scheiber sensor candidates."""
 
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+
+from scheiber.protocol import classify_message_family, decode_route, format_route_slug
 
 FULL_MASK = 0xFFFFFFFF
 
@@ -69,10 +71,16 @@ def _normalized_level_candidate(
     suggestions: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
     arbitration_id = entry["arbitration_id_int"]
+    route = decode_route(arbitration_id) or {"bus_id": 0, "segment_id": 0}
+    route_slug = format_route_slug(route["bus_id"], route["segment_id"])
     return {
-        "candidate_key": f"bloc7-normalized-0x{arbitration_id:08X}",
+        "candidate_key": f"bloc7:{route_slug}:normalized_level:0x{arbitration_id:08X}",
+        "device_type": "bloc7",
+        "bus_id": route["bus_id"],
+        "segment_id": route["segment_id"],
+        "route_slug": route_slug,
         "family": "normalized_level",
-        "title": f"Normalized Bloc7 tank frame 0x{arbitration_id:08X}",
+        "title": f"Bloc7 #{route_slug} normalized tank frame",
         "summary": (
             "This frame matches the live-normalized Bloc7 tank family that tracked "
             "SignalK percentage values during reverse engineering."
@@ -100,10 +108,16 @@ def _raw_level_candidate(
     suggestions: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
     arbitration_id = entry["arbitration_id_int"]
+    route = decode_route(arbitration_id) or {"bus_id": 0, "segment_id": 0}
+    route_slug = format_route_slug(route["bus_id"], route["segment_id"])
     return {
-        "candidate_key": f"bloc7-raw-0x{arbitration_id:08X}",
+        "candidate_key": f"bloc7:{route_slug}:raw_sender:0x{arbitration_id:08X}",
+        "device_type": "bloc7",
+        "bus_id": route["bus_id"],
+        "segment_id": route["segment_id"],
+        "route_slug": route_slug,
         "family": "raw_level",
-        "title": f"Raw Bloc7 sender frame 0x{arbitration_id:08X}",
+        "title": f"Bloc7 #{route_slug} raw sender frame",
         "summary": (
             "This frame matches the secondary Bloc7 raw/resistance-looking family. "
             "It is likely useful for manual correlation, but its scaling is not yet proven."
@@ -118,8 +132,50 @@ def _raw_level_candidate(
         "confidence": _confidence(
             "medium",
             65,
-            "Matches the observed 0x02040Bxx raw Bloc7 family",
+            "Matches the observed 0x020605xx raw Bloc7 family",
             "Scaling still needs manual verification against live values",
+        ),
+        "suggested_sensors": suggestions,
+    }
+
+
+def _source_selector_candidate(
+    entry: Dict[str, Any],
+    detail: Optional[Dict[str, Any]],
+    suggestions: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    arbitration_id = entry["arbitration_id_int"]
+    route = decode_route(arbitration_id) or {"bus_id": 0, "segment_id": 0}
+    route_slug = format_route_slug(route["bus_id"], route["segment_id"])
+    return {
+        "candidate_key": (
+            f"source_selector:{route_slug}:ac_measurement:0x{arbitration_id:08X}"
+        ),
+        "device_type": "source_selector",
+        "bus_id": route["bus_id"],
+        "segment_id": route["segment_id"],
+        "route_slug": route_slug,
+        "family": "ac_measurement",
+        "title": f"SourceSelector #{route_slug} AC measurement",
+        "summary": (
+            "This frame matches the observed SourceSelector AC measurement family. "
+            "Treat it as read-only high-power AC telemetry."
+        ),
+        "arbitration_id": entry["arbitration_id"],
+        "arbitration_id_int": arbitration_id,
+        "freq_hz": entry.get("freq_hz", 0),
+        "last_data": entry.get("last_data", []),
+        "recent_history": [
+            sample.get("data", []) for sample in (detail or {}).get("history", [])[:6]
+        ],
+        "confidence": _confidence(
+            "medium",
+            80,
+            "Matches the observed 0x02040Bxx SourceSelector measurement family",
+            "Voltage and frequency channel assignment must be confirmed manually",
+        ),
+        "safety_notice": (
+            "Read-only telemetry only. Do not control SourceSelector relays from this bridge."
         ),
         "suggested_sensors": suggestions,
     }
@@ -128,7 +184,7 @@ def _raw_level_candidate(
 def build_bloc7_candidate_snapshot(
     inspector, *, start_if_needed: bool = True
 ) -> Dict[str, Any]:
-    """Return Bloc7-oriented candidates derived from the shared CAN inspector."""
+    """Return protocol-aware candidates derived from the shared CAN inspector."""
     snapshot = inspector.snapshot()
     if start_if_needed and snapshot["status"] != "running":
         snapshot = inspector.start()
@@ -139,24 +195,28 @@ def build_bloc7_candidate_snapshot(
     candidates: List[Dict[str, Any]] = []
 
     normalized_specs = {
-        0x02040582: [
+        0x82: [
             ("Normalized sensor byte 1", 1),
             ("Normalized sensor byte 5", 5),
         ],
-        0x02040583: [
+        0x83: [
             ("Normalized sensor byte 1", 1),
             ("Normalized sensor byte 5", 5),
         ],
-        0x0204058A: [
+        0x8A: [
             ("Normalized sensor byte 1", 1),
             ("Normalized sensor byte 3", 3),
         ],
-        0x0204058B: [("Normalized sensor byte 1", 1)],
-        0x02060583: [("Normalized sensor byte 1", 1)],
+        0x8B: [("Normalized sensor byte 1", 1)],
     }
 
-    for arbitration_id, spec in normalized_specs.items():
-        entry = entries.get(arbitration_id)
+    for arbitration_id, entry in entries.items():
+        family = classify_message_family(arbitration_id)
+        if not family or family["family"] != "normalized_level":
+            continue
+        spec = normalized_specs.get(
+            arbitration_id & 0xFF, [("Normalized sensor byte 1", 1)]
+        )
         if not entry:
             continue
         detail = inspector.detail(arbitration_id)
@@ -176,7 +236,8 @@ def build_bloc7_candidate_snapshot(
         candidates.append(_normalized_level_candidate(entry, detail, suggestions))
 
     for arbitration_id, entry in entries.items():
-        if (arbitration_id & 0xFFFFFF00) != 0x02040B00:
+        family = classify_message_family(arbitration_id)
+        if not family or family["family"] != "raw_sender":
             continue
         detail = inspector.detail(arbitration_id)
         candidate = _raw_level_candidate(
@@ -207,6 +268,41 @@ def build_bloc7_candidate_snapshot(
         )
         candidates.append(candidate)
 
+    for arbitration_id, entry in entries.items():
+        family = classify_message_family(arbitration_id)
+        if not family or family["family"] != "ac_measurement":
+            continue
+        detail = inspector.detail(arbitration_id)
+        suggestions = []
+        for offset, label in ((1, "AC input A"), (5, "AC input B")):
+            suggestions.extend(
+                [
+                    _sensor_suggestion(
+                        arbitration_id,
+                        f"{label} voltage",
+                        offset,
+                        sensor_type="voltage",
+                        notes=(
+                            "Candidate SourceSelector AC voltage byte. Confirm whether "
+                            "this channel is converter, generator, shore-power, or unused."
+                        ),
+                        detail=detail,
+                    ),
+                    _sensor_suggestion(
+                        arbitration_id,
+                        f"{label} frequency",
+                        offset + 2,
+                        sensor_type="frequency",
+                        notes=(
+                            "Candidate SourceSelector frequency byte. A value around 50 "
+                            "matches 50 Hz AC sources; 0 likely means inactive."
+                        ),
+                        detail=detail,
+                    ),
+                ]
+            )
+        candidates.append(_source_selector_candidate(entry, detail, suggestions))
+
     candidates.sort(
         key=lambda item: (-item["confidence"]["score"], item["arbitration_id_int"])
     )
@@ -218,3 +314,10 @@ def build_bloc7_candidate_snapshot(
         "unique_ids": snapshot.get("unique_ids", 0),
         "candidates": candidates,
     }
+
+
+def build_protocol_candidate_snapshot(
+    inspector, *, start_if_needed: bool = True
+) -> Dict[str, Any]:
+    """Return all protocol-aware candidates for web UI and MCP callers."""
+    return build_bloc7_candidate_snapshot(inspector, start_if_needed=start_if_needed)

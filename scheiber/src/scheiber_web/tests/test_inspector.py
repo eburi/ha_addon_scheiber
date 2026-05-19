@@ -74,3 +74,40 @@ def test_snapshot_marks_unknown_messages():
     assert entry["is_known"] is False
     assert entry["known_kind"] is None
     assert entry["known_messages"] == []
+
+
+def test_snapshot_marks_bloc9_status_as_family_not_verified_heartbeat():
+    inspector = CanInspector(FakeRuntimeController())
+    inspector.start()
+
+    inspector._handle_message(
+        can.Message(
+            arbitration_id=0x000006B8,
+            data=bytes([0x08, 0x10, 0x05, 0xCB, 0xA5]),
+            is_extended_id=True,
+        )
+    )
+
+    entry = inspector.snapshot()["entries"][0]
+
+    assert entry["is_known"] is True
+    assert entry["known_kind"] == "bloc9_status"
+    assert entry["known_messages"] == ["Bloc9 #7 status"]
+
+
+def test_snapshot_marks_source_selector_ac_measurements():
+    inspector = CanInspector(FakeRuntimeController())
+    inspector.start()
+
+    inspector._handle_message(
+        can.Message(
+            arbitration_id=0x02040B9A,
+            data=bytes([0x00, 0x00, 0x00, 0x00, 0x00, 0xEB, 0x00, 0x32]),
+            is_extended_id=True,
+        )
+    )
+
+    entry = inspector.snapshot()["entries"][0]
+
+    assert entry["known_kind"] == "source_selector_ac_measurement"
+    assert entry["known_messages"] == ["SourceSelector #3_2 AC measurement"]

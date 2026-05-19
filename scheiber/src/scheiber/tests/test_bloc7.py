@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
 from scheiber.bloc7 import Bloc7Device
+from scheiber.source_selector import SourceSelectorDevice
 
 
 def test_bloc7_device_builds_matcher_from_runtime_sensor_config():
@@ -39,3 +40,36 @@ def test_bloc7_device_builds_matcher_from_runtime_sensor_config():
     assert sensors[0].unit_of_measurement == "%"
     assert sensors[0].device_class is None
     assert sensors[0].icon == "mdi:water-percent"
+
+
+def test_source_selector_device_is_read_only_sensor_container():
+    device = SourceSelectorDevice(
+        device_id=3,
+        segment_id=2,
+        can_bus=MagicMock(),
+        config={
+            "sensors": [
+                {
+                    "sensor_type": "frequency",
+                    "name": "Generator frequency",
+                    "entity_id": "generator_frequency",
+                    "matcher": {"pattern": 0x02040B9A, "mask": 0xFFFFFFFF},
+                    "value_config": {
+                        "start_byte": 7,
+                        "bit_length": 8,
+                        "endian": "little",
+                        "scale": 1.0,
+                    },
+                }
+            ]
+        },
+    )
+
+    sensors = device.get_sensors()
+
+    assert device.route_slug == "3_2"
+    assert len(sensors) == 1
+    assert sensors[0].type == "frequency"
+    assert sensors[0].unit_of_measurement == "Hz"
+    assert device.get_lights() == []
+    assert device.get_switches() == []

@@ -113,14 +113,15 @@ Scheiber Bloc9 switch panels with up to 6 switches (S1-S6). Each switch appears 
 
 ### Bloc7
 
-Bloc7 analog inputs can now be configured as manual matcher-based sensors. Because segment and identity extraction are still not fully understood, setup remains explicit: each sensor stores the arbitration-ID matcher plus the byte/bit extraction rule used to decode the value.
+Bloc7 analog inputs can be configured as manual matcher-based sensors and grouped by the decoded Scheiber route byte. The low byte follows the shared form `0x80 | (bus_id << 3) | segment_id`; setup still stores each sensor's arbitration-ID matcher plus the byte/bit extraction rule used to decode the value.
 
 Example runtime config:
 
 ```yaml
 devices:
   - type: bloc7
-    bus_id: 21
+    bus_id: 1
+    segment_id: 2
     name: Tank sender bank
     sensors:
       - sensor_type: level
@@ -136,7 +137,42 @@ devices:
           scale: 1.0
 ```
 
-The setup UI and MCP server can now suggest provisional Bloc7 sensor drafts from observed CAN frames, but those suggestions are intentionally non-authoritative and should be confirmed against live values.
+The setup UI and MCP server can suggest provisional Bloc7 sensor drafts from observed CAN frames, but those suggestions remain non-authoritative and should be confirmed against live values.
+
+### SourceSelector
+
+SourceSelector devices are supported as read-only AC measurement sensors. They can expose voltage and frequency values from matcher-bound frames such as the observed `0x02040Bxx` family. The bridge does not send SourceSelector relay or source-selection commands.
+
+```yaml
+devices:
+  - type: source_selector
+    bus_id: 3
+    segment_id: 2
+    name: AC source selector
+    sensors:
+      - sensor_type: voltage
+        name: Generator voltage
+        entity_id: generator_voltage
+        matcher:
+          pattern: 33819546   # 0x02040B9A
+          mask: 4294967295
+        value_config:
+          start_byte: 5
+          bit_length: 8
+          endian: little
+          scale: 1.0
+      - sensor_type: frequency
+        name: Generator frequency
+        entity_id: generator_frequency
+        matcher:
+          pattern: 33819546
+          mask: 4294967295
+        value_config:
+          start_byte: 7
+          bit_length: 8
+          endian: little
+          scale: 1.0
+```
 
 ## MQTT Topic Structure
 

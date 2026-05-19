@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.10.0] - 2026-05-19
+
+### Added
+- Added shared Scheiber route decoding for bus/segment address bytes so Bloc7, Bloc9, and SourceSelector observations can be grouped by route without conflating device families
+- Added read-only SourceSelector AC measurement support with voltage and frequency sensors for observed `0x02040Bxx` frames
+- Added protocol-aware setup and MCP candidate discovery for Bloc7, SourceSelector, and ambiguous status frames
+- Added frequency, current, state-of-charge, and raw sensor types for matcher-based sensor devices
+
+### Changed
+- Bloc7 configuration now supports nonzero `segment_id` values while preserving existing manual matcher-based sensor configs
+- CAN inspector status classification now distinguishes message families instead of labeling every `0x000006xx` status frame as a verified Bloc9 heartbeat
+
 ## [6.9.8] - 2026-05-19
 
 ### Fixed
@@ -843,6 +855,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Brightness control and dimming support
 
 [Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.8...HEAD
+[6.10.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.8...v6.10.0
 [6.9.8]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.7...v6.9.8
 [6.9.7]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.6...v6.9.7
 [6.9.6]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.5...v6.9.6

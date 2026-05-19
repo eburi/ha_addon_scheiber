@@ -21,9 +21,17 @@ except ImportError:  # pragma: no cover
 
 ENTITY_ID_RE = re.compile(r"^[a-z0-9_]+$")
 BLOC9_OUTPUT_KEYS = tuple(f"s{i}" for i in range(1, 7))
-SUPPORTED_DEVICE_TYPES = {"bloc9", "bloc7"}
+SENSOR_DEVICE_TYPES = {"bloc7", "source_selector"}
+SUPPORTED_DEVICE_TYPES = {"bloc9", *SENSOR_DEVICE_TYPES}
 OUTPUT_METADATA_KEYS = {"name"}
-BLOC7_SENSOR_TYPES = {"voltage", "level"}
+BLOC7_SENSOR_TYPES = {
+    "voltage",
+    "level",
+    "frequency",
+    "current",
+    "state_of_charge",
+    "raw",
+}
 BLOC7_ENDIAN_OPTIONS = {"little", "big"}
 
 
@@ -60,7 +68,7 @@ def empty_editor_output() -> Dict[str, Any]:
 
 
 def empty_editor_sensor() -> Dict[str, Any]:
-    """Return the default editor state for a Bloc7 sensor."""
+    """Return the default editor state for a sensor device sensor."""
     return {
         "name": "",
         "entity_id": "",
@@ -351,16 +359,6 @@ def validate_editor_config(
             )
             continue
 
-        if device_type == "bloc7" and segment_id != 0:
-            errors.append(
-                make_error(
-                    "unsupported_segment_id",
-                    "Bloc7 devices currently use manual matcher binding and must keep segment_id at 0",
-                    device_path + ["segment_id"],
-                )
-            )
-            continue
-
         device_key = (device_type, bus_id, segment_id)
         if device_key in seen_device_keys:
             errors.append(
@@ -581,7 +579,7 @@ def validate_editor_config(
                     )
 
             normalized_device["outputs"] = normalized_outputs
-        else:
+        elif device_type in SENSOR_DEVICE_TYPES:
             sensors = device.get("sensors", [])
             if sensors is None:
                 sensors = []
@@ -630,7 +628,7 @@ def validate_editor_config(
                     errors.append(
                         make_error(
                             "missing_sensor_name",
-                            "Bloc7 sensors require a name",
+                            f"{device_type} sensors require a name",
                             sensor_path + ["name"],
                         )
                     )
@@ -643,7 +641,7 @@ def validate_editor_config(
                     errors.append(
                         make_error(
                             "missing_entity_id",
-                            "Bloc7 sensors require an entity_id",
+                            f"{device_type} sensors require an entity_id",
                             sensor_path + ["entity_id"],
                         )
                     )
@@ -683,11 +681,14 @@ def validate_editor_config(
                     errors.append(
                         make_error(
                             "invalid_sensor_type",
-                            "sensor_type must be 'voltage' or 'level'",
+                            "sensor_type must be one of: "
+                            + ", ".join(sorted(BLOC7_SENSOR_TYPES)),
                             sensor_path + ["sensor_type"],
                         )
                     )
-                    sensor_type = "level"
+                    sensor_type = (
+                        "voltage" if device_type == "source_selector" else "level"
+                    )
 
                 matcher = sensor.get("matcher")
                 if not isinstance(matcher, dict):
@@ -796,6 +797,8 @@ def validate_editor_config(
                 )
 
             normalized_device["sensors"] = normalized_sensors
+        else:  # pragma: no cover - guarded by SUPPORTED_DEVICE_TYPES validation
+            continue
 
         normalized_devices.append(normalized_device)
 
@@ -832,7 +835,7 @@ def runtime_to_editor_config(runtime_config: Dict[str, Any]) -> Dict[str, Any]:
             )
 
         device_type = device.get("type")
-        if device_type == "bloc7":
+        if device_type in SENSOR_DEVICE_TYPES:
             sensors = []
             runtime_sensors = device.get("sensors")
             if runtime_sensors is None:
@@ -905,7 +908,10 @@ def runtime_to_editor_config(runtime_config: Dict[str, Any]) -> Dict[str, Any]:
                     {
                         "name": sensor_config.get("name", ""),
                         "entity_id": sensor_config.get("entity_id", ""),
-                        "sensor_type": sensor_config.get("sensor_type", "level"),
+                        "sensor_type": sensor_config.get(
+                            "sensor_type",
+                            "voltage" if device_type == "source_selector" else "level",
+                        ),
                         "matcher": {
                             "pattern": matcher.get("pattern"),
                             "mask": matcher.get("mask"),
@@ -1067,7 +1073,7 @@ def editor_to_runtime_config(editor_config: Dict[str, Any]) -> Dict[str, Any]:
         if device.get("description"):
             runtime_device["description"] = device["description"]
 
-        if device["type"] == "bloc7":
+        if device["type"] in SENSOR_DEVICE_TYPES:
             sensors = []
             for sensor in device.get("sensors", []):
                 sensors.append(

@@ -486,6 +486,35 @@ def test_bloc7_discovery_endpoint_returns_candidates(tmp_path):
     assert payload["candidates"][0]["suggested_sensors"][0]["current_value"] == 8
 
 
+def test_discovery_endpoint_classifies_source_selector_ac_candidate(tmp_path):
+    client, _ = create_test_client(tmp_path)
+    inspector = client.application.config["INSPECTOR"]
+    inspector.start()
+    inspector._handle_message(
+        can.Message(
+            arbitration_id=0x02040B9A,
+            data=bytes([0x00, 0x00, 0x00, 0x00, 0x00, 0xEB, 0x00, 0x32]),
+            is_extended_id=True,
+        )
+    )
+
+    response = client.get("/api/discovery/bloc7?start_if_needed=false")
+
+    assert response.status_code == 200
+    candidates = response.get_json()["candidates"]
+    selector = next(
+        candidate
+        for candidate in candidates
+        if candidate["arbitration_id"] == "0x02040B9A"
+    )
+    assert selector["device_type"] == "source_selector"
+    assert selector["family"] == "ac_measurement"
+    assert {sensor["sensor_type"] for sensor in selector["suggested_sensors"]} == {
+        "voltage",
+        "frequency",
+    }
+
+
 def test_mcp_route_returns_404_when_disabled(tmp_path):
     client, _ = create_test_client(tmp_path, mcp_server_enabled=False)
 
@@ -604,6 +633,40 @@ def test_mcp_detect_bloc7_candidates_returns_structured_payload(tmp_path):
     payload = response.get_json()["result"]
     assert payload["isError"] is False
     assert payload["structuredContent"]["candidates"][0]["family"] == "normalized_level"
+
+
+def test_mcp_detect_protocol_candidates_returns_source_selector(tmp_path):
+    client, _ = create_test_client(tmp_path, mcp_server_enabled=True)
+    inspector = client.application.config["INSPECTOR"]
+    inspector.start()
+    inspector._handle_message(
+        can.Message(
+            arbitration_id=0x02040BA9,
+            data=bytes([0x00, 0xF0, 0x00, 0x32, 0x00, 0xF0, 0x00, 0x32]),
+            is_extended_id=True,
+        )
+    )
+
+    response = client.post(
+        "/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "tools/call",
+            "params": {
+                "name": "detect_protocol_candidates",
+                "arguments": {"start_if_needed": False},
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()["result"]
+    assert payload["isError"] is False
+    assert (
+        payload["structuredContent"]["candidates"][0]["device_type"]
+        == "source_selector"
+    )
 
 
 def test_web_ui_routes_return_404_when_disabled(tmp_path):

@@ -11,7 +11,10 @@ from scheiber.config import (
     validate_editor_config,
 )
 
-from .bloc7_candidates import build_bloc7_candidate_snapshot
+from .bloc7_candidates import (
+    build_bloc7_candidate_snapshot,
+    build_protocol_candidate_snapshot,
+)
 from .config_ops import ConfigApplyError, apply_editor_config
 
 JSONRPC_VERSION = "2.0"
@@ -240,6 +243,19 @@ class ScheiberMCPServer:
                     "additionalProperties": False,
                 },
             },
+            {
+                "name": "detect_protocol_candidates",
+                "description": (
+                    "Return protocol-aware Scheiber candidates grouped by route and family."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "start_if_needed": {"type": "boolean", "default": True}
+                    },
+                    "additionalProperties": False,
+                },
+            },
         ]
 
     def _resource_definitions(self) -> list[Dict[str, Any]]:
@@ -272,6 +288,12 @@ class ScheiberMCPServer:
                 "uri": "scheiber://can/bloc7-candidates",
                 "name": "Scheiber Bloc7 candidates",
                 "description": "Likely Bloc7 sensor candidates inferred from recent CAN traffic.",
+                "mimeType": "application/json",
+            },
+            {
+                "uri": "scheiber://can/protocol-candidates",
+                "name": "Scheiber protocol candidates",
+                "description": "Protocol-aware CAN candidates grouped by Scheiber route and family.",
                 "mimeType": "application/json",
             },
         ]
@@ -337,6 +359,20 @@ class ScheiberMCPServer:
                         "mimeType": "application/json",
                         "text": self._as_json_text(
                             build_bloc7_candidate_snapshot(
+                                self.inspector, start_if_needed=False
+                            )
+                        ),
+                    }
+                ]
+            }
+        if uri == "scheiber://can/protocol-candidates":
+            return {
+                "contents": [
+                    {
+                        "uri": uri,
+                        "mimeType": "application/json",
+                        "text": self._as_json_text(
+                            build_protocol_candidate_snapshot(
                                 self.inspector, start_if_needed=False
                             )
                         ),
@@ -442,6 +478,12 @@ class ScheiberMCPServer:
 
         if name == "detect_bloc7_candidates":
             return build_bloc7_candidate_snapshot(
+                self.inspector,
+                start_if_needed=arguments.get("start_if_needed", True),
+            )
+
+        if name == "detect_protocol_candidates":
+            return build_protocol_candidate_snapshot(
                 self.inspector,
                 start_if_needed=arguments.get("start_if_needed", True),
             )

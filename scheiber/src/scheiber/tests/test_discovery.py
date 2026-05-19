@@ -6,6 +6,12 @@ from scheiber.discovery import (
     decode_bloc9_address,
     decode_bloc9_bus_id,
 )
+from scheiber.protocol import (
+    build_address_byte,
+    classify_message_family,
+    decode_route,
+    format_route_slug,
+)
 
 
 def test_decode_bloc9_bus_id_from_status_message():
@@ -31,6 +37,33 @@ def test_decode_bloc9_address_includes_segment_id():
 def test_build_bloc9_address_byte_supports_segment_id():
     assert build_bloc9_address_byte(3) == 0x98
     assert build_bloc9_address_byte(3, segment_id=2) == 0x9A
+    assert build_address_byte(1, segment_id=3) == 0x8B
+
+
+def test_shared_route_decode_matches_bloc7_documented_routes():
+    assert decode_route(0x02040582) == {
+        "bus_id": 0,
+        "segment_id": 2,
+        "low_byte": 0x82,
+    }
+    assert decode_route(0x0204058B) == {
+        "bus_id": 1,
+        "segment_id": 3,
+        "low_byte": 0x8B,
+    }
+    assert format_route_slug(1, 3) == "1_3"
+
+
+def test_classify_message_family_keeps_route_and_family_separate():
+    bloc7 = classify_message_family(0x0204058A)
+    assert bloc7["device_type"] == "bloc7"
+    assert bloc7["family"] == "normalized_level"
+    assert bloc7["route_slug"] == "1_2"
+
+    selector = classify_message_family(0x02040B9A)
+    assert selector["device_type"] == "source_selector"
+    assert selector["family"] == "ac_measurement"
+    assert selector["route_slug"] == "3_2"
 
 
 def test_classify_bloc9_state_update_message():

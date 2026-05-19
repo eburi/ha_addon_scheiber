@@ -297,39 +297,91 @@ def test_validate_editor_config_accepts_bloc7_sensor_strings():
     assert sensor["value_config"]["scale"] == 1.0
 
 
-def test_validate_editor_config_rejects_bloc7_segment_id():
-    with pytest.raises(ConfigValidationError) as exc:
-        validate_editor_config(
-            {
-                "schema_version": 1,
-                "devices": [
-                    {
-                        "type": "bloc7",
-                        "bus_id": 30,
-                        "segment_id": 2,
-                        "sensors": [
-                            {
-                                "name": "Tank",
-                                "entity_id": "tank",
-                                "sensor_type": "level",
-                                "matcher": {
-                                    "pattern": 0x0204058A,
-                                    "mask": 0xFFFFFFFF,
-                                },
-                                "value_config": {
-                                    "start_byte": 1,
-                                    "bit_length": 8,
-                                    "endian": "little",
-                                    "scale": 1.0,
-                                },
-                            }
-                        ],
-                    }
-                ],
-            }
-        )
+def test_validate_editor_config_accepts_bloc7_segment_id():
+    normalized, warnings = validate_editor_config(
+        {
+            "schema_version": 1,
+            "devices": [
+                {
+                    "type": "bloc7",
+                    "bus_id": 1,
+                    "segment_id": 2,
+                    "sensors": [
+                        {
+                            "name": "Tank",
+                            "entity_id": "tank",
+                            "sensor_type": "level",
+                            "matcher": {
+                                "pattern": 0x0204058A,
+                                "mask": 0xFFFFFFFF,
+                            },
+                            "value_config": {
+                                "start_byte": 1,
+                                "bit_length": 8,
+                                "endian": "little",
+                                "scale": 1.0,
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+    )
 
-    assert any(error["code"] == "unsupported_segment_id" for error in exc.value.errors)
+    assert warnings == []
+    assert normalized["devices"][0]["segment_id"] == 2
+
+
+def test_validate_editor_config_accepts_source_selector_sensors():
+    normalized, warnings = validate_editor_config(
+        {
+            "schema_version": 1,
+            "devices": [
+                {
+                    "type": "source_selector",
+                    "bus_id": 3,
+                    "segment_id": 2,
+                    "name": "AC selector",
+                    "sensors": [
+                        {
+                            "name": "Generator voltage",
+                            "entity_id": "generator_voltage",
+                            "sensor_type": "voltage",
+                            "matcher": {
+                                "pattern": 0x02040B9A,
+                                "mask": 0xFFFFFFFF,
+                            },
+                            "value_config": {
+                                "start_byte": 5,
+                                "bit_length": 8,
+                                "endian": "little",
+                                "scale": 1.0,
+                            },
+                        },
+                        {
+                            "name": "Generator frequency",
+                            "entity_id": "generator_frequency",
+                            "sensor_type": "frequency",
+                            "matcher": {
+                                "pattern": 0x02040B9A,
+                                "mask": 0xFFFFFFFF,
+                            },
+                            "value_config": {
+                                "start_byte": 7,
+                                "bit_length": 8,
+                                "endian": "little",
+                                "scale": 1.0,
+                            },
+                        },
+                    ],
+                }
+            ],
+        }
+    )
+
+    assert warnings == []
+    assert normalized["devices"][0]["type"] == "source_selector"
+    assert normalized["devices"][0]["sensors"][1]["sensor_type"] == "frequency"
 
 
 def test_save_editor_config_writes_and_enforces_revision(tmp_path):

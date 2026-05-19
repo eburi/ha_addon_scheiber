@@ -6,12 +6,15 @@ Implement segment-aware Bloc9 routing and setup UI support
 
 ## Depends on
 
+- `scheiber-address-family-model`
 - `discovery-pipeline`
 - `frontend-workflow`
 
 ## Objective
 
 Implement the newly observed multi-segment Bloc9 arbitration ID logic so the runtime can decode remote Bloc9 state updates and expose enough setup UI controls to test whether the same encoding also supports cross-segment control.
+
+This task should reuse the shared Scheiber route/address helpers instead of keeping Bloc9-specific address logic duplicated in discovery, command generation, and setup tooling.
 
 ## Discovery basis
 

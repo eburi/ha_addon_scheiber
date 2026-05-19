@@ -14,6 +14,7 @@ from .bloc9 import Bloc9Device
 from .can_bus import ScheiberCanBus
 from .config import load_runtime_config
 from .matchers import Matcher
+from .source_selector import SourceSelectorDevice
 from .system import ScheiberSystem
 
 __version__ = "5.0.0"
@@ -23,6 +24,7 @@ __all__ = [
     "ScheiberCanBus",
     "Bloc7Device",
     "Bloc9Device",
+    "SourceSelectorDevice",
 ]
 
 
@@ -198,6 +200,20 @@ def _create_devices(
             devices.append(device)
             logger.info(
                 f"Created Bloc7 device: bus_id={device_id}, "
+                f"segment_id={segment_id}, "
+                f"{len(device.get_sensors())} sensors"
+            )
+        elif device_type == "source_selector":
+            device = SourceSelectorDevice(
+                device_id=device_id,
+                can_bus=can_bus,
+                config=device_config,
+                segment_id=segment_id,
+                logger=logging.getLogger(f"SourceSelector.{device_route}"),
+            )
+            devices.append(device)
+            logger.info(
+                f"Created SourceSelector device: bus_id={device_id}, "
                 f"segment_id={segment_id}, "
                 f"{len(device.get_sensors())} sensors"
             )

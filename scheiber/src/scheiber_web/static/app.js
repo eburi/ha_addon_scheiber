@@ -793,7 +793,10 @@ function nextBloc7BusId() {
 function getBloc7ConfiguredCards() {
   return state.config.devices
     .filter((device) => device.type === "bloc7")
-    .map((device) => ({ key: `bloc7:${device.bus_id}`, configured: device, draft: ensureBloc7Draft(`bloc7:${device.bus_id}`, device) }));
+    .map((device) => {
+      const key = `bloc7:${routeSlug(device.bus_id, device.segment_id || 0)}`;
+      return { key, configured: device, draft: ensureBloc7Draft(key, device) };
+    });
 }
 
 function ensureBloc7Draft(cardKey, configuredDevice) {
@@ -804,20 +807,22 @@ function ensureBloc7Draft(cardKey, configuredDevice) {
 
 function validateBloc7Draft(draft, cardKey) {
   const errors = {};
-  const excludedBusId = cardKey.startsWith("bloc7:") ? Number(cardKey.split(":")[1]) : null;
+  const excludedRoute = cardKey.startsWith("bloc7:") ? cardKey.split(":")[1] : null;
   const usedEntityIds = collectEntityIds(
-    (device) => device.type === "bloc7" && Number(device.bus_id) === excludedBusId,
+    (device) => device.type === "bloc7" && routeSlug(device.bus_id, device.segment_id || 0) === excludedRoute,
   );
-  const usedBusIds = new Set(
+  const usedRoutes = new Set(
     state.config.devices
-      .filter((device) => device.type === "bloc7" && Number(device.bus_id) !== excludedBusId)
-      .map((device) => Number(device.bus_id)),
+      .filter((device) => device.type === "bloc7" && routeSlug(device.bus_id, device.segment_id || 0) !== excludedRoute)
+      .map((device) => routeSlug(device.bus_id, device.segment_id || 0)),
   );
 
   if (!Number.isInteger(Number(draft.bus_id)) || Number(draft.bus_id) < 0 || Number(draft.bus_id) > 255) {
     errors["device.bus_id"] = "Bus ID must be between 0 and 255.";
-  } else if (usedBusIds.has(Number(draft.bus_id))) {
-    errors["device.bus_id"] = "This Bloc7 bus ID is already configured.";
+  } else if (!Number.isInteger(Number(draft.segment_id || 0)) || Number(draft.segment_id || 0) < 0 || Number(draft.segment_id || 0) > 7) {
+    errors["device.segment_id"] = "Segment ID must be between 0 and 7.";
+  } else if (usedRoutes.has(routeSlug(draft.bus_id, draft.segment_id || 0))) {
+    errors["device.bus_id"] = "This Bloc7 route is already configured.";
   }
 
   const localEntityIds = new Set();
@@ -839,8 +844,8 @@ function validateBloc7Draft(draft, cardKey) {
       localEntityIds.add(entityId);
     }
 
-    if (!["level", "voltage"].includes(sensor.sensor_type)) {
-      errors[`${basePath}.sensor_type`] = "Choose level or voltage.";
+    if (!["level", "voltage", "frequency", "current", "state_of_charge", "raw"].includes(sensor.sensor_type)) {
+      errors[`${basePath}.sensor_type`] = "Choose a supported sensor type.";
     }
     if (!String(sensor.matcher?.pattern ?? "").trim()) {
       errors[`${basePath}.matcher.pattern`] = "Matcher pattern is required.";
@@ -869,7 +874,7 @@ function buildBloc7DraftForSave(draft) {
   return {
     type: "bloc7",
     bus_id: Number(draft.bus_id),
-    segment_id: 0,
+    segment_id: Number(draft.segment_id || 0),
     name: String(draft.name || "").trim(),
     description: String(draft.description || "").trim(),
     sensors: (draft.sensors || []).map((sensor) => ({
@@ -917,7 +922,15 @@ function getBloc7LiveReading(sensor) {
 function formatBloc7SensorValue(sensorType, value, scale = 1) {
   const scaled = value * Number(scale ?? 1);
   const rounded = Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(2);
-  const unit = sensorType === "voltage" ? " V" : "%";
+  const units = {
+    voltage: " V",
+    frequency: " Hz",
+    current: " A",
+    level: "%",
+    state_of_charge: "%",
+    raw: "",
+  };
+  const unit = units[sensorType] ?? "";
   return `${rounded}${unit}`;
 }
 
@@ -943,7 +956,7 @@ function matchesBloc7Suggestion(sensor, suggestion) {
 function getBloc7ConfiguredMessageDevice(candidate) {
   return (
     state.config.devices.find((device) => {
-      if (device.type !== "bloc7") return false;
+      if (device.type !== (candidate.device_type || "bloc7")) return false;
       const sensors = device.sensors || [];
       if (!sensors.length) return false;
       return sensors.every(
@@ -994,7 +1007,8 @@ function ensureBloc7CandidateDraft(candidate) {
   );
 
   state.bloc7CandidateDrafts[key] = {
-    bus_id: configuredDevice?.bus_id ?? nextBloc7MessageBusId(key),
+    bus_id: configuredDevice?.bus_id ?? candidate.bus_id ?? nextBloc7MessageBusId(key),
+    segment_id: configuredDevice?.segment_id ?? candidate.segment_id ?? 0,
     channels,
   };
   return state.bloc7CandidateDrafts[key];
@@ -1014,7 +1028,10 @@ function validateBloc7CandidateDraft(candidate, candidateDraft) {
   const errors = {};
   const configuredDevice = getBloc7ConfiguredMessageDevice(candidate);
   const usedEntityIds = collectEntityIds(
-    (device) => device.type === "bloc7" && Number(device.bus_id) === Number(configuredDevice?.bus_id),
+    (device) =>
+      device.type === (candidate.device_type || "bloc7")
+      && routeSlug(device.bus_id, device.segment_id || 0)
+        === routeSlug(configuredDevice?.bus_id, configuredDevice?.segment_id || 0),
   );
   let configuredCount = 0;
 
@@ -1093,10 +1110,12 @@ function buildBloc7DeviceFromCandidate(candidate, candidateDraft, configuredDevi
     .filter(Boolean);
 
   return {
-    type: "bloc7",
+    type: candidate.device_type || "bloc7",
     bus_id: Number(configuredDevice?.bus_id ?? candidateDraft.bus_id),
-    segment_id: 0,
-    name: String(configuredDevice?.name || "").trim() || `Bloc7 message ${candidate.arbitration_id}`,
+    segment_id: Number(configuredDevice?.segment_id ?? candidateDraft.segment_id ?? 0),
+    name:
+      String(configuredDevice?.name || "").trim()
+      || `${candidate.device_type === "source_selector" ? "SourceSelector" : "Bloc7"} ${candidate.route_slug || candidate.arbitration_id}`,
     description:
       String(configuredDevice?.description || "").trim()
       || `Configured from ${candidate.arbitration_id} (${candidate.family})`,
@@ -1158,6 +1177,10 @@ function renderSensorDraft(cardKey, sensor, index, validation, baselineSensor = 
                 <select data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="sensor_type">
                   <option value="level" ${sensor.sensor_type === "level" ? "selected" : ""}>Level</option>
                   <option value="voltage" ${sensor.sensor_type === "voltage" ? "selected" : ""}>Voltage</option>
+                  <option value="frequency" ${sensor.sensor_type === "frequency" ? "selected" : ""}>Frequency</option>
+                  <option value="current" ${sensor.sensor_type === "current" ? "selected" : ""}>Current</option>
+                  <option value="state_of_charge" ${sensor.sensor_type === "state_of_charge" ? "selected" : ""}>State of charge</option>
+                  <option value="raw" ${sensor.sensor_type === "raw" ? "selected" : ""}>Raw</option>
                 </select>
                 ${validation.errors[`${basePath}.sensor_type`] ? `<small>${escapeHtml(validation.errors[`${basePath}.sensor_type`])}</small>` : ""}
               </label>
@@ -1232,7 +1255,7 @@ function renderBloc7Cards() {
         <article class="setup-card tone-${bannerTone}">
           <div class="card-banner">
             <span class="status-badge">${escapeHtml(configured ? "configured" : "draft")}</span>
-            <span class="status-meta">Bus ID ${escapeHtml(draft.bus_id || "—")}</span>
+            <span class="status-meta">Route ${escapeHtml(routeSlug(draft.bus_id || "—", draft.segment_id || 0))}</span>
           </div>
           <div class="card-header">
             <div>
@@ -1246,6 +1269,11 @@ function renderBloc7Cards() {
               <span>Bus ID</span>
               <input type="number" min="0" max="255" value="${escapeHtml(draft.bus_id ?? "")}" data-card-kind="bloc7" data-card-key="${escapeHtml(key)}" data-field="bus_id">
               ${validation.errors["device.bus_id"] ? `<small>${escapeHtml(validation.errors["device.bus_id"])}</small>` : ""}
+            </label>
+            <label class="field-shell ${validation.errors["device.segment_id"] ? "invalid" : ""}">
+              <span>Segment ID</span>
+              <input type="number" min="0" max="7" value="${escapeHtml(draft.segment_id ?? 0)}" data-card-kind="bloc7" data-card-key="${escapeHtml(key)}" data-field="segment_id">
+              ${validation.errors["device.segment_id"] ? `<small>${escapeHtml(validation.errors["device.segment_id"])}</small>` : ""}
             </label>
             <label class="field-shell ${draft.name !== (configured?.name || "") ? "dirty" : ""}">
               <span>Name</span>
@@ -1348,16 +1376,18 @@ function renderBloc7Cards() {
         <article class="setup-card tone-${configuredDevice ? "configured" : "discovered"}">
           <div class="card-banner">
             <span class="status-badge">${escapeHtml(configuredDevice ? "configured" : "discovered")}</span>
-            <span class="status-meta">${escapeHtml(candidate.arbitration_id)}</span>
+             <span class="status-meta">${escapeHtml(candidate.route_slug || candidate.arbitration_id)} · ${escapeHtml(candidate.arbitration_id)}</span>
           </div>
           <div class="card-header">
             <div>
               <h3>${escapeHtml(configuredDevice?.name || candidate.title)}</h3>
               <p>${escapeHtml(candidate.summary)}</p>
+              ${candidate.safety_notice ? `<p class="card-state-summary warning">${escapeHtml(candidate.safety_notice)}</p>` : ""}
               <p class="card-state-summary">Configure each reported channel by name and entity ID. The matcher and byte mapping stay fixed to this message.</p>
             </div>
           </div>
           <div class="summary-bar compact">
+            <span class="summary-chip">${escapeHtml(candidate.device_type || "bloc7")}</span>
             <span class="summary-chip">${escapeHtml(candidate.family)}</span>
             <span class="summary-chip">${escapeHtml(candidate.confidence.level)} ${escapeHtml(candidate.confidence.score)}</span>
             <span class="summary-chip">${escapeHtml(candidate.freq_hz)} Hz</span>
@@ -1424,7 +1454,9 @@ function updateBloc7DraftField(cardKey, field, value, sensorIndex = null) {
   const draft = state.bloc7Drafts[cardKey];
   if (!draft) return;
   if (sensorIndex === null) {
-    draft[field] = field === "bus_id" ? parseNumberOrNull(value) : value;
+    draft[field] = ["bus_id", "segment_id"].includes(field)
+      ? parseNumberOrNull(value)
+      : value;
     return;
   }
 
@@ -1628,7 +1660,9 @@ async function saveBloc7Candidate(candidateKey) {
   const configuredIndex = nextConfig.devices.findIndex(
     (entry) =>
       entry.type === "bloc7"
-      && Number(entry.bus_id) === Number(validation.configuredDevice?.bus_id),
+          && entry.type === device.type
+          && routeSlug(entry.bus_id, entry.segment_id || 0)
+            === routeSlug(validation.configuredDevice?.bus_id ?? device.bus_id, validation.configuredDevice?.segment_id ?? device.segment_id),
   );
   if (configuredIndex >= 0) {
     nextConfig.devices[configuredIndex] = device;

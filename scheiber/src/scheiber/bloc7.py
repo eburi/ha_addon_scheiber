@@ -13,6 +13,8 @@ from .matchers import Matcher
 
 logger = logging.getLogger(__name__)
 
+SENSOR_TYPES = {"voltage", "level", "frequency", "current", "state_of_charge", "raw"}
+
 
 class ValueConfig:
     """Configuration for extracting a value from a CAN message."""
@@ -101,6 +103,50 @@ class Voltage(SensorOutput):
         self.device_class = "voltage"
 
 
+class Frequency(SensorOutput):
+    """Represents an AC frequency sensor."""
+
+    def __init__(
+        self, name: str, entity_id: str, matcher: Matcher, value_config: ValueConfig
+    ):
+        super().__init__(name, entity_id, matcher, value_config, "Hz")
+        self.type = "frequency"
+        self.device_class = "frequency"
+
+
+class Current(SensorOutput):
+    """Represents a current sensor."""
+
+    def __init__(
+        self, name: str, entity_id: str, matcher: Matcher, value_config: ValueConfig
+    ):
+        super().__init__(name, entity_id, matcher, value_config, "A")
+        self.type = "current"
+        self.device_class = "current"
+
+
+class StateOfCharge(SensorOutput):
+    """Represents a battery state-of-charge sensor."""
+
+    def __init__(
+        self, name: str, entity_id: str, matcher: Matcher, value_config: ValueConfig
+    ):
+        super().__init__(name, entity_id, matcher, value_config, "%")
+        self.type = "state_of_charge"
+        self.device_class = "battery"
+
+
+class RawValue(SensorOutput):
+    """Represents an unscaled or provisional raw sensor value."""
+
+    def __init__(
+        self, name: str, entity_id: str, matcher: Matcher, value_config: ValueConfig
+    ):
+        super().__init__(name, entity_id, matcher, value_config, "")
+        self.type = "raw"
+        self.icon = "mdi:counter"
+
+
 class Level(SensorOutput):
     """Represents a tank level sensor."""
 
@@ -110,6 +156,28 @@ class Level(SensorOutput):
         super().__init__(name, entity_id, matcher, value_config, "%")
         self.type = "level"
         self.icon = "mdi:water-percent"
+
+
+def create_sensor_output(
+    sensor_type: str,
+    name: str,
+    entity_id: str,
+    matcher: Matcher,
+    value_config: ValueConfig,
+) -> SensorOutput:
+    """Create a configured sensor output by sensor type."""
+    sensor_classes = {
+        "voltage": Voltage,
+        "level": Level,
+        "frequency": Frequency,
+        "current": Current,
+        "state_of_charge": StateOfCharge,
+        "raw": RawValue,
+    }
+    sensor_class = sensor_classes.get(sensor_type)
+    if sensor_class is None:
+        raise ValueError(f"Unsupported sensor_type: {sensor_type}")
+    return sensor_class(name, entity_id, matcher, value_config)
 
 
 class Bloc7Device(ScheiberCanDevice):
@@ -153,16 +221,17 @@ class Bloc7Device(ScheiberCanDevice):
                 "entity_id", sensor_config["name"].lower().replace(" ", "_")
             )
             sensor_type = sensor_config.get("sensor_type", "level")
-            if sensor_type == "voltage":
-                self._sensors.append(
-                    Voltage(sensor_config["name"], entity_id, matcher, value_config)
-                )
-            elif sensor_type == "level":
-                self._sensors.append(
-                    Level(sensor_config["name"], entity_id, matcher, value_config)
-                )
-            else:
+            if sensor_type not in SENSOR_TYPES:
                 raise ValueError(f"Unsupported Bloc7 sensor_type: {sensor_type}")
+            self._sensors.append(
+                create_sensor_output(
+                    sensor_type,
+                    sensor_config["name"],
+                    entity_id,
+                    matcher,
+                    value_config,
+                )
+            )
 
     def get_matchers(self) -> List[Matcher]:
         """Return all matchers from configured sensors."""
@@ -182,16 +251,19 @@ class Bloc7Device(ScheiberCanDevice):
     def restore_from_state(self, state: Dict[str, Any]) -> None:
         """Restore sensor values from persisted state."""
         for sensor in self._sensors:
-            sensor_key = sensor.name.lower().replace(" ", "_")
+            sensor_key = sensor.entity_id
+            legacy_key = sensor.name.lower().replace(" ", "_")
             if sensor_key in state:
                 sensor.value = state[sensor_key]
                 self.logger.debug(f"Restored {sensor.name} = {sensor.value}")
+            elif legacy_key in state:
+                sensor.value = state[legacy_key]
+                self.logger.debug(f"Restored legacy {sensor.name} = {sensor.value}")
 
     def store_to_state(self) -> Dict[str, Any]:
         """Store current sensor values for persistence."""
         state = {}
         for sensor in self._sensors:
-            sensor_key = sensor.name.lower().replace(" ", "_")
             if sensor.value is not None:
-                state[sensor_key] = sensor.value
+                state[sensor.entity_id] = sensor.value
         return state
