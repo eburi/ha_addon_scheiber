@@ -251,9 +251,9 @@ class TestMQTTSensors:
         mock_sensor = MagicMock()
         mock_sensor.name = "Black water 1"
         mock_sensor.entity_id = "black_water_1"
-        mock_sensor.unit_of_measurement = "L"
-        mock_sensor.device_class = "volume"
-        mock_sensor.icon = None
+        mock_sensor.unit_of_measurement = "%"
+        mock_sensor.device_class = None
+        mock_sensor.icon = "mdi:water-percent"
         mock_sensor.get_value.return_value = 51
         mock_sensor.subscribe = Mock()
 
@@ -288,8 +288,9 @@ class TestMQTTSensors:
             discovery_config["state_topic"]
             == "homeassistant/scheiber/bloc7/21/black_water_1/state"
         )
-        assert discovery_config["device_class"] == "volume"
-        assert discovery_config["unit_of_measurement"] == "L"
+        assert "device_class" not in discovery_config
+        assert discovery_config["icon"] == "mdi:water-percent"
+        assert discovery_config["unit_of_measurement"] == "%"
         assert discovery_config["state_class"] == "measurement"
         assert mock_sensor.subscribe.call_count == 1
         assert any(

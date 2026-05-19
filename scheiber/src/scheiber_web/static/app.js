@@ -914,16 +914,23 @@ function getBloc7LiveReading(sensor) {
   return null;
 }
 
+function formatBloc7SensorValue(sensorType, value, scale = 1) {
+  const scaled = value * Number(scale ?? 1);
+  const rounded = Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(2);
+  const unit = sensorType === "voltage" ? " V" : "%";
+  return `${rounded}${unit}`;
+}
+
 function formatBloc7LiveValue(sensor, liveReading) {
   if (!liveReading || liveReading.value === null || liveReading.value === undefined) {
     return "No live value";
   }
 
-  const scale = Number(sensor?.value_config?.scale ?? 1);
-  const scaled = liveReading.value * scale;
-  const rounded = Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(2);
-  const unit = sensor?.sensor_type === "voltage" ? " V" : "";
-  return `${rounded}${unit}`;
+  return formatBloc7SensorValue(
+    sensor?.sensor_type || "level",
+    liveReading.value,
+    sensor?.value_config?.scale ?? 1,
+  );
 }
 
 function matchesBloc7Suggestion(sensor, suggestion) {
@@ -1292,7 +1299,11 @@ function renderBloc7Cards() {
                   ${escapeHtml(
                     suggestion.current_value === null || suggestion.current_value === undefined
                       ? "No live value"
-                      : `${suggestion.current_value} L`,
+                      : formatBloc7SensorValue(
+                          suggestion.sensor_type,
+                          suggestion.current_value,
+                          suggestion.value_config?.scale ?? 1,
+                        ),
                   )}
                 </span>
               </div>

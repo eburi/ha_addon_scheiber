@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.9.8] - 2026-05-19
+
+### Fixed
+- Bloc7 tank level values are now shown and advertised as percentages instead of liters in the setup UI and MQTT Discovery
+
 ## [6.9.7] - 2026-05-19
 
 ### Changed
@@ -837,7 +842,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.7...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.8...HEAD
+[6.9.8]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.7...v6.9.8
 [6.9.7]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.6...v6.9.7
 [6.9.6]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.5...v6.9.6
 [6.9.5]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.4...v6.9.5

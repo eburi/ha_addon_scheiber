@@ -107,9 +107,9 @@ class Level(SensorOutput):
     def __init__(
         self, name: str, entity_id: str, matcher: Matcher, value_config: ValueConfig
     ):
-        super().__init__(name, entity_id, matcher, value_config, "L")
+        super().__init__(name, entity_id, matcher, value_config, "%")
         self.type = "level"
-        self.device_class = "volume"
+        self.icon = "mdi:water-percent"
 
 
 class Bloc7Device(ScheiberCanDevice):

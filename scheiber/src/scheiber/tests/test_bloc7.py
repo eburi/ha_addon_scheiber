@@ -36,3 +36,6 @@ def test_bloc7_device_builds_matcher_from_runtime_sensor_config():
     assert sensors[0].value_config.bit_length == 8
     assert sensors[0].value_config.endian == "little"
     assert sensors[0].value_config.scale == 1.0
+    assert sensors[0].unit_of_measurement == "%"
+    assert sensors[0].device_class is None
+    assert sensors[0].icon == "mdi:water-percent"
