@@ -497,7 +497,7 @@ function bloc9FieldClass(validation, fieldPath, dirty) {
 
 function isBloc9CardExpanded(cardKey) {
   if (!(cardKey in state.bloc9CardExpansion)) {
-    state.bloc9CardExpansion[cardKey] = true;
+    state.bloc9CardExpansion[cardKey] = false;
   }
   return state.bloc9CardExpansion[cardKey];
 }
@@ -506,7 +506,7 @@ function isBloc9OutputExpanded(cardKey, outputName) {
   const key = String(cardKey);
   state.bloc9OutputExpansion[key] = state.bloc9OutputExpansion[key] || {};
   if (!(outputName in state.bloc9OutputExpansion[key])) {
-    state.bloc9OutputExpansion[key][outputName] = true;
+    state.bloc9OutputExpansion[key][outputName] = false;
   }
   return state.bloc9OutputExpansion[key][outputName];
 }

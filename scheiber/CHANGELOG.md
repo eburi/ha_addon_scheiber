@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.9.7] - 2026-05-19
+
+### Changed
+- Bloc9 cards and Bloc9 output sections in the setup UI now start collapsed by default, so expandable sections stay closed until the operator opens them
+
 ## [6.9.6] - 2026-05-18
 
 ### Fixed
@@ -832,7 +837,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.6...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.7...HEAD
+[6.9.7]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.6...v6.9.7
 [6.9.6]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.5...v6.9.6
 [6.9.5]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.4...v6.9.5
 [6.9.4]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.3...v6.9.4
