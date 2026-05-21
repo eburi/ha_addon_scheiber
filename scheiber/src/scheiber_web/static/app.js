@@ -350,9 +350,13 @@ function getControlState(cardKey, outputName) {
   const key = String(cardKey);
   state.controlState[key] = state.controlState[key] || {};
   state.controlState[key][outputName] = state.controlState[key][outputName] || {
-    brightness: 128,
+    brightness: 255,
   };
   return state.controlState[key][outputName];
+}
+
+function outputUsesBrightness(output) {
+  return output?.role === "light";
 }
 
 function getConfiguredBloc9Map() {
@@ -523,6 +527,7 @@ function renderBloc9OutputRow(cardKey, draft, baseline, candidate, outputName, v
     : "No live status";
   const liveTone = live ? (live.state ? "on" : "off") : "unknown";
   const liveFlash = candidate && outputIsActive(candidate.candidate_key, outputName);
+  const canUseBrightness = outputUsesBrightness(output);
   const brightnessValue =
     output.initial_brightness === null || output.initial_brightness === undefined
       ? ""
@@ -595,7 +600,9 @@ function renderBloc9OutputRow(cardKey, draft, baseline, candidate, outputName, v
             ${validation.errors[`outputs.${outputName}.entity_id`] ? `<small>${escapeHtml(validation.errors[`outputs.${outputName}.entity_id`])}</small>` : ""}
           </label>
 
-          <label class="${bloc9FieldClass(validation, `outputs.${outputName}.initial_brightness`, brightnessValue !== (baselineOutput.initial_brightness ?? ""))}">
+          ${
+            canUseBrightness
+              ? `<label class="${bloc9FieldClass(validation, `outputs.${outputName}.initial_brightness`, brightnessValue !== (baselineOutput.initial_brightness ?? ""))}">
             <span>Initial brightness</span>
             <input
               type="number"
@@ -609,7 +616,9 @@ function renderBloc9OutputRow(cardKey, draft, baseline, candidate, outputName, v
               data-field="initial_brightness"
             >
             ${validation.errors[`outputs.${outputName}.initial_brightness`] ? `<small>${escapeHtml(validation.errors[`outputs.${outputName}.initial_brightness`])}</small>` : ""}
-          </label>
+          </label>`
+              : ""
+          }
         </div>
 
         <div class="test-controls">
@@ -618,7 +627,9 @@ function renderBloc9OutputRow(cardKey, draft, baseline, candidate, outputName, v
             <span class="muted">Commands are sent immediately and never saved by themselves.</span>
           </div>
           <div class="test-controls-row">
-            <label class="slider-field">
+            ${
+              canUseBrightness
+                ? `<label class="slider-field">
               <span>Brightness</span>
               <input
                 type="range"
@@ -631,7 +642,9 @@ function renderBloc9OutputRow(cardKey, draft, baseline, candidate, outputName, v
                 data-field="brightness"
               >
               <span class="slider-value">${control.brightness}</span>
-            </label>
+            </label>`
+                : '<span class="muted">ON sends a full-on command without brightness or PWM.</span>'
+            }
             <div class="button-group">
               <button
                 type="button"
@@ -1445,6 +1458,9 @@ function updateBloc9DraftField(cardKey, field, value, outputName = null) {
     draft.outputs[outputName] = draft.outputs[outputName] || blankOutput();
     draft.outputs[outputName][field] =
       field === "initial_brightness" ? parseNumberOrNull(value) : value;
+    if (field === "role" && value !== "light") {
+      draft.outputs[outputName].initial_brightness = null;
+    }
     return;
   }
   draft[field] = value;
@@ -1604,8 +1620,10 @@ async function saveBloc9Card(cardKey) {
 
 async function sendControl(cardKey, outputName, on) {
   const draft = state.bloc9Drafts[cardKey];
+  const output = draft?.outputs?.[outputName] || blankOutput();
   const switchNr = outputs.indexOf(outputName);
   const control = getControlState(cardKey, outputName);
+  const canUseBrightness = outputUsesBrightness(output);
   const actionKey = `control:${cardKey}:${outputName}:${on ? "on" : "off"}`;
   setBusy(actionKey, true);
   try {
@@ -1617,7 +1635,8 @@ async function sendControl(cardKey, outputName, on) {
         segment_id: Number(draft.segment_id || 0),
         switch_nr: switchNr,
         on,
-        brightness: on ? Number(control.brightness) : null,
+        role: output.role || null,
+        brightness: on && canUseBrightness ? Number(control.brightness) : null,
       }),
     });
     const payload = await response.json().catch(() => ({}));

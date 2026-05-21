@@ -397,6 +397,7 @@ def test_discovery_control_accepts_segment_id(tmp_path):
             "bus_id": 3,
             "segment_id": 2,
             "switch_nr": 0,
+            "role": "light",
             "on": True,
             "brightness": 255,
         },
@@ -424,6 +425,7 @@ def test_discovery_control_defaults_segment_id_to_zero(tmp_path):
         json={
             "bus_id": 3,
             "switch_nr": 0,
+            "role": "light",
             "on": True,
             "brightness": 255,
         },
@@ -441,6 +443,78 @@ def test_discovery_control_defaults_segment_id_to_zero(tmp_path):
     ]
     assert response.get_json()["segment_id"] == 0
     assert response.get_json()["can_id"] == "0x02360698"
+
+
+def test_discovery_control_ignores_brightness_for_switch_role(tmp_path):
+    runtime = FakeRuntimeController()
+    client, _ = create_test_client(tmp_path, runtime_controller=runtime)
+
+    response = client.post(
+        "/api/discovery/control",
+        json={
+            "bus_id": 3,
+            "switch_nr": 0,
+            "role": "switch",
+            "on": True,
+            "brightness": 64,
+        },
+    )
+
+    assert response.status_code == 200
+    assert runtime.sent_commands == [
+        {
+            "bus_id": 3,
+            "switch_nr": 0,
+            "on": True,
+            "brightness": None,
+            "segment_id": 0,
+        }
+    ]
+
+
+def test_discovery_control_ignores_brightness_without_light_role(tmp_path):
+    runtime = FakeRuntimeController()
+    client, _ = create_test_client(tmp_path, runtime_controller=runtime)
+
+    response = client.post(
+        "/api/discovery/control",
+        json={
+            "bus_id": 3,
+            "switch_nr": 0,
+            "on": True,
+            "brightness": 64,
+        },
+    )
+
+    assert response.status_code == 200
+    assert runtime.sent_commands == [
+        {
+            "bus_id": 3,
+            "switch_nr": 0,
+            "on": True,
+            "brightness": None,
+            "segment_id": 0,
+        }
+    ]
+
+
+def test_discovery_control_rejects_invalid_role(tmp_path):
+    runtime = FakeRuntimeController()
+    client, _ = create_test_client(tmp_path, runtime_controller=runtime)
+
+    response = client.post(
+        "/api/discovery/control",
+        json={
+            "bus_id": 3,
+            "switch_nr": 0,
+            "role": "sensor",
+            "on": True,
+            "brightness": 64,
+        },
+    )
+
+    assert response.status_code == 400
+    assert runtime.sent_commands == []
 
 
 def test_apply_config_persists_segment_id(tmp_path):

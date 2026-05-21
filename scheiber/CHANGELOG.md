@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.10.1] - 2026-05-20
+
+### Fixed
+- Bloc9 live output testing now only exposes and sends brightness values after an output is explicitly marked as a **Light**
+- Bloc9 live test controls now default light outputs to full-on brightness so a plain **On** test does not send PWM unless the operator deliberately lowers the slider
+
 ## [6.10.0] - 2026-05-19
 
 ### Added
@@ -854,7 +860,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.8...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.1...HEAD
+[6.10.1]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.0...v6.10.1
 [6.10.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.8...v6.10.0
 [6.9.8]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.7...v6.9.8
 [6.9.7]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.6...v6.9.7

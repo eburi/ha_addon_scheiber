@@ -260,16 +260,35 @@ def create_app(
         switch_nr = payload.get("switch_nr")
         on = payload.get("on", False)
         brightness = payload.get("brightness")
+        role = payload.get("role")
 
         if bus_id is None or switch_nr is None:
             return jsonify({"error": "bus_id and switch_nr are required"}), 400
+
+        if role is None:
+            normalized_role = None
+        elif isinstance(role, str):
+            normalized_role = role.strip().lower() or None
+        else:
+            return (
+                jsonify({"error": "role must be 'light', 'switch', or omitted"}),
+                400,
+            )
+
+        if normalized_role not in {None, "light", "switch"}:
+            return (
+                jsonify({"error": "role must be 'light', 'switch', or omitted"}),
+                400,
+            )
+
+        allowed_brightness = brightness if normalized_role == "light" else None
 
         try:
             can_id = runtime_controller.send_bloc9_command(
                 int(bus_id),
                 int(switch_nr),
                 bool(on),
-                int(brightness) if brightness is not None else None,
+                int(allowed_brightness) if allowed_brightness is not None else None,
                 int(segment_id),
             )
         except RuntimeError as exc:
