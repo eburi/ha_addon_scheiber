@@ -18,9 +18,9 @@ from .bloc7_candidates import (
 from .config_ops import ConfigApplyError, apply_editor_config
 
 JSONRPC_VERSION = "2.0"
-SUPPORTED_PROTOCOL_VERSIONS = ("2025-03-26", "2024-11-05")
+SUPPORTED_PROTOCOL_VERSIONS = ("2025-11-25", "2025-03-26", "2024-11-05")
 LATEST_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS[0]
-SERVER_INFO = {"name": "scheiber-mcp", "version": "6.7.0"}
+SERVER_INFO = {"name": "scheiber-mcp", "version": "6.10.2"}
 
 
 class MCPRequestError(ValueError):
@@ -55,6 +55,19 @@ class ScheiberMCPServer:
         self.settings = settings
         self.runtime_controller = runtime_controller
         self.inspector = inspector
+
+    @staticmethod
+    def supports_protocol_version(version: str | None) -> bool:
+        return isinstance(version, str) and version in SUPPORTED_PROTOCOL_VERSIONS
+
+    @staticmethod
+    def latest_protocol_version() -> str:
+        return LATEST_PROTOCOL_VERSION
+
+    def negotiate_protocol_version(self, requested_version: Any) -> str:
+        if self.supports_protocol_version(requested_version):
+            return requested_version
+        return self.latest_protocol_version()
 
     def handle_request(self, payload: Any) -> Optional[Tuple[Dict[str, Any], int]]:
         """Handle one JSON-RPC request object."""
@@ -105,6 +118,10 @@ class ScheiberMCPServer:
             return {"tools": self._tool_definitions()}
         if method == "tools/call":
             return self._call_tool(params)
+        if method == "prompts/list":
+            return {"prompts": self._prompt_definitions()}
+        if method == "prompts/get":
+            return self._get_prompt(params, request_id)
         if method == "resources/list":
             return {"resources": self._resource_definitions()}
         if method == "resources/read":
@@ -115,18 +132,12 @@ class ScheiberMCPServer:
         )
 
     def _initialize(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        requested_version = params.get("protocolVersion")
-        if (
-            isinstance(requested_version, str)
-            and requested_version in SUPPORTED_PROTOCOL_VERSIONS
-        ):
-            protocol_version = requested_version
-        else:
-            protocol_version = LATEST_PROTOCOL_VERSION
-
         return {
-            "protocolVersion": protocol_version,
+            "protocolVersion": self.negotiate_protocol_version(
+                params.get("protocolVersion")
+            ),
             "capabilities": {
+                "prompts": {"listChanged": False},
                 "tools": {"listChanged": False},
                 "resources": {"subscribe": False, "listChanged": False},
             },
@@ -257,6 +268,25 @@ class ScheiberMCPServer:
                 },
             },
         ]
+
+    @staticmethod
+    def _prompt_definitions() -> list[Dict[str, Any]]:
+        return []
+
+    def _get_prompt(self, params: Dict[str, Any], request_id: Any) -> Dict[str, Any]:
+        name = params.get("name")
+        if not isinstance(name, str) or not name:
+            raise MCPRequestError(
+                -32602,
+                "prompts/get requires a non-empty prompt name",
+                request_id=request_id,
+            )
+
+        raise MCPRequestError(
+            -32602,
+            f"Unknown prompt: {name}",
+            request_id=request_id,
+        )
 
     def _resource_definitions(self) -> list[Dict[str, Any]]:
         return [

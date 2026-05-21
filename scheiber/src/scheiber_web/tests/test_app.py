@@ -606,15 +606,68 @@ def test_mcp_initialize_lists_capabilities(tmp_path):
             "jsonrpc": "2.0",
             "id": 1,
             "method": "initialize",
-            "params": {"protocolVersion": "2025-03-26"},
+            "params": {"protocolVersion": "2025-11-25"},
         },
+        headers={"MCP-Protocol-Version": "2025-11-25"},
     )
 
     assert response.status_code == 200
     payload = response.get_json()
-    assert payload["result"]["protocolVersion"] == "2025-03-26"
+    assert payload["result"]["protocolVersion"] == "2025-11-25"
+    assert response.headers["MCP-Protocol-Version"] == "2025-11-25"
+    assert response.headers["Cache-Control"] == "no-store"
+    assert "prompts" in payload["result"]["capabilities"]
     assert "tools" in payload["result"]["capabilities"]
     assert "resources" in payload["result"]["capabilities"]
+
+
+def test_mcp_get_route_returns_explicit_405_without_html_page(tmp_path):
+    client, _ = create_test_client(tmp_path, mcp_server_enabled=True)
+
+    response = client.get("/mcp")
+
+    assert response.status_code == 405
+    assert response.headers["Allow"] == "OPTIONS, POST"
+    assert response.headers["MCP-Protocol-Version"] == "2025-11-25"
+    assert response.get_data(as_text=True) == ""
+
+
+def test_mcp_initialized_notification_returns_accepted(tmp_path):
+    client, _ = create_test_client(tmp_path, mcp_server_enabled=True)
+
+    response = client.post(
+        "/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized",
+            "params": {},
+        },
+        headers={"MCP-Protocol-Version": "2025-11-25"},
+    )
+
+    assert response.status_code == 202
+    assert response.headers["MCP-Protocol-Version"] == "2025-11-25"
+    assert response.get_data(as_text=True) == ""
+
+
+def test_mcp_prompts_list_returns_empty_prompt_catalog(tmp_path):
+    client, _ = create_test_client(tmp_path, mcp_server_enabled=True)
+
+    response = client.post(
+        "/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "prompts/list",
+            "params": {},
+        },
+        headers={"MCP-Protocol-Version": "2025-11-25"},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["result"]["prompts"] == []
+    assert response.headers["MCP-Protocol-Version"] == "2025-11-25"
 
 
 def test_mcp_save_config_applies_and_reloads_runtime(tmp_path):

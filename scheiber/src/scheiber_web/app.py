@@ -80,6 +80,25 @@ def create_app(
         if not settings.web_ui_enabled:
             abort(404)
 
+    def resolve_mcp_protocol_version(payload=None, response_payload=None) -> str | None:
+        request_version = request.headers.get("MCP-Protocol-Version")
+        if (
+            isinstance(payload, dict)
+            and payload.get("method") == "initialize"
+            and isinstance(response_payload, dict)
+        ):
+            result = response_payload.get("result")
+            if isinstance(result, dict):
+                response_version = result.get("protocolVersion")
+                if isinstance(response_version, str):
+                    return response_version
+
+        if mcp_server is not None and mcp_server.supports_protocol_version(request_version):
+            return request_version
+        if mcp_server is not None:
+            return mcp_server.latest_protocol_version()
+        return None
+
     @app.before_request
     def handle_options_preflight():
         """Return early for OPTIONS preflights (Chrome Private Network Access)."""
@@ -349,6 +368,32 @@ def create_app(
             abort(404)
         return jsonify(result)
 
+    @app.get("/mcp")
+    def mcp_get():
+        if mcp_server is None:
+            abort(404)
+
+        response = app.response_class(status=405)
+        response.headers["Allow"] = "OPTIONS, POST"
+        protocol_version = resolve_mcp_protocol_version()
+        if protocol_version is not None:
+            response.headers["MCP-Protocol-Version"] = protocol_version
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.delete("/mcp")
+    def mcp_delete():
+        if mcp_server is None:
+            abort(404)
+
+        response = app.response_class(status=405)
+        response.headers["Allow"] = "OPTIONS, POST"
+        protocol_version = resolve_mcp_protocol_version()
+        if protocol_version is not None:
+            response.headers["MCP-Protocol-Version"] = protocol_version
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
     @app.post("/mcp")
     def mcp():
         if mcp_server is None:
@@ -361,17 +406,40 @@ def create_app(
                 "Request body must be valid JSON",
                 http_status=400,
             )
-            return jsonify(error.to_response()), error.http_status
+            response = jsonify(error.to_response())
+            response.status_code = error.http_status
+            protocol_version = resolve_mcp_protocol_version()
+            if protocol_version is not None:
+                response.headers["MCP-Protocol-Version"] = protocol_version
+            response.headers["Cache-Control"] = "no-store"
+            return response
 
         try:
             handled = mcp_server.handle_request(payload)
         except MCPRequestError as exc:
-            return jsonify(exc.to_response()), exc.http_status
+            response = jsonify(exc.to_response())
+            response.status_code = exc.http_status
+            protocol_version = resolve_mcp_protocol_version(payload)
+            if protocol_version is not None:
+                response.headers["MCP-Protocol-Version"] = protocol_version
+            response.headers["Cache-Control"] = "no-store"
+            return response
 
         if handled is None:
-            return "", 202
+            response = app.response_class(status=202)
+            protocol_version = resolve_mcp_protocol_version(payload)
+            if protocol_version is not None:
+                response.headers["MCP-Protocol-Version"] = protocol_version
+            response.headers["Cache-Control"] = "no-store"
+            return response
 
         response, status_code = handled
-        return jsonify(response), status_code
+        flask_response = jsonify(response)
+        flask_response.status_code = status_code
+        protocol_version = resolve_mcp_protocol_version(payload, response)
+        if protocol_version is not None:
+            flask_response.headers["MCP-Protocol-Version"] = protocol_version
+        flask_response.headers["Cache-Control"] = "no-store"
+        return flask_response
 
     return app
