@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.10.3] - 2026-05-26
+
+### Fixed
+- Bloc7 raw sender discovery now exposes a decimal voltage draft from bytes 4-5, so battery-style values are no longer limited to the coarse integer from byte 5 alone
+- Bloc7 setup cards now let fixed matcher-based sensors change between level, voltage, and the other supported sensor types instead of locking discovered mappings to the original draft type
+
 ## [6.10.2] - 2026-05-21
 
 ### Fixed
@@ -866,7 +872,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.2...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.3...HEAD
+[6.10.3]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.2...v6.10.3
 [6.10.2]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.1...v6.10.2
 [6.10.1]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.0...v6.10.1
 [6.10.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.9.8...v6.10.0

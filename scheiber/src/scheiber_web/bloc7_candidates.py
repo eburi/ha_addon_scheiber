@@ -13,26 +13,48 @@ def _confidence(level: str, score: int, *reasons: str) -> Dict[str, Any]:
     return {"level": level, "score": score, "reasons": list(reasons)}
 
 
-def _history_summary(detail: Optional[Dict[str, Any]], start_byte: int) -> List[int]:
+def _extract_sample_value(
+    data: Optional[List[int]], value_config: Dict[str, Any]
+) -> Optional[float]:
+    if not data:
+        return None
+
+    start_byte = int(value_config["start_byte"])
+    bit_length = int(value_config.get("bit_length", 8))
+    num_bytes = (bit_length + 7) // 8
+    end_byte = start_byte + num_bytes
+    if end_byte > len(data):
+        return None
+
+    byte_slice = bytes(int(byte) for byte in data[start_byte:end_byte])
+    raw_value = int.from_bytes(
+        byte_slice, value_config.get("endian", "little") or "little"
+    )
+    scale = float(value_config.get("scale", 1.0))
+    return round(raw_value * scale, 2)
+
+
+def _history_summary(
+    detail: Optional[Dict[str, Any]], value_config: Dict[str, Any]
+) -> List[float]:
     if not detail:
         return []
 
-    values: List[int] = []
+    values: List[float] = []
     for sample in reversed(detail.get("history", [])):
-        data = sample.get("data", [])
-        if start_byte < len(data):
-            values.append(int(data[start_byte]))
+        value = _extract_sample_value(sample.get("data", []), value_config)
+        if value is not None:
+            values.append(value)
     return values[-6:]
 
 
-def _current_value(detail: Optional[Dict[str, Any]], start_byte: int) -> Optional[int]:
+def _current_value(
+    detail: Optional[Dict[str, Any]], value_config: Dict[str, Any]
+) -> Optional[float]:
     if not detail:
         return None
 
-    data = detail.get("last_data", [])
-    if start_byte >= len(data):
-        return None
-    return int(data[start_byte])
+    return _extract_sample_value(detail.get("last_data", []), value_config)
 
 
 def _sensor_suggestion(
@@ -41,11 +63,19 @@ def _sensor_suggestion(
     start_byte: int,
     *,
     sensor_type: str = "level",
+    bit_length: int = 8,
+    endian: str = "little",
     scale: float = 1.0,
     notes: str,
     detail: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     slug = label.lower().replace(" ", "_")
+    value_config = {
+        "start_byte": start_byte,
+        "bit_length": bit_length,
+        "endian": endian,
+        "scale": scale,
+    }
     return {
         "suggestion_key": f"0x{arbitration_id:08X}:{start_byte}:{sensor_type}",
         "label": label,
@@ -53,15 +83,10 @@ def _sensor_suggestion(
         "name_hint": label,
         "entity_id_hint": slug,
         "matcher": {"pattern": arbitration_id, "mask": FULL_MASK},
-        "value_config": {
-            "start_byte": start_byte,
-            "bit_length": 8,
-            "endian": "little",
-            "scale": scale,
-        },
-        "current_value": _current_value(detail, start_byte),
+        "value_config": value_config,
+        "current_value": _current_value(detail, value_config),
         "notes": notes,
-        "history": _history_summary(detail, start_byte),
+        "history": _history_summary(detail, value_config),
     }
 
 
@@ -258,9 +283,25 @@ def build_bloc7_candidate_snapshot(
                     arbitration_id,
                     "Raw sender byte 5",
                     5,
+                    sensor_type="raw",
                     notes=(
-                        "Candidate raw Bloc7 sender value. Keep scale 1.0 until the "
-                        "real resistance or voltage conversion is known."
+                        "Single-byte raw Bloc7 sender value. Keep scale 1.0 if you "
+                        "want the coarse integer reading only."
+                    ),
+                    detail=detail,
+                ),
+                _sensor_suggestion(
+                    arbitration_id,
+                    "Battery-style voltage bytes 4-5",
+                    4,
+                    sensor_type="voltage",
+                    bit_length=16,
+                    endian="big",
+                    scale=0.1,
+                    notes=(
+                        "Observed as a shared two-byte big-endian voltage field. "
+                        "Bytes 4-5 track the decimal battery-style reading much more "
+                        "closely than byte 5 on its own."
                     ),
                     detail=detail,
                 ),

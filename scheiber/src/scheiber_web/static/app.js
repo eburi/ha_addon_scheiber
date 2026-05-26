@@ -69,6 +69,24 @@ function blankBloc7Device() {
   };
 }
 
+const bloc7SensorTypeLabels = {
+  level: "Level",
+  voltage: "Voltage",
+  frequency: "Frequency",
+  current: "Current",
+  state_of_charge: "State of charge",
+  raw: "Raw",
+};
+
+function renderBloc7SensorTypeOptions(selectedType, allowedTypes = Object.keys(bloc7SensorTypeLabels)) {
+  return allowedTypes
+    .map(
+      (type) =>
+        `<option value="${type}" ${selectedType === type ? "selected" : ""}>${bloc7SensorTypeLabels[type]}</option>`,
+    )
+    .join("");
+}
+
 function clone(value) {
   return structuredClone(value);
 }
@@ -932,9 +950,9 @@ function getBloc7LiveReading(sensor) {
   return null;
 }
 
-function formatBloc7SensorValue(sensorType, value, scale = 1) {
-  const scaled = value * Number(scale ?? 1);
-  const rounded = Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(2);
+function formatBloc7SensorValue(sensorType, value) {
+  const numericValue = Number(value);
+  const rounded = Number.isInteger(numericValue) ? String(numericValue) : numericValue.toFixed(2);
   const units = {
     voltage: " V",
     frequency: " Hz",
@@ -952,11 +970,7 @@ function formatBloc7LiveValue(sensor, liveReading) {
     return "No live value";
   }
 
-  return formatBloc7SensorValue(
-    sensor?.sensor_type || "level",
-    liveReading.value,
-    sensor?.value_config?.scale ?? 1,
-  );
+  return formatBloc7SensorValue(sensor?.sensor_type || "level", liveReading.value);
 }
 
 function matchesBloc7Suggestion(sensor, suggestion) {
@@ -1014,6 +1028,7 @@ function ensureBloc7CandidateDraft(candidate) {
         {
           name: configuredSensor?.name || "",
           entity_id: configuredSensor?.entity_id || "",
+          sensor_type: configuredSensor?.sensor_type || suggestion.sensor_type,
         },
       ];
     }),
@@ -1052,10 +1067,12 @@ function validateBloc7CandidateDraft(candidate, candidateDraft) {
     const channel = candidateDraft.channels[suggestion.suggestion_key] || {
       name: "",
       entity_id: "",
+      sensor_type: suggestion.sensor_type,
     };
     const basePath = `channels.${suggestion.suggestion_key}`;
     const name = String(channel.name || "").trim();
     const entityId = String(channel.entity_id || "").trim();
+    const sensorType = String(channel.sensor_type || suggestion.sensor_type || "").trim();
 
     if (!name && !entityId) {
       continue;
@@ -1082,6 +1099,9 @@ function validateBloc7CandidateDraft(candidate, candidateDraft) {
     }
 
     if (name && entityId) {
+      if (!Object.hasOwn(bloc7SensorTypeLabels, sensorType)) {
+        errors[`${basePath}.sensor_type`] = "Choose a supported sensor type.";
+      }
       configuredCount += 1;
     }
   }
@@ -1100,6 +1120,7 @@ function buildBloc7DeviceFromCandidate(candidate, candidateDraft, configuredDevi
       const channel = candidateDraft.channels[suggestion.suggestion_key] || {
         name: "",
         entity_id: "",
+        sensor_type: suggestion.sensor_type,
       };
       const name = String(channel.name || "").trim();
       const entityId = String(channel.entity_id || "").trim();
@@ -1107,7 +1128,7 @@ function buildBloc7DeviceFromCandidate(candidate, candidateDraft, configuredDevi
       return {
         name,
         entity_id: entityId,
-        sensor_type: suggestion.sensor_type,
+        sensor_type: channel.sensor_type || suggestion.sensor_type,
         matcher: {
           pattern: suggestion.matcher.pattern,
           mask: suggestion.matcher.mask,
@@ -1178,22 +1199,25 @@ function renderSensorDraft(cardKey, sensor, index, validation, baselineSensor = 
         </label>
         ${
           hasFixedMapping
-            ? `<div class="sensor-metadata full-width">
+            ? `<label class="${fieldClass("sensor_type", sensor.sensor_type !== (baselineSensor?.sensor_type || "level"))}">
+                <span>Type</span>
+                <select data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="sensor_type">
+                  ${renderBloc7SensorTypeOptions(sensor.sensor_type || "level")}
+                </select>
+                ${validation.errors[`${basePath}.sensor_type`] ? `<small>${escapeHtml(validation.errors[`${basePath}.sensor_type`])}</small>` : ""}
+              </label>
+              <div class="sensor-metadata full-width">
                 <span class="summary-chip">${escapeHtml(sensor.sensor_type || "level")}</span>
                 <span class="summary-chip">${escapeHtml(formatHex(matcherPattern))}</span>
                 <span class="summary-chip">byte ${escapeHtml(sensor.value_config?.start_byte ?? 0)}</span>
+                <span class="summary-chip">${escapeHtml(`${sensor.value_config?.bit_length ?? 8}-bit ${sensor.value_config?.endian || "little"}`)}</span>
                 <span class="summary-chip">scale ${escapeHtml(sensor.value_config?.scale ?? 1)}</span>
               </div>`
             : `
               <label class="${fieldClass("sensor_type", sensor.sensor_type !== (baselineSensor?.sensor_type || "level"))}">
                 <span>Type</span>
                 <select data-card-kind="bloc7" data-card-key="${escapeHtml(cardKey)}" data-sensor-index="${index}" data-field="sensor_type">
-                  <option value="level" ${sensor.sensor_type === "level" ? "selected" : ""}>Level</option>
-                  <option value="voltage" ${sensor.sensor_type === "voltage" ? "selected" : ""}>Voltage</option>
-                  <option value="frequency" ${sensor.sensor_type === "frequency" ? "selected" : ""}>Frequency</option>
-                  <option value="current" ${sensor.sensor_type === "current" ? "selected" : ""}>Current</option>
-                  <option value="state_of_charge" ${sensor.sensor_type === "state_of_charge" ? "selected" : ""}>State of charge</option>
-                  <option value="raw" ${sensor.sensor_type === "raw" ? "selected" : ""}>Raw</option>
+                  ${renderBloc7SensorTypeOptions(sensor.sensor_type || "level")}
                 </select>
                 ${validation.errors[`${basePath}.sensor_type`] ? `<small>${escapeHtml(validation.errors[`${basePath}.sensor_type`])}</small>` : ""}
               </label>
@@ -1340,11 +1364,7 @@ function renderBloc7Cards() {
                   ${escapeHtml(
                     suggestion.current_value === null || suggestion.current_value === undefined
                       ? "No live value"
-                      : formatBloc7SensorValue(
-                          suggestion.sensor_type,
-                          suggestion.current_value,
-                          suggestion.value_config?.scale ?? 1,
-                        ),
+                      : formatBloc7SensorValue(suggestion.sensor_type, suggestion.current_value),
                   )}
                 </span>
               </div>
@@ -1380,6 +1400,24 @@ function renderBloc7Cards() {
                   >
                   ${validation.errors[`channels.${suggestion.suggestion_key}.entity_id`] ? `<small>${escapeHtml(validation.errors[`channels.${suggestion.suggestion_key}.entity_id`])}</small>` : ""}
                 </label>
+                ${
+                  candidate.device_type === "bloc7"
+                    ? `<label class="field-shell ${validation.errors[`channels.${suggestion.suggestion_key}.sensor_type`] ? "invalid" : ""}">
+                  <span>Type</span>
+                  <select
+                    data-card-kind="bloc7-candidate"
+                    data-candidate-key="${escapeHtml(candidate.candidate_key)}"
+                    data-suggestion-key="${escapeHtml(suggestion.suggestion_key)}"
+                    data-field="sensor_type"
+                  >
+                    ${renderBloc7SensorTypeOptions(
+                      candidateDraft.channels[suggestion.suggestion_key]?.sensor_type || suggestion.sensor_type,
+                    )}
+                  </select>
+                  ${validation.errors[`channels.${suggestion.suggestion_key}.sensor_type`] ? `<small>${escapeHtml(validation.errors[`channels.${suggestion.suggestion_key}.sensor_type`])}</small>` : ""}
+                </label>`
+                    : ""
+                }
               </div>
             </div>
           `,
@@ -1396,7 +1434,7 @@ function renderBloc7Cards() {
               <h3>${escapeHtml(configuredDevice?.name || candidate.title)}</h3>
               <p>${escapeHtml(candidate.summary)}</p>
               ${candidate.safety_notice ? `<p class="card-state-summary warning">${escapeHtml(candidate.safety_notice)}</p>` : ""}
-              <p class="card-state-summary">Configure each reported channel by name and entity ID. The matcher and byte mapping stay fixed to this message.</p>
+              <p class="card-state-summary">Configure each reported channel by name, entity ID, and type. The matcher and byte mapping stay fixed to this message.</p>
             </div>
           </div>
           <div class="summary-bar compact">
@@ -1701,6 +1739,7 @@ async function saveBloc7Candidate(candidateKey) {
     if (!success) return;
     state.bloc7CandidateDrafts[candidateKey] = {
       bus_id: device.bus_id,
+      segment_id: device.segment_id,
       channels: Object.fromEntries(
         (candidate.suggested_sensors || []).map((suggestion) => {
           const savedSensor = (device.sensors || []).find((sensor) =>
@@ -1711,6 +1750,7 @@ async function saveBloc7Candidate(candidateKey) {
             {
               name: savedSensor?.name || "",
               entity_id: savedSensor?.entity_id || "",
+              sensor_type: savedSensor?.sensor_type || suggestion.sensor_type,
             },
           ];
         }),

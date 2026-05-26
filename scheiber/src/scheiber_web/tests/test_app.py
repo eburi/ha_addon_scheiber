@@ -560,6 +560,42 @@ def test_bloc7_discovery_endpoint_returns_candidates(tmp_path):
     assert payload["candidates"][0]["suggested_sensors"][0]["current_value"] == 8
 
 
+def test_bloc7_raw_candidate_exposes_voltage_suggestion(tmp_path):
+    client, _ = create_test_client(tmp_path)
+    inspector = client.application.config["INSPECTOR"]
+    inspector.start()
+    inspector._handle_message(
+        can.Message(
+            arbitration_id=0x0206058B,
+            data=bytes([0x00, 0x00, 0x00, 0x00, 0x01, 0x0C]),
+            is_extended_id=True,
+        )
+    )
+
+    response = client.get("/api/discovery/bloc7?start_if_needed=false")
+
+    assert response.status_code == 200
+    candidates = response.get_json()["candidates"]
+    raw_candidate = next(
+        candidate
+        for candidate in candidates
+        if candidate["arbitration_id"] == "0x0206058B"
+    )
+    voltage = next(
+        sensor
+        for sensor in raw_candidate["suggested_sensors"]
+        if sensor["sensor_type"] == "voltage"
+    )
+    assert voltage["label"] == "Battery-style voltage bytes 4-5"
+    assert voltage["value_config"] == {
+        "start_byte": 4,
+        "bit_length": 16,
+        "endian": "big",
+        "scale": 0.1,
+    }
+    assert voltage["current_value"] == 26.8
+
+
 def test_discovery_endpoint_classifies_source_selector_ac_candidate(tmp_path):
     client, _ = create_test_client(tmp_path)
     inspector = client.application.config["INSPECTOR"]
