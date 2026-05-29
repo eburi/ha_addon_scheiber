@@ -8,6 +8,8 @@ from typing import Any
 
 import paho.mqtt.client as mqtt
 
+from .discovery_name import format_discovery_name
+
 
 class MQTTSensor:
     """
@@ -51,6 +53,7 @@ class MQTTSensor:
         route_slug = f"{device_id}" if segment_id == 0 else f"{device_id}_{segment_id}"
         self.unique_id = f"scheiber_{device_type}_{route_slug}_{sensor_name_slug}"
         self.entity_id = hardware_sensor.entity_id
+        self.discovery_name = format_discovery_name(self.entity_id)
 
         # Generate topics
         base_topic = f"{mqtt_topic_prefix}/scheiber/{device_type}/{route_slug}/{sensor_name_slug}"
@@ -64,7 +67,7 @@ class MQTTSensor:
     def publish_discovery(self):
         """Publish Home Assistant MQTT Discovery config."""
         discovery_config = {
-            "name": self.sensor.name,
+            "name": self.discovery_name,
             "unique_id": self.unique_id,
             "state_topic": self.state_topic,
             "availability_topic": self.availability_topic,

@@ -179,8 +179,8 @@ class TestMQTTDiscoveryLights:
         """Test light discovery config is published correctly."""
         # Setup mock light
         mock_light = MagicMock()
-        mock_light.name = "S1"  # Human-readable name
-        mock_light.entity_id = "s1"  # Entity ID
+        mock_light.name = "Shower"
+        mock_light.entity_id = "owners_cabin_light_shower"
         mock_light.switch_nr = 0  # 0-based index
         mock_light.get_state.return_value = {"state": False, "brightness": 0}
         mock_light.subscribe = Mock()
@@ -217,10 +217,10 @@ class TestMQTTDiscoveryLights:
         config = json.loads(config_payload)
 
         # Verify config topic (uses entity_id)
-        assert config_topic == "homeassistant/light/s1/config"
+        assert config_topic == "homeassistant/light/owners_cabin_light_shower/config"
 
         # Verify config content
-        assert config["name"] == "S1"
+        assert config["name"] == "Owners Cabin Light Shower"
         assert config["unique_id"] == "scheiber_bloc9_7_s1"
         assert config["state_topic"] == "homeassistant/scheiber/bloc9/7/s1/state"
         assert config["command_topic"] == "homeassistant/scheiber/bloc9/7/s1/set"
@@ -283,6 +283,7 @@ class TestMQTTSensors:
         )
         discovery_config = json.loads(discovery_call[0][1])
 
+        assert discovery_config["name"] == "Black Water 1"
         assert discovery_config["unique_id"] == "scheiber_bloc7_21_black_water_1"
         assert (
             discovery_config["state_topic"]
@@ -306,7 +307,7 @@ class TestMQTTSensors:
     ):
         mock_light = MagicMock()
         mock_light.name = "S1"
-        mock_light.entity_id = "s1_segmented"
+        mock_light.entity_id = "master_cabin_light_shower"
         mock_light.switch_nr = 0
         mock_light.get_state.return_value = {"state": False, "brightness": 0}
         mock_light.subscribe = Mock()
@@ -338,6 +339,7 @@ class TestMQTTSensors:
         config_payload = discovery_calls[0][0][1]
         config = json.loads(config_payload)
 
+        assert config["name"] == "Master Cabin Light Shower"
         assert config["unique_id"] == "scheiber_bloc9_7_3_s1"
         assert config["state_topic"] == "homeassistant/scheiber/bloc9/7_3/s1/state"
         assert config["command_topic"] == "homeassistant/scheiber/bloc9/7_3/s1/set"
@@ -436,8 +438,8 @@ class TestMQTTDiscoverySwitches:
     def test_switch_discovery_config(self, mock_create_system, mock_mqtt_client):
         """Test switch discovery config is published correctly."""
         mock_switch = MagicMock()
-        mock_switch.name = "Switch 1"
-        mock_switch.entity_id = "switch_1"
+        mock_switch.name = "Fan"
+        mock_switch.entity_id = "owners_cabin_switch_fan"
         mock_switch.switch_nr = 0
         mock_switch.get_state.return_value = False
         mock_switch.subscribe = Mock()
@@ -470,8 +472,8 @@ class TestMQTTDiscoverySwitches:
         config = json.loads(config_payload)
 
         # Verify config (uses entity_id in config topic, s1 in state topic)
-        assert config_topic == "homeassistant/switch/switch_1/config"
-        assert config["name"] == "Switch 1"
+        assert config_topic == "homeassistant/switch/owners_cabin_switch_fan/config"
+        assert config["name"] == "Owners Cabin Switch Fan"
         assert config["unique_id"] == "scheiber_bloc9_7_s1"
         assert config["state_topic"] == "homeassistant/scheiber/bloc9/7/s1/state"
         assert config["command_topic"] == "homeassistant/scheiber/bloc9/7/s1/set"

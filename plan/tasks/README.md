@@ -32,3 +32,4 @@ Completed planning tasks have been moved to `plan/tasks/done/`.
 - Bloc7 manual matcher workflows remain backward compatible while supporting route-aware grouping for documented Lagoon Bloc7 devices.
 - SourceSelector AC observations are treated as read-only measurements; relay/source switching control is intentionally out of scope.
 - Version 6.2.0-compatible Bloc9 behavior is preserved because only Bloc9 was used in field deployments before these newer setup workflows.
+- MQTT discovery names should follow the configured entity/topic slug so Home Assistant generates specific entity ids on first discovery.

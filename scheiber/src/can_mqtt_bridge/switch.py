@@ -11,6 +11,8 @@ from typing import Any, Dict, Optional
 
 import paho.mqtt.client as mqtt
 
+from .discovery_name import format_discovery_name
+
 
 class MQTTSwitch:
     """
@@ -57,12 +59,12 @@ class MQTTSwitch:
         # Generate identifiers
         # switch_name is the output identifier (s1-s6 for bloc9)
         self.switch_name = f"s{hardware_switch.switch_nr + 1}"  # e.g., 's1', 's2'
-        self.display_name = hardware_switch.name  # Human-readable name from config
         self.device_slug = (
             f"{device_id}" if segment_id == 0 else f"{device_id}_{segment_id}"
         )
         self.unique_id = f"scheiber_{device_type}_{self.device_slug}_{self.switch_name}"
         self.entity_id = hardware_switch.entity_id  # e.g., 'navigation_light'
+        self.discovery_name = format_discovery_name(self.entity_id)
 
         # Generate topics (v5 schema)
         base_topic = f"{mqtt_topic_prefix}/scheiber/{device_type}/{self.device_slug}/{self.switch_name}"
@@ -83,7 +85,7 @@ class MQTTSwitch:
     def publish_discovery(self):
         """Publish Home Assistant MQTT Discovery config."""
         discovery_config = {
-            "name": self.display_name,
+            "name": self.discovery_name,
             "unique_id": self.unique_id,
             "state_topic": self.state_topic,
             "command_topic": self.command_topic,

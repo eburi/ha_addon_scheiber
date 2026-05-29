@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.10.4] - 2026-05-29
+
+### Fixed
+- MQTT discovery for lights, switches, and sensors now publishes names derived from each configured entity slug, so new Home Assistant entity ids are more specific on first discovery
+
 ## [6.10.3] - 2026-05-26
 
 ### Fixed
@@ -872,7 +877,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.3...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.4...HEAD
+[6.10.4]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.3...v6.10.4
 [6.10.3]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.2...v6.10.3
 [6.10.2]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.1...v6.10.2
 [6.10.1]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.0...v6.10.1
