@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.10.5] - 2026-05-29
+
+### Fixed
+- Fixed setup Web UI startup under Home Assistant ingress so first-load API calls and the embedded inspector use ingress-aware URLs instead of sometimes fetching the HTML shell and failing with a JSON parse error
+
 ## [6.10.4] - 2026-05-29
 
 ### Fixed
@@ -877,7 +882,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.4...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.5...HEAD
+[6.10.5]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.4...v6.10.5
 [6.10.4]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.3...v6.10.4
 [6.10.3]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.2...v6.10.3
 [6.10.2]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.1...v6.10.2

@@ -1,6 +1,7 @@
 (function () {
   const STORAGE_KEY = "scheiber-web-ui-client-id";
   const HEARTBEAT_INTERVAL_MS = 5000;
+  const resolveAppUrl = window.ScheiberWebPaths?.resolve || ((path) => path);
 
   function buildClientId() {
     if (window.crypto?.randomUUID) {
@@ -34,7 +35,10 @@
 
     async function sendHeartbeat() {
       if (stopped) return null;
-      return sendJson("./api/frontend/heartbeat", { client_id: clientId, page: pageName });
+      return sendJson(resolveAppUrl("api/frontend/heartbeat"), {
+        client_id: clientId,
+        page: pageName,
+      });
     }
 
     function disconnect() {
@@ -50,10 +54,10 @@
         const blob = new Blob([JSON.stringify(payload)], {
           type: "application/json",
         });
-        navigator.sendBeacon("./api/frontend/disconnect", blob);
+        navigator.sendBeacon(resolveAppUrl("api/frontend/disconnect"), blob);
         return;
       }
-      sendJson("./api/frontend/disconnect", payload, true);
+      sendJson(resolveAppUrl("api/frontend/disconnect"), payload, true);
     }
 
     function start() {

@@ -1,5 +1,6 @@
 const outputs = ["s1", "s2", "s3", "s4", "s5", "s6"];
 const entityIdPattern = /^[a-z0-9_]+$/;
+const resolveAppUrl = window.ScheiberWebPaths?.resolve || ((path) => path);
 
 const state = {
   runtime: {
@@ -1475,7 +1476,7 @@ function renderBloc7Cards() {
 function renderInspectPanel() {
   if (state.activeTab !== "inspect" || state.inspectLoaded) return;
   const frame = document.getElementById("inspect-frame");
-  frame.src = "./inspect?embedded=1";
+  frame.src = resolveAppUrl("inspect?embedded=1");
   state.inspectLoaded = true;
 }
 
@@ -1532,14 +1533,14 @@ function updateBloc7DraftField(cardKey, field, value, sensorIndex = null) {
 }
 
 async function refreshStatus() {
-  const response = await fetch("./api/status");
+  const response = await fetch(resolveAppUrl("api/status"));
   const payload = await response.json();
   state.runtime = payload.runtime || state.runtime;
   renderHeader();
 }
 
 async function loadConfig() {
-  const response = await fetch("./api/config");
+  const response = await fetch(resolveAppUrl("api/config"));
   const payload = await response.json();
   state.config = payload.config || { schema_version: 1, devices: [] };
   state.baseRevision = payload.revision;
@@ -1558,7 +1559,7 @@ async function loadConfig() {
 
 async function refreshDiscovery() {
   const previousCandidates = state.discovery.candidates || [];
-  const response = await fetch("./api/discovery");
+  const response = await fetch(resolveAppUrl("api/discovery"));
   const payload = await response.json();
   updateOutputActivity(previousCandidates, payload.candidates || []);
   state.discovery = payload;
@@ -1567,7 +1568,7 @@ async function refreshDiscovery() {
 }
 
 async function refreshBloc7Candidates() {
-  const response = await fetch("./api/discovery/bloc7");
+  const response = await fetch(resolveAppUrl("api/discovery/bloc7"));
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     state.bloc7Discovery = { status: "error", candidates: [], total_messages: 0, unique_ids: 0 };
@@ -1583,7 +1584,7 @@ async function refreshBloc7Candidates() {
 
 async function ensureDiscoveryRunning() {
   if (!state.runtime.running || state.discovery.status === "running") return;
-  const response = await fetch("./api/discovery/start", { method: "POST" });
+  const response = await fetch(resolveAppUrl("api/discovery/start"), { method: "POST" });
   const payload = await response.json().catch(() => ({}));
   if (response.ok) {
     state.discovery = payload;
@@ -1593,7 +1594,9 @@ async function ensureDiscoveryRunning() {
 
 async function toggleDiscovery() {
   const action = state.discovery.status === "running" ? "stop" : "start";
-  const response = await fetch(`./api/discovery/${action}`, { method: "POST" });
+  const response = await fetch(resolveAppUrl(`api/discovery/${action}`), {
+    method: "POST",
+  });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     showToast(payload.error || "Failed to change discovery state", "error");
@@ -1608,7 +1611,7 @@ async function toggleDiscovery() {
 }
 
 async function applyConfig(nextConfig, successMessage) {
-  const response = await fetch("./api/config/apply", {
+  const response = await fetch(resolveAppUrl("api/config/apply"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ config: nextConfig, base_revision: state.baseRevision }),
@@ -1665,7 +1668,7 @@ async function sendControl(cardKey, outputName, on) {
   const actionKey = `control:${cardKey}:${outputName}:${on ? "on" : "off"}`;
   setBusy(actionKey, true);
   try {
-    const response = await fetch("./api/discovery/control", {
+    const response = await fetch(resolveAppUrl("api/discovery/control"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

@@ -80,6 +80,10 @@
       </section>
     </main>
 
+    <script>
+      window.ScheiberWebBasePath = {{ url_for('index') | tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='paths.js') }}"></script>
     <script src="{{ url_for('static', filename='heartbeat.js') }}"></script>
     <script src="{{ url_for('static', filename='app.js') }}"></script>
   </body>

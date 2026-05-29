@@ -16,6 +16,7 @@ const state = {
   pollInterval: null,
   detailInterval: null,
 };
+const resolveAppUrl = window.ScheiberWebPaths?.resolve || ((path) => path);
 
 const heartbeatManager = document.body.classList.contains("inspect-embedded")
   ? null
@@ -311,7 +312,7 @@ async function fetchDetail() {
   if (state.selectedIdInt === null) return;
   try {
     const hexId = state.selectedIdInt.toString(16).toUpperCase();
-    const resp = await fetch(`./api/inspect/detail/${hexId}`);
+    const resp = await fetch(resolveAppUrl(`api/inspect/detail/${hexId}`));
     if (!resp.ok) return;
     state.detail = await resp.json();
     renderDetail(state.detail);
@@ -324,7 +325,7 @@ async function fetchDetail() {
 
 async function fetchSnapshot() {
   try {
-    const resp = await fetch("./api/inspect");
+    const resp = await fetch(resolveAppUrl("api/inspect"));
     if (!resp.ok) return;
     const data = await resp.json();
     state.status = data.status;
@@ -360,7 +361,7 @@ function hideMessages() {
 async function startCapture() {
   hideMessages();
   try {
-    const resp = await fetch("./api/inspect/start", { method: "POST" });
+    const resp = await fetch(resolveAppUrl("api/inspect/start"), { method: "POST" });
     const payload = await resp.json();
     if (!resp.ok) {
       if (resp.status === 409) {
@@ -396,7 +397,7 @@ async function stopCapture() {
     state.detailInterval = null;
   }
   try {
-    const resp = await fetch("./api/inspect/stop", { method: "POST" });
+    const resp = await fetch(resolveAppUrl("api/inspect/stop"), { method: "POST" });
     const payload = await resp.json();
     state.status = "stopped";
     state.entries = payload.entries || [];
@@ -510,7 +511,7 @@ document.getElementById("inspect-detail-download").addEventListener("click", dow
 (async () => {
   heartbeatManager?.start();
   try {
-    const resp = await fetch("./api/inspect");
+    const resp = await fetch(resolveAppUrl("api/inspect"));
     if (resp.ok) {
       const data = await resp.json();
       state.status = data.status;

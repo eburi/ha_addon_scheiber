@@ -218,6 +218,17 @@ def test_index_page_uses_setup_heading_and_tabbed_navigation(tmp_path):
     assert 'data-tab="inspect"' in page
 
 
+def test_index_page_exposes_ingress_aware_base_path(tmp_path):
+    client, _ = create_test_client(tmp_path)
+
+    response = client.get("/", headers={"X-Ingress-Path": "/abc123_scheiber"})
+
+    assert response.status_code == 200
+    page = response.get_data(as_text=True)
+    assert 'window.ScheiberWebBasePath = "/abc123_scheiber/";' in page
+    assert 'src="/abc123_scheiber/static/paths.js"' in page
+
+
 def test_embedded_inspect_page_hides_back_link(tmp_path):
     client, _ = create_test_client(tmp_path)
 
