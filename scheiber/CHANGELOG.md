@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.10.7] - 2026-05-30
+
+### Fixed
+- Fixed setup-browser idle cleanup so frontend-only discovery shutdown no longer crashes when the last browser session expires before Bloc9 discovery has ever been started
+
 ## [6.10.6] - 2026-05-29
 
 ### Fixed
@@ -887,7 +892,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.6...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.7...HEAD
+[6.10.7]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.6...v6.10.7
 [6.10.6]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.5...v6.10.6
 [6.10.5]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.4...v6.10.5
 [6.10.4]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.3...v6.10.4

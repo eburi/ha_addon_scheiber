@@ -17,6 +17,23 @@ class FakeRuntimeController:
             self.callbacks.remove(callback)
 
 
+def test_discovery_service_stop_without_start_returns_idle_snapshot():
+    runtime = FakeRuntimeController()
+    service = Bloc9DiscoveryService(runtime)
+
+    stopped_snapshot = service.stop()
+    snapshot = service.snapshot()
+
+    assert stopped_snapshot == {
+        "status": "idle",
+        "started_at": None,
+        "last_message_at": None,
+        "message_counts": {"state_update": 0, "heartbeat": 0},
+        "candidates": [],
+    }
+    assert snapshot == stopped_snapshot
+
+
 def test_discovery_service_tracks_local_and_segmented_candidates_separately():
     runtime = FakeRuntimeController()
     service = Bloc9DiscoveryService(runtime)

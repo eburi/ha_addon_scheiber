@@ -48,9 +48,9 @@ class Bloc9DiscoveryService:
                 self.runtime_controller.unsubscribe_from_messages(self._handle_message)
             self._active = False
             if self._session is None:
-                self._session = self._empty_snapshot("idle")
-            else:
-                self._session["status"] = "stopped"
+                return self._empty_snapshot("idle")
+
+            self._session["status"] = "stopped"
             return self.snapshot()
 
     def snapshot(self) -> Dict[str, Any]:
@@ -59,11 +59,26 @@ class Bloc9DiscoveryService:
             if self._session is None:
                 return self._empty_snapshot("idle")
 
+            candidates_store = self._session["candidates"]
+            if isinstance(candidates_store, dict):
+                candidate_values = [
+                    candidate
+                    for _candidate_key, candidate in sorted(
+                        candidates_store.items(),
+                        key=lambda item: (item[1]["bus_id"], item[1]["segment_id"]),
+                    )
+                ]
+            else:
+                candidate_values = sorted(
+                    candidates_store,
+                    key=lambda candidate: (
+                        candidate.get("bus_id", 0),
+                        candidate.get("segment_id", 0),
+                    ),
+                )
+
             candidates = []
-            for _candidate_key, candidate in sorted(
-                self._session["candidates"].items(),
-                key=lambda item: (item[1]["bus_id"], item[1]["segment_id"]),
-            ):
+            for candidate in candidate_values:
                 groups_seen = sorted(candidate["groups_seen"])
                 confidence = self._build_confidence(candidate)
                 candidates.append(
