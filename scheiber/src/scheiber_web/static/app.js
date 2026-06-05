@@ -1644,7 +1644,6 @@ function renderSetupHelperPanel() {
   const container = document.getElementById("helper-panel");
   const helper = state.setupHelper;
   const draft = state.setupHelperDraft;
-  const suggestions = getSetupHelperSuggestions();
   const selectedOutputs = selectedSetupHelperOutputs();
   const unnamedRoutes = [...new Set(selectedOutputs.map((output) => output.route_slug))].filter(
     (route) => !getConfiguredBloc9DeviceByRoute(route)?.name,
@@ -1652,7 +1651,7 @@ function renderSetupHelperPanel() {
   const activeRun = helper.active_run;
   const completedRun = helper.completed_run;
 
-  const countdownMarkup = activeRun?.countdown
+  const countdownMarkup = activeRun && activeRun.countdown !== null && activeRun.countdown !== undefined
     ? `<div class="helper-countdown">${escapeHtml(activeRun.countdown > 0 ? activeRun.countdown : "Now!")}</div>`
     : "";
 
@@ -1766,34 +1765,10 @@ function renderSetupHelperPanel() {
       <div class="card-header">
         <div>
           <h3>What are you about to control?</h3>
-          <p>Pick a known light, switch, or pulse, or enter a new name for the thing behind the button you are testing.</p>
+          <p>Choose the preferred role first. You can enter the final name and entity ID later when you apply the discovered mapping.</p>
         </div>
       </div>
       <div class="card-grid compact-grid">
-        <label class="field-shell">
-          <span>Name</span>
-          <input
-            type="text"
-            list="helper-known-targets"
-            value="${escapeHtml(draft.target_name || "")}"
-            data-card-kind="setup-helper"
-            data-field="target_name"
-            placeholder="Underwater Light"
-          >
-          <datalist id="helper-known-targets">
-            ${suggestions.map((suggestion) => `<option value="${escapeHtml(suggestion.name)}">${escapeHtml(`${suggestion.role} · ${suggestion.entity_id}`)}</option>`).join("")}
-          </datalist>
-        </label>
-        <label class="field-shell">
-          <span>Entity ID</span>
-          <input
-            type="text"
-            value="${escapeHtml(draft.entity_id || "")}"
-            data-card-kind="setup-helper"
-            data-field="entity_id"
-            placeholder="underwater_light"
-          >
-        </label>
         <label class="field-shell">
           <span>Preferred role</span>
           <select data-card-kind="setup-helper" data-field="role">
@@ -1806,7 +1781,7 @@ function renderSetupHelperPanel() {
       <div class="card-footer">
         <div class="card-hint">${escapeHtml(helper.instruction || "Start a helper session and follow the guided countdown.")}</div>
         <div class="toolbar-actions">
-          <button type="button" data-action="helper-start" ${actionAttrs("helper-start", !draft.target_name, "primary")}>Start helper</button>
+          <button type="button" data-action="helper-start" ${actionAttrs("helper-start", false, "primary")}>Start helper</button>
           <button type="button" data-action="helper-stop" ${actionAttrs("helper-stop", helper.status === "idle")}>Reset</button>
         </div>
       </div>
@@ -2008,7 +1983,7 @@ async function startSetupHelperSession() {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      name: state.setupHelperDraft.target_name,
+      name: state.setupHelperDraft.target_name || null,
       entity_id: state.setupHelperDraft.entity_id || null,
       role: state.setupHelperDraft.role,
     }),
@@ -2383,17 +2358,6 @@ document.addEventListener("input", (event) => {
   }
   if (target.dataset.cardKind === "setup-helper") {
     state.setupHelperDraft[target.dataset.field] = target.value;
-    if (target.dataset.field === "target_name" && !state.setupHelperDraft.entity_id) {
-      state.setupHelperDraft.entity_id = slugifyEntityId(target.value);
-    }
-    const suggestion = getSetupHelperSuggestions().find(
-      (item) => item.name.toLowerCase() === String(target.value || "").trim().toLowerCase(),
-    );
-    if (suggestion) {
-      state.setupHelperDraft.entity_id = suggestion.entity_id;
-      state.setupHelperDraft.role = suggestion.role;
-      if (!state.setupHelperDraft.output_name) state.setupHelperDraft.output_name = suggestion.name;
-    }
     return;
   }
   if (target.dataset.cardKind === "setup-helper-device") {

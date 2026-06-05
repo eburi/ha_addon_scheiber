@@ -26,17 +26,13 @@ class SetupHelperService:
 
     def start_session(
         self,
-        name: str,
+        name: Optional[str] = None,
         *,
         entity_id: Optional[str] = None,
         role: str = "light",
     ) -> Dict[str, Any]:
         if not self.runtime_controller.has_live_runtime():
             raise RuntimeError("The bridge must be running before setup helper can start")
-
-        cleaned_name = str(name or "").strip()
-        if not cleaned_name:
-            raise ValueError("name is required")
 
         cleaned_role = str(role or "light").strip().lower()
         if cleaned_role not in {"light", "switch", "pulse"}:
@@ -46,7 +42,7 @@ class SetupHelperService:
             self._ensure_subscription()
             self._session = {
                 "status": "ready",
-                "target_name": cleaned_name,
+                "target_name": str(name or "").strip(),
                 "entity_id": str(entity_id or "").strip() or None,
                 "target_role": cleaned_role,
                 "created_at": time.time(),

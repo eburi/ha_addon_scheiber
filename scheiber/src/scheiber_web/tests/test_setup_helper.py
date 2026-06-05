@@ -112,3 +112,13 @@ def test_setup_helper_tap_detects_pulse_output():
 
     assert snapshot["completed_run"]["suggested_role"] == "pulse"
     assert snapshot["completed_run"]["changed_outputs"][0]["pulse_observed"] is True
+
+
+def test_setup_helper_session_can_start_without_name():
+    runtime = FakeRuntimeController()
+    service = SetupHelperService(runtime)
+
+    snapshot = service.start_session(role="switch")
+
+    assert snapshot["target_name"] == ""
+    assert snapshot["target_role"] == "switch"

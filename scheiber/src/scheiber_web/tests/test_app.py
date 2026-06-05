@@ -180,7 +180,7 @@ class FakeSetupHelper:
         payload.update(
             {
                 "status": "ready",
-                "target_name": name,
+                "target_name": name or "",
                 "entity_id": entity_id,
                 "target_role": role,
                 "phase": "ready",
@@ -493,6 +493,26 @@ def test_setup_helper_session_starts(tmp_path):
         }
     ]
     assert response.get_json()["target_name"] == "Underwater Light"
+
+
+def test_setup_helper_session_starts_without_name(tmp_path):
+    setup_helper = FakeSetupHelper()
+    client, _ = create_test_client(tmp_path, setup_helper=setup_helper)
+
+    response = client.post(
+        "/api/setup-helper/session",
+        json={"role": "light"},
+    )
+
+    assert response.status_code == 200
+    assert setup_helper.start_calls == [
+        {
+            "name": None,
+            "entity_id": None,
+            "role": "light",
+        }
+    ]
+    assert response.get_json()["target_name"] == ""
 
 
 def test_setup_helper_run_starts_countdown(tmp_path):
