@@ -1595,7 +1595,7 @@ function syncSetupHelperDraft() {
   }
   if (helper.completed_run?.suggested_role) {
     draft.role = helper.completed_run.suggested_role;
-  } else if (helper.target_role) {
+  } else if (helper.status !== "idle" && helper.target_role) {
     draft.role = helper.target_role;
   }
   for (const output of helper.completed_run?.changed_outputs || []) {

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.11.3] - 2026-06-05
+
+### Fixed
+- Fixed the Setup Helper preferred-role selector so choosing **Switch** or **Pulse** no longer gets overwritten back to **Light** before the helper is started
+
 ## [6.11.2] - 2026-06-05
 
 ### Fixed
@@ -920,7 +925,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.11.2...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.11.3...HEAD
+[6.11.3]: https://github.com/eburi/ha_addon_scheiber/compare/v6.11.2...v6.11.3
 [6.11.2]: https://github.com/eburi/ha_addon_scheiber/compare/v6.11.1...v6.11.2
 [6.11.1]: https://github.com/eburi/ha_addon_scheiber/compare/v6.11.0...v6.11.1
 [6.11.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.8...v6.11.0
