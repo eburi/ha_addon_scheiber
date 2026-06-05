@@ -257,6 +257,85 @@ def test_validate_editor_config_rejects_duplicate_entity_id():
     assert any(error["code"] == "duplicate_entity_id" for error in exc.value.errors)
 
 
+def test_validate_editor_config_allows_shared_logical_light_entity_id():
+    normalized, warnings = validate_editor_config(
+        {
+            "schema_version": 1,
+            "devices": [
+                {
+                    "type": "bloc9",
+                    "bus_id": 1,
+                    "outputs": {
+                        "s1": {
+                            "enabled": True,
+                            "role": "light",
+                            "name": "Underwater light port",
+                            "entity_id": "underwater_light",
+                            "initial_brightness": None,
+                        }
+                    },
+                },
+                {
+                    "type": "bloc9",
+                    "bus_id": 2,
+                    "outputs": {
+                        "s2": {
+                            "enabled": True,
+                            "role": "light",
+                            "name": "Underwater light starboard",
+                            "entity_id": "underwater_light",
+                            "initial_brightness": None,
+                        }
+                    },
+                },
+            ],
+        }
+    )
+
+    assert warnings == []
+    assert normalized["devices"][0]["outputs"]["s1"]["entity_id"] == "underwater_light"
+    assert normalized["devices"][1]["outputs"]["s2"]["entity_id"] == "underwater_light"
+
+
+def test_validate_editor_config_rejects_shared_entity_id_across_roles():
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_editor_config(
+            {
+                "schema_version": 1,
+                "devices": [
+                    {
+                        "type": "bloc9",
+                        "bus_id": 1,
+                        "outputs": {
+                            "s1": {
+                                "enabled": True,
+                                "role": "light",
+                                "name": "Main light",
+                                "entity_id": "shared_entity",
+                                "initial_brightness": None,
+                            }
+                        },
+                    },
+                    {
+                        "type": "bloc9",
+                        "bus_id": 2,
+                        "outputs": {
+                            "s1": {
+                                "enabled": True,
+                                "role": "switch",
+                                "name": "Shared switch",
+                                "entity_id": "shared_entity",
+                                "initial_brightness": None,
+                            }
+                        },
+                    },
+                ],
+            }
+        )
+
+    assert any(error["code"] == "duplicate_entity_id" for error in exc.value.errors)
+
+
 def test_validate_editor_config_accepts_bloc7_sensor_strings():
     config = {
         "schema_version": 1,

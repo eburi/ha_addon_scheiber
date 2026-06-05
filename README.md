@@ -18,6 +18,7 @@ This Home Assistant add-on provides a bridge between Scheiber devices on a CAN b
 It now also includes a built-in **Scheiber setup web interface** exposed through Home Assistant ingress for:
 - editing `scheiber-config.yaml` with a type-aware Bloc9/Bloc7 form UI,
 - discovering Bloc9 candidates from live CAN traffic,
+- guiding button-driven setup with countdown-based press/release and press/hold capture flows,
 - turning likely Bloc7 CAN frames into provisional matcher-based sensor drafts,
 - validating and applying configuration changes without hand-editing YAML.
 
@@ -40,12 +41,14 @@ It now also includes a built-in **Scheiber setup web interface** exposed through
 
 - **CAN-MQTT Bridge**: Translates CAN messages to MQTT topics
 - **Ingress Web Setup UI**: Edit Bloc9 mappings and apply config changes from Home Assistant
+- **Setup Helper Wizard**: Learn which Bloc9 outputs react to a physical button and repeat captures until confidence is high
 - **Bloc7 Manual Sensor Binding**: Configure voltage and tank-style sensors with explicit matcher and byte extraction rules
 - **Optional MCP Server**: Lets AI tools read/write validated config and inspect live CAN traffic for setup and reverse engineering
 - **Bloc9 Discovery Mode**: Watch live CAN traffic for likely Bloc9 bus IDs and output groups
 - **Bloc7 Candidate Hints**: Surface likely normalized/raw Bloc7 frames from the shared CAN inspector so they can be promoted into manual drafts
 - **Bloc9 Switch Support**: ON/OFF control and brightness (0-255) for 6-switch panels
 - **Explicit Entity Configuration**: Define which outputs to expose as lights or switches
+- **Logical Lights and Switches**: Reuse one `entity_id` across multiple Bloc9 outputs to represent distributed loads such as underwater lights
 - **MQTT Discovery**: Automatic Home Assistant entity creation for configured outputs
 - **Heartbeat Availability**: Devices marked online/offline based on CAN traffic (60s timeout)
 - **State Persistence**: Device states saved between restarts
@@ -511,6 +514,12 @@ bloc9:
     lights:
       s4:
         name: "Underwater Light"  # entity_id: light.underwater_light
+  - bus_id: 11
+    name: "Aft Bloc9"
+    lights:
+      s2:
+        name: "Underwater Light Starboard"
+        entity_id: "underwater_light"  # shared entity_id creates one logical HA light
 ```
 
 **v4.0.0 List Format (still supported):**

@@ -151,12 +151,75 @@ class FakeFrontendMonitor:
         }
 
 
+class FakeSetupHelper:
+    def __init__(self, should_fail=False):
+        self.should_fail = should_fail
+        self.start_calls = []
+        self.run_calls = []
+        self.stop_calls = 0
+
+    def snapshot(self):
+        return {
+            "status": "idle",
+            "target_name": "",
+            "entity_id": None,
+            "target_role": "light",
+            "created_at": None,
+            "known_output_count": 0,
+            "phase": "idle",
+            "instruction": "Start a setup helper session to begin guided discovery.",
+            "active_run": None,
+            "completed_run": None,
+        }
+
+    def start_session(self, name, *, entity_id=None, role="light"):
+        if self.should_fail:
+            raise RuntimeError("bridge not running")
+        self.start_calls.append({"name": name, "entity_id": entity_id, "role": role})
+        payload = self.snapshot()
+        payload.update(
+            {
+                "status": "ready",
+                "target_name": name,
+                "entity_id": entity_id,
+                "target_role": role,
+                "phase": "ready",
+            }
+        )
+        return payload
+
+    def arm_run(self, action):
+        self.run_calls.append(action)
+        payload = self.snapshot()
+        payload.update(
+            {
+                "status": "running",
+                "phase": "countdown",
+                "active_run": {
+                    "action": action,
+                    "countdown": 5,
+                    "captured_message_count": 0,
+                    "started_at": 1,
+                    "press_at": 6,
+                    "release_at": 6,
+                    "capture_end_at": 9,
+                },
+            }
+        )
+        return payload
+
+    def stop(self):
+        self.stop_calls += 1
+        return self.snapshot()
+
+
 def create_test_client(
     tmp_path,
     runtime_controller=None,
     discovery_service=None,
     inspector=None,
     frontend_monitor=None,
+    setup_helper=None,
     *,
     web_ui_enabled=True,
     mcp_server_enabled=False,
@@ -187,6 +250,7 @@ devices:
         discovery_service=discovery_service or FakeDiscoveryService(),
         inspector=inspector,
         frontend_monitor=frontend_monitor or FakeFrontendMonitor(),
+        setup_helper=setup_helper or FakeSetupHelper(),
     )
     app.testing = True
     return app.test_client(), config_path
@@ -216,6 +280,7 @@ def test_index_page_uses_setup_heading_and_tabbed_navigation(tmp_path):
     assert 'data-tab="bloc9"' in page
     assert 'data-tab="bloc7"' in page
     assert 'data-tab="inspect"' in page
+    assert 'data-tab="helper"' in page
 
 
 def test_index_page_exposes_direct_base_path(tmp_path):
@@ -408,6 +473,64 @@ def test_discovery_start_returns_conflict_when_runtime_is_unavailable(tmp_path):
 
     assert response.status_code == 409
     assert response.get_json()["code"] == "runtime_not_running"
+
+
+def test_setup_helper_session_starts(tmp_path):
+    setup_helper = FakeSetupHelper()
+    client, _ = create_test_client(tmp_path, setup_helper=setup_helper)
+
+    response = client.post(
+        "/api/setup-helper/session",
+        json={"name": "Underwater Light", "entity_id": "underwater_light", "role": "light"},
+    )
+
+    assert response.status_code == 200
+    assert setup_helper.start_calls == [
+        {
+            "name": "Underwater Light",
+            "entity_id": "underwater_light",
+            "role": "light",
+        }
+    ]
+    assert response.get_json()["target_name"] == "Underwater Light"
+
+
+def test_setup_helper_run_starts_countdown(tmp_path):
+    setup_helper = FakeSetupHelper()
+    client, _ = create_test_client(tmp_path, setup_helper=setup_helper)
+
+    response = client.post("/api/setup-helper/run", json={"action": "tap"})
+
+    assert response.status_code == 200
+    assert setup_helper.run_calls == ["tap"]
+    assert response.get_json()["active_run"]["countdown"] == 5
+
+
+def test_setup_helper_apply_updates_multiple_outputs_as_one_logical_light(tmp_path):
+    runtime = FakeRuntimeController()
+    client, config_path = create_test_client(tmp_path, runtime_controller=runtime)
+
+    payload = client.get("/api/config").get_json()
+    response = client.post(
+        "/api/setup-helper/apply",
+        json={
+            "base_revision": payload["revision"],
+            "role": "light",
+            "entity_id": "underwater_light",
+            "output_name": "Underwater Light",
+            "device_names": {"8": "Aft panel"},
+            "outputs": [
+                {"bus_id": 7, "segment_id": 0, "output_name": "s1"},
+                {"bus_id": 8, "segment_id": 0, "output_name": "s2"},
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    saved_text = Path(config_path).read_text(encoding="utf-8")
+    assert saved_text.count("entity_id: underwater_light") == 2
+    assert "Underwater Light" in saved_text
+    assert "name: Aft panel" in saved_text
 
 
 def test_frontend_heartbeat_updates_browser_session(tmp_path):

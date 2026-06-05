@@ -69,6 +69,17 @@ devices:
         entity_id: "ensuite_light"
         initial_brightness: 0
 
+  - type: bloc9
+    bus_id: 8
+    name: "Aft Utility Panel"
+    lights:
+      s1:
+        name: "Underwater Light Port"
+        entity_id: "underwater_light"
+      s2:
+        name: "Underwater Light Starboard"
+        entity_id: "underwater_light"
+
 # Configuration format:
 # - Each device has a type ('bloc9' for now)
 # - bus_id: Device ID on CAN bus segment (0-15)
@@ -82,6 +93,8 @@ devices:
 # - lights: Dict mapping output names (s1-s6) to light config
 #   - name: Display name in Home Assistant
 #   - entity_id: Entity ID (without 'light.' prefix)
+#     Reuse the same entity_id on multiple Bloc9 light outputs to expose them as one
+#     logical Home Assistant light (for example port + starboard underwater lights)
 #   - initial_brightness: Starting brightness (0-255), default 0
 #     ⚠️  DANGEROUS: Sets brightness on startup, may disrupt bus state
 #     ⚠️  Only use if you want the bridge to actively control lights on startup
@@ -89,6 +102,8 @@ devices:
 # - switches: Dict mapping output names (s1-s6) to switch config
 #   - name: Display name in Home Assistant
 #   - entity_id: Entity ID (without 'switch.' prefix)
+#     Reuse the same entity_id on multiple Bloc9 switch outputs to expose them as one
+#     logical Home Assistant switch
 
 # State persistence
 # The system will automatically save state every 30 seconds

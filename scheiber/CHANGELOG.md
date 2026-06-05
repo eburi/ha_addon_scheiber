@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.10.8] - 2026-06-05
+
+### Added
+- Added a guided **Setup Helper** tab to the setup UI with countdown-based press/release and press/hold workflows for learning which Bloc9 outputs react to a physical button
+
+### Changed
+- Bloc9 output configuration now allows the same light or switch `entity_id` to be reused across multiple outputs so one logical Home Assistant entity can represent distributed loads such as underwater lights
+
 ## [6.10.7] - 2026-05-30
 
 ### Fixed
@@ -892,7 +900,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.7...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.8...HEAD
+[6.10.8]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.7...v6.10.8
 [6.10.7]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.6...v6.10.7
 [6.10.6]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.5...v6.10.6
 [6.10.5]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.4...v6.10.5

@@ -239,6 +239,67 @@ class TestMQTTDiscoveryLights:
         assert config["device"]["manufacturer"] == "Scheiber"
         assert config["device"]["model"] == "Marine Lighting Control System"
 
+    @patch("can_mqtt_bridge.bridge.mqtt.Client")
+    @patch("can_mqtt_bridge.bridge.create_scheiber_system")
+    def test_duplicate_light_entity_id_creates_one_logical_entity(
+        self, mock_create_system, mock_mqtt_client
+    ):
+        first_light = MagicMock()
+        first_light.name = "Underwater Port"
+        first_light.entity_id = "underwater_light"
+        first_light.switch_nr = 0
+        first_light.get_state.return_value = {"state": False, "brightness": 0}
+        first_light.subscribe = Mock()
+
+        second_light = MagicMock()
+        second_light.name = "Underwater Starboard"
+        second_light.entity_id = "underwater_light"
+        second_light.switch_nr = 1
+        second_light.get_state.return_value = {"state": True, "brightness": 255}
+        second_light.subscribe = Mock()
+
+        first_device = MagicMock()
+        first_device.__class__.__name__ = "Bloc9Device"
+        first_device.device_id = 7
+        first_device.segment_id = 0
+        first_device.get_lights.return_value = [first_light]
+        first_device.get_switches.return_value = []
+        first_device.get_sensors.return_value = []
+
+        second_device = MagicMock()
+        second_device.__class__.__name__ = "Bloc9Device"
+        second_device.device_id = 8
+        second_device.segment_id = 0
+        second_device.get_lights.return_value = [second_light]
+        second_device.get_switches.return_value = []
+        second_device.get_sensors.return_value = []
+
+        mock_system = MagicMock()
+        mock_system.get_all_devices.return_value = [first_device, second_device]
+        mock_create_system.return_value = mock_system
+
+        mock_client = MagicMock()
+        mock_mqtt_client.return_value = mock_client
+
+        bridge = MQTTBridge(can_interface="can0", mqtt_host="localhost")
+        bridge.start()
+
+        config_calls = [
+            call
+            for call in mock_client.publish.call_args_list
+            if call[0][0] == "homeassistant/light/underwater_light/config"
+        ]
+
+        assert len(config_calls) == 1
+        discovery_config = json.loads(config_calls[0][0][1])
+        assert discovery_config["unique_id"] == "scheiber_logical_light_underwater_light"
+        assert (
+            discovery_config["state_topic"]
+            == "homeassistant/scheiber/logical/light/underwater_light/state"
+        )
+        assert first_light.subscribe.call_count == 1
+        assert second_light.subscribe.call_count == 1
+
 
 class TestMQTTSensors:
     """Test MQTT sensor setup for Bloc7 devices."""

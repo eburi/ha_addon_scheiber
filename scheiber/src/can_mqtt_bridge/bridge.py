@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from scheiber import ScheiberSystem, create_scheiber_system
 
 from .light import MQTTLight
+from .logical_entity import MQTTLogicalLight, MQTTLogicalSwitch
 from .sensor import MQTTSensor
 from .switch import MQTTSwitch
 
@@ -107,9 +108,10 @@ class MQTTBridge:
         self._running = True
         self.logger.info("Starting MQTT bridge...")
 
-        # Subscribe to device changes
-        for device in self.system.get_all_devices():
-            self._setup_device(device)
+        devices = self.system.get_all_devices()
+        self._setup_bloc9_outputs(devices)
+        for device in devices:
+            self._setup_sensor_device(device)
 
         # Subscribe to CAN statistics
         self.system.subscribe_to_stats(self._on_can_stats)
@@ -136,13 +138,96 @@ class MQTTBridge:
 
         self.logger.info("MQTT bridge stopped")
 
-    def _setup_device(self, device):
-        """
-        Setup MQTT for a device.
+    def _setup_bloc9_outputs(self, devices):
+        """Create MQTT entities for direct and logical Bloc9 outputs."""
+        light_entries: Dict[str, List[Dict[str, Any]]] = {}
+        switch_entries: Dict[str, List[Dict[str, Any]]] = {}
 
-        Args:
-            device: ScheiberCanDevice instance
-        """
+        for device in devices:
+            device_type = device.__class__.__name__.lower().replace("device", "")
+            device_id = device.device_id
+            segment_id = getattr(device, "segment_id", 0)
+            if not isinstance(segment_id, int):
+                segment_id = 0
+
+            for hardware_light in device.get_lights():
+                light_entries.setdefault(hardware_light.entity_id, []).append(
+                    {
+                        "hardware": hardware_light,
+                        "device_type": device_type,
+                        "device_id": device_id,
+                        "segment_id": segment_id,
+                    }
+                )
+
+            for hardware_switch in device.get_switches():
+                switch_entries.setdefault(hardware_switch.entity_id, []).append(
+                    {
+                        "hardware": hardware_switch,
+                        "device_type": device_type,
+                        "device_id": device_id,
+                        "segment_id": segment_id,
+                    }
+                )
+
+        for entity_id, entries in light_entries.items():
+            if len(entries) > 1:
+                mqtt_light = MQTTLogicalLight(
+                    hardware_lights=[entry["hardware"] for entry in entries],
+                    mqtt_client=self.mqtt_client,
+                    mqtt_topic_prefix=self.mqtt_topic_prefix,
+                    read_only=self.read_only,
+                )
+                self.logger.info(
+                    f"Setting up logical MQTT light {entity_id} across {len(entries)} outputs"
+                )
+            else:
+                entry = entries[0]
+                mqtt_light = MQTTLight(
+                    hardware_light=entry["hardware"],
+                    device_type=entry["device_type"],
+                    device_id=entry["device_id"],
+                    segment_id=entry["segment_id"],
+                    mqtt_client=self.mqtt_client,
+                    mqtt_topic_prefix=self.mqtt_topic_prefix,
+                    read_only=self.read_only,
+                )
+            mqtt_light.publish_discovery()
+            mqtt_light.publish_availability(True)
+            mqtt_light.subscribe_to_commands()
+            mqtt_light.publish_initial_state()
+            self._mqtt_entities.append(mqtt_light)
+
+        for entity_id, entries in switch_entries.items():
+            if len(entries) > 1:
+                mqtt_switch = MQTTLogicalSwitch(
+                    hardware_switches=[entry["hardware"] for entry in entries],
+                    mqtt_client=self.mqtt_client,
+                    mqtt_topic_prefix=self.mqtt_topic_prefix,
+                    read_only=self.read_only,
+                )
+                self.logger.info(
+                    f"Setting up logical MQTT switch {entity_id} across {len(entries)} outputs"
+                )
+            else:
+                entry = entries[0]
+                mqtt_switch = MQTTSwitch(
+                    hardware_switch=entry["hardware"],
+                    device_type=entry["device_type"],
+                    device_id=entry["device_id"],
+                    segment_id=entry["segment_id"],
+                    mqtt_client=self.mqtt_client,
+                    mqtt_topic_prefix=self.mqtt_topic_prefix,
+                    read_only=self.read_only,
+                )
+            mqtt_switch.publish_discovery()
+            mqtt_switch.publish_availability(True)
+            mqtt_switch.subscribe_to_commands()
+            mqtt_switch.publish_initial_state()
+            self._mqtt_entities.append(mqtt_switch)
+
+    def _setup_sensor_device(self, device):
+        """Setup MQTT sensors for a single device."""
         device_type = device.__class__.__name__.lower().replace("device", "")
         device_id = device.device_id
         segment_id = getattr(device, "segment_id", 0)
@@ -155,42 +240,6 @@ class MQTTBridge:
             )
 
         self.logger.info(f"Setting up MQTT for {device_type} device {route_slug}")
-
-        # Create MQTT light entities
-        for hardware_light in device.get_lights():
-            mqtt_light = MQTTLight(
-                hardware_light=hardware_light,
-                device_type=device_type,
-                device_id=device_id,
-                segment_id=segment_id,
-                mqtt_client=self.mqtt_client,
-                mqtt_topic_prefix=self.mqtt_topic_prefix,
-                read_only=self.read_only,
-            )
-            mqtt_light.publish_discovery()
-            mqtt_light.publish_availability(True)
-            mqtt_light.subscribe_to_commands()
-            # Check MQTT retained state and publish if needed (missing/old/different)
-            mqtt_light.publish_initial_state()
-            self._mqtt_entities.append(mqtt_light)
-
-        # Create MQTT switch entities
-        for hardware_switch in device.get_switches():
-            mqtt_switch = MQTTSwitch(
-                hardware_switch=hardware_switch,
-                device_type=device_type,
-                device_id=device_id,
-                segment_id=segment_id,
-                mqtt_client=self.mqtt_client,
-                mqtt_topic_prefix=self.mqtt_topic_prefix,
-                read_only=self.read_only,
-            )
-            mqtt_switch.publish_discovery()
-            mqtt_switch.publish_availability(True)
-            mqtt_switch.subscribe_to_commands()
-            # Check MQTT retained state and publish if needed (missing/old/different)
-            mqtt_switch.publish_initial_state()
-            self._mqtt_entities.append(mqtt_switch)
 
         # Create MQTT sensor entities
         for hardware_sensor in device.get_sensors():

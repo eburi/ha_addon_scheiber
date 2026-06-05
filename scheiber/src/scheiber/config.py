@@ -268,7 +268,7 @@ def validate_editor_config(
 
     normalized_devices = []
     seen_device_keys = set()
-    seen_entity_ids = {}
+    seen_entity_ids: Dict[str, Dict[str, Any]] = {}
 
     for device_index, device in enumerate(devices):
         device_path = ["devices", device_index]
@@ -523,16 +523,32 @@ def validate_editor_config(
                             )
                         )
                     elif entity_id in seen_entity_ids:
-                        errors.append(
-                            make_error(
-                                "duplicate_entity_id",
-                                f"entity_id '{entity_id}' is already used",
-                                output_path + ["entity_id"],
-                                details={"conflicts_with": seen_entity_ids[entity_id]},
-                            )
+                        existing = seen_entity_ids[entity_id]
+                        duplicate_is_logical_bloc9 = (
+                            existing.get("kind") == "bloc9_output"
+                            and existing.get("role") == role
                         )
+                        if duplicate_is_logical_bloc9:
+                            existing.setdefault("paths", []).append(
+                                output_path + ["entity_id"]
+                            )
+                        else:
+                            errors.append(
+                                make_error(
+                                    "duplicate_entity_id",
+                                    f"entity_id '{entity_id}' is already used",
+                                    output_path + ["entity_id"],
+                                    details={
+                                        "conflicts_with": existing.get("paths", [])
+                                    },
+                                )
+                            )
                     else:
-                        seen_entity_ids[entity_id] = output_path + ["entity_id"]
+                        seen_entity_ids[entity_id] = {
+                            "kind": "bloc9_output",
+                            "role": role,
+                            "paths": [output_path + ["entity_id"]],
+                        }
 
                 initial_brightness = normalized_output["initial_brightness"]
                 if role == "light" and initial_brightness is not None:
@@ -665,16 +681,21 @@ def validate_editor_config(
                             )
                         )
                     elif entity_id in seen_entity_ids:
+                        existing = seen_entity_ids[entity_id]
                         errors.append(
                             make_error(
                                 "duplicate_entity_id",
                                 f"entity_id '{entity_id}' is already used",
                                 sensor_path + ["entity_id"],
-                                details={"conflicts_with": seen_entity_ids[entity_id]},
+                                details={"conflicts_with": existing.get("paths", [])},
                             )
                         )
                     else:
-                        seen_entity_ids[entity_id] = sensor_path + ["entity_id"]
+                        seen_entity_ids[entity_id] = {
+                            "kind": "sensor",
+                            "role": None,
+                            "paths": [sensor_path + ["entity_id"]],
+                        }
 
                 sensor_type = sensor.get("sensor_type", "level")
                 if sensor_type not in BLOC7_SENSOR_TYPES:

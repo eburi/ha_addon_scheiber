@@ -13,6 +13,24 @@ const state = {
   diagnostics: { errors: [], warnings: [] },
   discovery: { status: "idle", candidates: [], message_counts: {} },
   bloc7Discovery: { status: "idle", candidates: [], total_messages: 0, unique_ids: 0 },
+  setupHelper: {
+    status: "idle",
+    target_name: "",
+    entity_id: null,
+    target_role: "light",
+    phase: "idle",
+    instruction: "",
+    active_run: null,
+    completed_run: null,
+  },
+  setupHelperDraft: {
+    target_name: "",
+    entity_id: "",
+    role: "light",
+    output_name: "",
+    selected_outputs: {},
+    device_names: {},
+  },
   activeTab: "bloc9",
   bloc9Drafts: {},
   bloc7Drafts: {},
@@ -202,6 +220,10 @@ function renderCurrentTab() {
     renderBloc7Cards();
     return;
   }
+  if (state.activeTab === "helper") {
+    renderSetupHelperPanel();
+    return;
+  }
   renderInspectPanel();
 }
 
@@ -212,7 +234,8 @@ function renderTabIfVisible(tabName) {
 
 function hasActiveEditor(kind) {
   const active = document.activeElement;
-  return Boolean(active?.dataset?.cardKind === kind);
+  const activeKind = active?.dataset?.cardKind || "";
+  return Boolean(activeKind === kind || activeKind.startsWith(`${kind}-`));
 }
 
 function showToast(message, level = "success") {
@@ -1480,6 +1503,305 @@ function renderInspectPanel() {
   state.inspectLoaded = true;
 }
 
+function slugifyEntityId(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function getConfiguredBloc9OutputByRef(outputRef) {
+  const [route, outputName] = String(outputRef || "").split(":");
+  if (!route || !outputName) return null;
+  return (
+    state.config.devices.find(
+      (device) => device.type === "bloc9" && routeSlug(device.bus_id, device.segment_id || 0) === route,
+    )?.outputs?.[outputName] || null
+  );
+}
+
+function getConfiguredBloc9DeviceByRoute(route) {
+  return (
+    state.config.devices.find(
+      (device) => device.type === "bloc9" && routeSlug(device.bus_id, device.segment_id || 0) === route,
+    ) || null
+  );
+}
+
+function getSetupHelperSuggestions() {
+  const groups = new Map();
+  for (const device of state.config.devices) {
+    if (device.type !== "bloc9") continue;
+    for (const outputName of outputs) {
+      const output = device.outputs?.[outputName];
+      if (!output?.enabled || !output?.entity_id || !output?.role) continue;
+      const key = `${output.role}:${output.entity_id}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          role: output.role,
+          entity_id: output.entity_id,
+          name: output.name || formatDiscoveryName(output.entity_id),
+          count: 0,
+        });
+      }
+      groups.get(key).count += 1;
+    }
+  }
+  return [...groups.values()].sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function formatDiscoveryName(entityId) {
+  return String(entityId || "")
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function syncSetupHelperDraft() {
+  const helper = state.setupHelper;
+  const draft = state.setupHelperDraft;
+  if (!draft.target_name && helper.target_name) draft.target_name = helper.target_name;
+  if (!draft.output_name && helper.target_name) draft.output_name = helper.target_name;
+  if (!draft.entity_id) {
+    draft.entity_id = helper.entity_id || slugifyEntityId(helper.target_name || draft.target_name);
+  }
+  if (helper.completed_run?.suggested_role) {
+    draft.role = helper.completed_run.suggested_role;
+  } else if (helper.target_role) {
+    draft.role = helper.target_role;
+  }
+  for (const output of helper.completed_run?.changed_outputs || []) {
+    if (!(output.output_ref in draft.selected_outputs)) {
+      draft.selected_outputs[output.output_ref] = true;
+    }
+  }
+}
+
+function selectedSetupHelperOutputs() {
+  return (state.setupHelper.completed_run?.changed_outputs || []).filter(
+    (output) => state.setupHelperDraft.selected_outputs[output.output_ref],
+  );
+}
+
+function helperConflictSummary(output) {
+  const configured = getConfiguredBloc9OutputByRef(output.output_ref);
+  if (!configured?.enabled) return "New mapping";
+  const issues = [];
+  if (configured.role !== state.setupHelperDraft.role) issues.push(`currently ${configured.role}`);
+  if (configured.entity_id !== state.setupHelperDraft.entity_id) {
+    issues.push(`entity ${configured.entity_id}`);
+  }
+  if (configured.name !== state.setupHelperDraft.output_name) issues.push(`name ${configured.name}`);
+  return issues.length ? `Will replace ${issues.join(" · ")}` : "Already matches";
+}
+
+function helperApplyReady() {
+  return Boolean(
+    state.setupHelperDraft.output_name
+      && state.setupHelperDraft.entity_id
+      && selectedSetupHelperOutputs().length,
+  );
+}
+
+function renderSetupHelperPanel() {
+  syncSetupHelperDraft();
+  const container = document.getElementById("helper-panel");
+  const helper = state.setupHelper;
+  const draft = state.setupHelperDraft;
+  const suggestions = getSetupHelperSuggestions();
+  const selectedOutputs = selectedSetupHelperOutputs();
+  const unnamedRoutes = [...new Set(selectedOutputs.map((output) => output.route_slug))].filter(
+    (route) => !getConfiguredBloc9DeviceByRoute(route)?.name,
+  );
+  const activeRun = helper.active_run;
+  const completedRun = helper.completed_run;
+
+  const countdownMarkup = activeRun?.countdown
+    ? `<div class="helper-countdown">${escapeHtml(activeRun.countdown > 0 ? activeRun.countdown : "Now!")}</div>`
+    : "";
+
+  const findingsMarkup = completedRun
+    ? `
+      <section class="setup-card tone-${completedRun.confidence?.level || "discovered"}">
+        <div class="card-header">
+          <div>
+            <h3>Findings</h3>
+            <p>${escapeHtml(completedRun.changed_outputs?.length
+              ? `Detected ${completedRun.changed_outputs.length} changed Bloc9 output${completedRun.changed_outputs.length === 1 ? "" : "s"}.`
+              : "No conclusive Bloc9 output change was captured.")}</p>
+          </div>
+        </div>
+        <div class="summary-bar compact">
+          <span class="summary-chip">${escapeHtml(completedRun.confidence?.level || "low")} confidence</span>
+          <span class="summary-chip">Suggested ${escapeHtml(completedRun.suggested_role || draft.role)}</span>
+          <span class="summary-chip">Captured ${escapeHtml(completedRun.captured_message_count || 0)} frames</span>
+        </div>
+        <div class="helper-output-list">
+          ${(completedRun.changed_outputs || []).map((output) => `
+            <label class="helper-output-card">
+              <input
+                type="checkbox"
+                ${draft.selected_outputs[output.output_ref] ? "checked" : ""}
+                data-card-kind="setup-helper-output"
+                data-output-ref="${escapeHtml(output.output_ref)}"
+              >
+              <div>
+                <strong>${escapeHtml(`Bloc9 #${output.route_slug} ${output.output_name.toUpperCase()}`)}</strong>
+                <div class="muted">${escapeHtml(helperConflictSummary(output))}</div>
+                <div class="muted">${escapeHtml(output.dimming_observed ? "Dimming observed during hold." : "No dimming observed in this capture.")}</div>
+              </div>
+              <span class="summary-chip">${escapeHtml(output.confidence?.level || "low")} ${escapeHtml(output.confidence?.score || 0)}</span>
+            </label>
+          `).join("") || '<div class="empty-inline">Run the guided capture again and follow the countdown.</div>'}
+        </div>
+        ${(completedRun.recommendations || []).length
+          ? `<div class="helper-recommendations">
+              ${(completedRun.recommendations || []).map((item) => `<div class="diagnostic-item warning">${escapeHtml(item)}</div>`).join("")}
+            </div>`
+          : ""}
+        ${(completedRun.other_messages || []).length
+          ? `<div class="helper-observations">
+              <h4>Other CAN traffic seen during the interaction</h4>
+              ${(completedRun.other_messages || []).map((entry) => `
+                <div class="summary-chip">${escapeHtml(entry.arbitration_id)} · ${escapeHtml(entry.count)}× · ${escapeHtml(entry.sample_data)}</div>
+              `).join("")}
+            </div>`
+          : ""}
+      </section>
+      <section class="setup-card tone-configured">
+        <div class="card-header">
+          <div>
+            <h3>Apply to configuration</h3>
+            <p>${escapeHtml(selectedOutputs.length > 1
+              ? "Multiple outputs are selected, so this will be saved as one logical light or switch by reusing the same entity ID."
+              : "This will save the selected Bloc9 output directly into the configuration.")}</p>
+          </div>
+        </div>
+        <div class="card-grid compact-grid">
+          <label class="field-shell">
+            <span>Role</span>
+            <select data-card-kind="setup-helper" data-field="role">
+              <option value="light" ${draft.role === "light" ? "selected" : ""}>Light</option>
+              <option value="switch" ${draft.role === "switch" ? "selected" : ""}>Switch</option>
+            </select>
+          </label>
+          <label class="field-shell">
+            <span>Name</span>
+            <input type="text" value="${escapeHtml(draft.output_name || "")}" data-card-kind="setup-helper" data-field="output_name">
+          </label>
+          <label class="field-shell">
+            <span>Entity ID</span>
+            <input type="text" value="${escapeHtml(draft.entity_id || "")}" data-card-kind="setup-helper" data-field="entity_id">
+          </label>
+          ${unnamedRoutes
+            .map((routeSlugValue) => `
+                <label class="field-shell">
+                  <span>Bloc9 #${escapeHtml(routeSlugValue)} name (optional)</span>
+                  <input
+                    type="text"
+                    value="${escapeHtml(draft.device_names[routeSlugValue] || "")}"
+                    data-card-kind="setup-helper-device"
+                    data-field="${escapeHtml(routeSlugValue)}"
+                  >
+                </label>
+              `)
+            .join("")}
+        </div>
+        <div class="card-footer">
+          <div class="card-hint">
+            ${helperApplyReady()
+              ? `${selectedOutputs.length} output${selectedOutputs.length === 1 ? "" : "s"} ready to save.`
+              : "Select at least one output and fill in the logical name and entity ID before saving."}
+          </div>
+          <button type="button" data-action="helper-apply" ${actionAttrs("helper-apply", !helperApplyReady(), "primary")}>Apply findings</button>
+        </div>
+      </section>
+    `
+    : "";
+
+  container.className = "card-list";
+  container.innerHTML = `
+    <section class="setup-card tone-discovered">
+      <div class="card-header">
+        <div>
+          <h3>What are you about to control?</h3>
+          <p>Pick a known light or switch, or enter a new name for the thing behind the button you are testing.</p>
+        </div>
+      </div>
+      <div class="card-grid compact-grid">
+        <label class="field-shell">
+          <span>Name</span>
+          <input
+            type="text"
+            list="helper-known-targets"
+            value="${escapeHtml(draft.target_name || "")}"
+            data-card-kind="setup-helper"
+            data-field="target_name"
+            placeholder="Underwater Light"
+          >
+          <datalist id="helper-known-targets">
+            ${suggestions.map((suggestion) => `<option value="${escapeHtml(suggestion.name)}">${escapeHtml(`${suggestion.role} · ${suggestion.entity_id}`)}</option>`).join("")}
+          </datalist>
+        </label>
+        <label class="field-shell">
+          <span>Entity ID</span>
+          <input
+            type="text"
+            value="${escapeHtml(draft.entity_id || "")}"
+            data-card-kind="setup-helper"
+            data-field="entity_id"
+            placeholder="underwater_light"
+          >
+        </label>
+        <label class="field-shell">
+          <span>Preferred role</span>
+          <select data-card-kind="setup-helper" data-field="role">
+            <option value="light" ${draft.role === "light" ? "selected" : ""}>Light</option>
+            <option value="switch" ${draft.role === "switch" ? "selected" : ""}>Switch</option>
+          </select>
+        </label>
+      </div>
+      <div class="card-footer">
+        <div class="card-hint">${escapeHtml(helper.instruction || "Start a helper session and follow the guided countdown.")}</div>
+        <div class="toolbar-actions">
+          <button type="button" data-action="helper-start" ${actionAttrs("helper-start", !draft.target_name, "primary")}>Start helper</button>
+          <button type="button" data-action="helper-stop" ${actionAttrs("helper-stop", helper.status === "idle")}>Reset</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="setup-card tone-synced">
+      <div class="card-header">
+        <div>
+          <h3>Guided actions</h3>
+          <p>${escapeHtml(helper.target_name
+            ? `Discovering mappings for ${helper.target_name}.`
+            : "Start a helper session, then choose how you want to interact with the button.")}</p>
+        </div>
+      </div>
+      <div class="summary-bar compact">
+        <span class="summary-chip">${escapeHtml(helper.phase || "idle")}</span>
+        ${activeRun ? `<span class="summary-chip">${escapeHtml(activeRun.action)}</span>` : ""}
+        <span class="summary-chip">Known outputs ${escapeHtml(helper.known_output_count || 0)}</span>
+      </div>
+      <div class="helper-instruction-card">
+        <strong>${escapeHtml(helper.instruction || "Ready when you are.")}</strong>
+        ${countdownMarkup}
+      </div>
+      <div class="toolbar-actions helper-action-grid">
+        <button type="button" data-action="helper-run-tap" ${actionAttrs("helper-run-tap", helper.status === "idle", "primary")}>Press and release</button>
+        <button type="button" data-action="helper-run-hold" ${actionAttrs("helper-run-hold", helper.status === "idle")}>Press, hold, release</button>
+      </div>
+      <div class="helper-guidance muted">
+        For <strong>Press and release</strong>, tap the button exactly when the countdown reaches <strong>Now</strong>. For <strong>Press, hold, release</strong>, hold through the second countdown so the helper can see whether dimming starts.
+      </div>
+    </section>
+
+    ${findingsMarkup}
+  `;
+}
+
 function renderActiveTab() {
   renderCurrentTab();
 }
@@ -1582,6 +1904,15 @@ async function refreshBloc7Candidates() {
   rerender(() => renderTabIfVisible("bloc7"));
 }
 
+async function refreshSetupHelper() {
+  const response = await fetch(resolveAppUrl("api/setup-helper"));
+  const payload = await response.json();
+  state.setupHelper = payload;
+  syncSetupHelperDraft();
+  if (hasActiveEditor("setup-helper")) return;
+  rerender(() => renderTabIfVisible("helper"));
+}
+
 async function ensureDiscoveryRunning() {
   if (!state.runtime.running || state.discovery.status === "running") return;
   const response = await fetch(resolveAppUrl("api/discovery/start"), { method: "POST" });
@@ -1629,6 +1960,92 @@ async function applyConfig(nextConfig, successMessage) {
   renderDiagnostics();
   showToast(successMessage, "success");
   return true;
+}
+
+async function startSetupHelperSession() {
+  const response = await fetch(resolveAppUrl("api/setup-helper/session"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: state.setupHelperDraft.target_name,
+      entity_id: state.setupHelperDraft.entity_id || null,
+      role: state.setupHelperDraft.role,
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    showToast(payload.error || "Failed to start the setup helper.", "error");
+    return;
+  }
+  state.setupHelper = payload;
+  syncSetupHelperDraft();
+  rerender(() => renderTabIfVisible("helper"));
+}
+
+async function runSetupHelper(action) {
+  const response = await fetch(resolveAppUrl("api/setup-helper/run"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    showToast(payload.error || "Failed to start the guided capture.", "error");
+    return;
+  }
+  state.setupHelper = payload;
+  rerender(() => renderTabIfVisible("helper"));
+}
+
+async function stopSetupHelper() {
+  const response = await fetch(resolveAppUrl("api/setup-helper/stop"), {
+    method: "POST",
+  });
+  state.setupHelper = await response.json().catch(() => ({
+    status: "idle",
+    phase: "idle",
+    instruction: "Start a setup helper session to begin guided discovery.",
+  }));
+  state.setupHelperDraft.selected_outputs = {};
+  rerender(() => renderTabIfVisible("helper"));
+}
+
+async function applySetupHelperFindings() {
+  const selected = selectedSetupHelperOutputs();
+  const actionKey = "helper-apply";
+  setBusy(actionKey, true);
+  try {
+    const response = await fetch(resolveAppUrl("api/setup-helper/apply"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        base_revision: state.baseRevision,
+        role: state.setupHelperDraft.role,
+        entity_id: state.setupHelperDraft.entity_id,
+        output_name: state.setupHelperDraft.output_name,
+        device_names: state.setupHelperDraft.device_names,
+        outputs: selected.map((output) => ({
+          bus_id: output.bus_id,
+          segment_id: output.segment_id,
+          output_name: output.output_name,
+        })),
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      showToast(payload.details || payload.error || "Failed to apply setup-helper findings.", "error");
+      return;
+    }
+    state.config = payload.config;
+    state.baseRevision = payload.revision;
+    state.diagnostics = payload.diagnostics || { errors: [], warnings: [] };
+    renderDiagnostics();
+    await refreshStatus();
+    await refreshDiscovery();
+    showToast("Setup-helper findings applied to the configuration.", "success");
+  } finally {
+    setBusy(actionKey, false);
+  }
 }
 
 async function saveBloc9Card(cardKey) {
@@ -1864,6 +2281,26 @@ document.addEventListener("click", async (event) => {
     rerender(() => renderTabIfVisible("bloc7"));
     return;
   }
+  if (action === "helper-start") {
+    await startSetupHelperSession();
+    return;
+  }
+  if (action === "helper-stop") {
+    await stopSetupHelper();
+    return;
+  }
+  if (action === "helper-run-tap") {
+    await runSetupHelper("tap");
+    return;
+  }
+  if (action === "helper-run-hold") {
+    await runSetupHelper("hold");
+    return;
+  }
+  if (action === "helper-apply") {
+    await applySetupHelperFindings();
+    return;
+  }
 });
 
 document.addEventListener("input", (event) => {
@@ -1900,6 +2337,29 @@ document.addEventListener("input", (event) => {
     control.brightness = Number(target.value);
     const valueLabel = target.closest(".slider-field")?.querySelector(".slider-value");
     if (valueLabel) valueLabel.textContent = String(control.brightness);
+    return;
+  }
+  if (target.dataset.cardKind === "setup-helper") {
+    state.setupHelperDraft[target.dataset.field] = target.value;
+    if (target.dataset.field === "target_name" && !state.setupHelperDraft.entity_id) {
+      state.setupHelperDraft.entity_id = slugifyEntityId(target.value);
+    }
+    const suggestion = getSetupHelperSuggestions().find(
+      (item) => item.name.toLowerCase() === String(target.value || "").trim().toLowerCase(),
+    );
+    if (suggestion) {
+      state.setupHelperDraft.entity_id = suggestion.entity_id;
+      state.setupHelperDraft.role = suggestion.role;
+      if (!state.setupHelperDraft.output_name) state.setupHelperDraft.output_name = suggestion.name;
+    }
+    return;
+  }
+  if (target.dataset.cardKind === "setup-helper-device") {
+    state.setupHelperDraft.device_names[target.dataset.field] = target.value;
+    return;
+  }
+  if (target.dataset.cardKind === "setup-helper-output") {
+    state.setupHelperDraft.selected_outputs[target.dataset.outputRef] = target.checked;
   }
 });
 
@@ -1933,6 +2393,15 @@ document.addEventListener("change", (event) => {
       target.value,
     );
     rerender(() => renderTabIfVisible("bloc7"));
+    return;
+  }
+  if (target.dataset.cardKind === "setup-helper" || target.dataset.cardKind === "setup-helper-device") {
+    rerender(() => renderTabIfVisible("helper"));
+    return;
+  }
+  if (target.dataset.cardKind === "setup-helper-output") {
+    state.setupHelperDraft.selected_outputs[target.dataset.outputRef] = target.checked;
+    rerender(() => renderTabIfVisible("helper"));
   }
 });
 
@@ -1942,7 +2411,7 @@ document.getElementById("add-bloc7-button").addEventListener("click", addManualB
 
 async function initialize() {
   heartbeatManager?.start();
-  await Promise.all([refreshStatus(), loadConfig(), refreshDiscovery(), refreshBloc7Candidates()]);
+  await Promise.all([refreshStatus(), loadConfig(), refreshDiscovery(), refreshBloc7Candidates(), refreshSetupHelper()]);
   renderHeader();
   renderDiagnostics();
   renderCurrentTab();
@@ -1950,6 +2419,7 @@ async function initialize() {
   window.setInterval(refreshStatus, 5000);
   window.setInterval(refreshDiscovery, 2000);
   window.setInterval(refreshBloc7Candidates, 4000);
+  window.setInterval(refreshSetupHelper, 1000);
 }
 
 initialize().catch((error) => {

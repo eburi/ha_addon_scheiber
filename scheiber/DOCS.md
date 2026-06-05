@@ -16,8 +16,10 @@ When the setup UI is enabled, the add-on also provides an ingress page inside
 Home Assistant for:
 
 - discovering likely Bloc9 devices from live traffic,
+- guiding physical button setup with repeatable countdown-based captures,
 - editing and validating `scheiber-config.yaml`,
-- testing mappings before saving them.
+- testing mappings before saving them,
+- grouping multiple Bloc9 outputs under one logical Home Assistant light or switch by reusing the same `entity_id`.
 
 ## First start
 
@@ -27,6 +29,8 @@ Home Assistant for:
 4. Start the add-on.
 5. Open the add-on UI in Home Assistant to discover devices and save your
    `scheiber-config.yaml`.
+   Use the **Helper** tab when you want to stand in front of a real button and
+   teach the add-on which Bloc9 output or logical light it controls.
 6. Once configured, Home Assistant will create entities automatically through
    MQTT Discovery.
 
@@ -61,9 +65,18 @@ devices:
     switches:
       s3:
         name: Water Pump
+  - type: bloc9
+    bus_id: 8
+    name: Aft Bloc9
+    lights:
+      s2:
+        name: Underwater Light Starboard
+        entity_id: underwater_light
 ```
 
-Only outputs you explicitly configure are exposed to Home Assistant.
+Only outputs you explicitly configure are exposed to Home Assistant. If two or
+more Bloc9 outputs share the same light or switch `entity_id`, the bridge
+publishes them as one logical Home Assistant entity.
 
 ## Home Assistant behavior
 

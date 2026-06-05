@@ -20,6 +20,7 @@ from .frontend_heartbeat import FrontendHeartbeatMonitor
 from .inspector import CanInspector
 from .mcp import MCPRequestError, ScheiberMCPServer
 from .runtime import BridgeRuntimeController, RuntimeSettings
+from .setup_helper import SetupHelperService
 
 
 class _IngressPathMiddleware:
@@ -51,6 +52,7 @@ def create_app(
     discovery_service: Optional[Bloc9DiscoveryService] = None,
     inspector: Optional[CanInspector] = None,
     frontend_monitor: Optional[FrontendHeartbeatMonitor] = None,
+    setup_helper: Optional[SetupHelperService] = None,
 ) -> Flask:
     """Create the Scheiber web application."""
     app = Flask(__name__)
@@ -61,8 +63,10 @@ def create_app(
     discovery_service = discovery_service or Bloc9DiscoveryService(runtime_controller)
     inspector = inspector or CanInspector(runtime_controller)
     frontend_monitor = frontend_monitor or FrontendHeartbeatMonitor(logger=app.logger)
+    setup_helper = setup_helper or SetupHelperService(runtime_controller)
     frontend_monitor.add_idle_callback(discovery_service.stop)
     frontend_monitor.add_idle_callback(inspector.stop)
+    frontend_monitor.add_idle_callback(setup_helper.stop)
     mcp_server = (
         ScheiberMCPServer(settings, runtime_controller, inspector)
         if settings.mcp_server_enabled
@@ -75,6 +79,7 @@ def create_app(
     app.config["INSPECTOR"] = inspector
     app.config["FRONTEND_MONITOR"] = frontend_monitor
     app.config["MCP_SERVER"] = mcp_server
+    app.config["SETUP_HELPER"] = setup_helper
 
     def require_web_ui() -> None:
         if not settings.web_ui_enabled:
@@ -326,6 +331,132 @@ def create_app(
                 "can_id": f"0x{can_id:08X}",
             }
         )
+
+    @app.get("/api/setup-helper")
+    def get_setup_helper():
+        require_web_ui()
+        return jsonify(setup_helper.snapshot())
+
+    @app.post("/api/setup-helper/session")
+    def start_setup_helper_session():
+        require_web_ui()
+        payload = request.get_json(silent=True) or {}
+        try:
+            snapshot = setup_helper.start_session(
+                payload.get("name"),
+                entity_id=payload.get("entity_id"),
+                role=payload.get("role", "light"),
+            )
+        except RuntimeError as exc:
+            return jsonify({"error": str(exc), "code": "runtime_not_running"}), 409
+        except ValueError as exc:
+            return jsonify({"error": str(exc), "code": "invalid_request"}), 400
+        return jsonify(snapshot)
+
+    @app.post("/api/setup-helper/run")
+    def run_setup_helper():
+        require_web_ui()
+        payload = request.get_json(silent=True) or {}
+        try:
+            snapshot = setup_helper.arm_run(payload.get("action"))
+        except RuntimeError as exc:
+            return jsonify({"error": str(exc), "code": "session_required"}), 409
+        except ValueError as exc:
+            return jsonify({"error": str(exc), "code": "invalid_request"}), 400
+        return jsonify(snapshot)
+
+    @app.post("/api/setup-helper/stop")
+    def stop_setup_helper():
+        require_web_ui()
+        return jsonify(setup_helper.stop())
+
+    @app.post("/api/setup-helper/apply")
+    def apply_setup_helper_findings():
+        require_web_ui()
+        payload = request.get_json(silent=True) or {}
+        role = str(payload.get("role") or "").strip().lower()
+        entity_id = str(payload.get("entity_id") or "").strip()
+        output_name = str(payload.get("output_name") or "").strip()
+        selected_outputs = payload.get("outputs") or []
+        device_names = payload.get("device_names") or {}
+        if role not in {"light", "switch"}:
+            return jsonify({"error": "role must be 'light' or 'switch'"}), 400
+        if not entity_id:
+            return jsonify({"error": "entity_id is required"}), 400
+        if not output_name:
+            return jsonify({"error": "output_name is required"}), 400
+        if not isinstance(selected_outputs, list) or not selected_outputs:
+            return jsonify({"error": "outputs must contain at least one discovered output"}), 400
+
+        config_state = load_editor_state(settings.config_path)
+        next_config = config_state["config"]
+        devices = next_config.setdefault("devices", [])
+
+        def route_slug(bus_id: int, segment_id: int = 0) -> str:
+            return f"{bus_id}" if segment_id == 0 else f"{bus_id}_{segment_id}"
+
+        for output in selected_outputs:
+            try:
+                bus_id = int(output["bus_id"])
+                segment_id = int(output.get("segment_id", 0))
+                output_key = str(output["output_name"])
+            except (KeyError, TypeError, ValueError):
+                return jsonify({"error": "Each output needs bus_id, segment_id, and output_name"}), 400
+
+            device = next(
+                (
+                    entry
+                    for entry in devices
+                    if entry.get("type") == "bloc9"
+                    and int(entry.get("bus_id")) == bus_id
+                    and int(entry.get("segment_id", 0)) == segment_id
+                ),
+                None,
+            )
+            if device is None:
+                device = {
+                    "type": "bloc9",
+                    "bus_id": bus_id,
+                    "segment_id": segment_id,
+                    "name": "",
+                    "description": "",
+                    "outputs": {},
+                }
+                devices.append(device)
+
+            name_override = str(
+                device_names.get(route_slug(bus_id, segment_id))
+                or device_names.get(f"{bus_id}:{segment_id}")
+                or ""
+            ).strip()
+            if name_override and not device.get("name"):
+                device["name"] = name_override
+
+            device_outputs = device.setdefault("outputs", {})
+            existing_output = device_outputs.get(output_key, {})
+            device_outputs[output_key] = {
+                "enabled": True,
+                "role": role,
+                "name": output_name,
+                "entity_id": entity_id,
+                "initial_brightness": (
+                    existing_output.get("initial_brightness")
+                    if role == "light"
+                    else None
+                ),
+            }
+
+        try:
+            result = apply_editor_config(
+                settings.config_path,
+                runtime_controller,
+                next_config,
+                base_revision=payload.get("base_revision"),
+            )
+        except ConfigApplyError as exc:
+            return jsonify(exc.to_response()), exc.status_code
+
+        return jsonify(result)
 
     @app.get("/inspect")
     def inspect_page():
