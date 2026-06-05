@@ -24,6 +24,15 @@ def test_frontend_heartbeat_waits_for_last_browser_before_cleanup():
         monitor.shutdown()
 
 
+def test_frontend_heartbeat_uses_longer_default_timeout():
+    monitor = FrontendHeartbeatMonitor(autostart_watchdog=False)
+
+    try:
+        assert monitor.timeout_seconds == 900.0
+    finally:
+        monitor.shutdown()
+
+
 def test_frontend_heartbeat_expires_stale_browser_and_runs_cleanup():
     cleanup_event = threading.Event()
     monitor = FrontendHeartbeatMonitor(

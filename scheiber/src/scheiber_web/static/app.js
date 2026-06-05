@@ -1623,6 +1623,14 @@ function helperConflictSummary(output) {
   return issues.length ? `Will replace ${issues.join(" · ")}` : "Already matches";
 }
 
+function helperOutputTitle(output) {
+  const configuredDevice = getConfiguredBloc9DeviceByRoute(output.route_slug);
+  const configuredName = String(configuredDevice?.name || "").trim();
+  return configuredName
+    ? `Bloc9 #${output.route_slug} (${configuredName}) ${output.output_name.toUpperCase()}`
+    : `Bloc9 #${output.route_slug} ${output.output_name.toUpperCase()}`;
+}
+
 function helperApplyReady() {
   return Boolean(
     state.setupHelperDraft.output_name
@@ -1674,7 +1682,7 @@ function renderSetupHelperPanel() {
                 data-output-ref="${escapeHtml(output.output_ref)}"
               >
               <div>
-                <strong>${escapeHtml(`Bloc9 #${output.route_slug} ${output.output_name.toUpperCase()}`)}</strong>
+                <strong>${escapeHtml(helperOutputTitle(output))}</strong>
                 <div class="muted">${escapeHtml(helperConflictSummary(output))}</div>
                 <div class="muted">${escapeHtml(output.dimming_observed
                   ? "Dimming observed during hold."

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.11.1] - 2026-06-05
+
+### Fixed
+- Increased the setup browser idle timeout from 15 seconds to 15 minutes so Setup Helper findings, discovery, and inspector state are not discarded during short pauses such as checking the manual
+
 ## [6.11.0] - 2026-06-05
 
 ### Added
@@ -909,7 +914,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.11.0...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.11.1...HEAD
+[6.11.1]: https://github.com/eburi/ha_addon_scheiber/compare/v6.11.0...v6.11.1
 [6.11.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.8...v6.11.0
 [6.10.8]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.7...v6.10.8
 [6.10.7]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.6...v6.10.7

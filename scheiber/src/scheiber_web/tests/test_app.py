@@ -128,7 +128,7 @@ class FakeFrontendMonitor:
         self.heartbeats.append({"client_id": client_id, "page": page})
         return {
             "active_clients": 1,
-            "timeout_seconds": 15,
+            "timeout_seconds": 900,
             "last_client_seen_at": 1.0,
             "clients": [{"client_id": client_id, "page": page, "last_seen_at": 1.0}],
         }
@@ -137,7 +137,7 @@ class FakeFrontendMonitor:
         self.disconnects.append(client_id)
         return {
             "active_clients": 0,
-            "timeout_seconds": 15,
+            "timeout_seconds": 900,
             "last_client_seen_at": 1.0,
             "clients": [],
         }
@@ -145,7 +145,7 @@ class FakeFrontendMonitor:
     def snapshot(self):
         return {
             "active_clients": 0,
-            "timeout_seconds": 15,
+            "timeout_seconds": 900,
             "last_client_seen_at": None,
             "clients": [],
         }

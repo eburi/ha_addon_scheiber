@@ -14,7 +14,7 @@ class FrontendHeartbeatMonitor:
     def __init__(
         self,
         *,
-        timeout_seconds: float = 15.0,
+        timeout_seconds: float = 900.0,
         sweep_interval_seconds: float = 2.0,
         logger: Optional[logging.Logger] = None,
         autostart_watchdog: bool = True,
