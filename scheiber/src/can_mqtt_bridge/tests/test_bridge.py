@@ -300,6 +300,63 @@ class TestMQTTDiscoveryLights:
         assert first_light.subscribe.call_count == 1
         assert second_light.subscribe.call_count == 1
 
+    @patch("can_mqtt_bridge.bridge.mqtt.Client")
+    @patch("can_mqtt_bridge.bridge.create_scheiber_system")
+    def test_duplicate_pulse_entity_id_creates_one_logical_button(
+        self, mock_create_system, mock_mqtt_client
+    ):
+        first_pulse = MagicMock()
+        first_pulse.name = "Door close port"
+        first_pulse.entity_id = "flybridge_door_close"
+        first_pulse.switch_nr = 1
+
+        second_pulse = MagicMock()
+        second_pulse.name = "Door close starboard"
+        second_pulse.entity_id = "flybridge_door_close"
+        second_pulse.switch_nr = 1
+
+        first_device = MagicMock()
+        first_device.__class__.__name__ = "Bloc9Device"
+        first_device.device_id = 7
+        first_device.segment_id = 0
+        first_device.get_lights.return_value = []
+        first_device.get_switches.return_value = []
+        first_device.get_pulses.return_value = [first_pulse]
+        first_device.get_sensors.return_value = []
+
+        second_device = MagicMock()
+        second_device.__class__.__name__ = "Bloc9Device"
+        second_device.device_id = 8
+        second_device.segment_id = 0
+        second_device.get_lights.return_value = []
+        second_device.get_switches.return_value = []
+        second_device.get_pulses.return_value = [second_pulse]
+        second_device.get_sensors.return_value = []
+
+        mock_system = MagicMock()
+        mock_system.get_all_devices.return_value = [first_device, second_device]
+        mock_create_system.return_value = mock_system
+
+        mock_client = MagicMock()
+        mock_mqtt_client.return_value = mock_client
+
+        bridge = MQTTBridge(can_interface="can0", mqtt_host="localhost")
+        bridge.start()
+
+        config_calls = [
+            call
+            for call in mock_client.publish.call_args_list
+            if call[0][0] == "homeassistant/button/flybridge_door_close/config"
+        ]
+
+        assert len(config_calls) == 1
+        discovery_config = json.loads(config_calls[0][0][1])
+        assert discovery_config["unique_id"] == "scheiber_logical_button_flybridge_door_close"
+        assert (
+            discovery_config["command_topic"]
+            == "homeassistant/scheiber/logical/button/flybridge_door_close/set"
+        )
+
 
 class TestMQTTSensors:
     """Test MQTT sensor setup for Bloc7 devices."""

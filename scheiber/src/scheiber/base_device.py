@@ -130,6 +130,15 @@ class ScheiberCanDevice(ABC):
         """
         return []
 
+    def get_pulses(self) -> List:
+        """
+        Return list of momentary pulse outputs (if any).
+
+        Returns:
+            List of PulseOutput objects (empty by default)
+        """
+        return []
+
     def __str__(self) -> str:
         """String representation."""
         return (

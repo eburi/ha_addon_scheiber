@@ -39,6 +39,27 @@ def test_runtime_to_editor_config_converts_bloc9_sections():
     assert normalized["devices"][0]["segment_id"] == 0
 
 
+def test_runtime_to_editor_config_converts_bloc9_pulses():
+    runtime_config = {
+        "devices": [
+            {
+                "type": "bloc9",
+                "bus_id": 7,
+                "pulses": {
+                    "s4": {"name": "Door close", "entity_id": "flybridge_door_close"},
+                },
+            }
+        ]
+    }
+
+    editor_config = runtime_to_editor_config(runtime_config)
+    normalized, warnings = validate_editor_config(editor_config)
+
+    assert warnings == []
+    assert normalized["devices"][0]["outputs"]["s4"]["role"] == "pulse"
+    assert normalized["devices"][0]["outputs"]["s4"]["entity_id"] == "flybridge_door_close"
+
+
 def test_runtime_to_editor_config_reads_segment_id():
     runtime_config = {
         "devices": [
@@ -334,6 +355,46 @@ def test_validate_editor_config_rejects_shared_entity_id_across_roles():
         )
 
     assert any(error["code"] == "duplicate_entity_id" for error in exc.value.errors)
+
+
+def test_validate_editor_config_allows_shared_logical_pulse_entity_id():
+    normalized, warnings = validate_editor_config(
+        {
+            "schema_version": 1,
+            "devices": [
+                {
+                    "type": "bloc9",
+                    "bus_id": 1,
+                    "outputs": {
+                        "s2": {
+                            "enabled": True,
+                            "role": "pulse",
+                            "name": "Door close port",
+                            "entity_id": "flybridge_door_close",
+                            "initial_brightness": None,
+                        }
+                    },
+                },
+                {
+                    "type": "bloc9",
+                    "bus_id": 2,
+                    "outputs": {
+                        "s2": {
+                            "enabled": True,
+                            "role": "pulse",
+                            "name": "Door close starboard",
+                            "entity_id": "flybridge_door_close",
+                            "initial_brightness": None,
+                        }
+                    },
+                },
+            ],
+        }
+    )
+
+    assert warnings == []
+    assert normalized["devices"][0]["outputs"]["s2"]["role"] == "pulse"
+    assert normalized["devices"][1]["outputs"]["s2"]["entity_id"] == "flybridge_door_close"
 
 
 def test_validate_editor_config_accepts_bloc7_sensor_strings():

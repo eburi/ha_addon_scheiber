@@ -26,7 +26,7 @@ It now also includes a built-in **Scheiber setup web interface** exposed through
 
 **Device Structure (v4.0.0+):** All entities belong to a single unified "Scheiber" device:
 - Single "Scheiber - Marine Lighting Control System" device in Home Assistant
-- All lights and switches appear as entities under this one device
+- All lights, switches, and pulse buttons appear as entities under this one device
 - Cleaner entity naming: `light.scheiber_<name>` instead of repetitive names
 - Simplified device management with all Scheiber entities in one place
 
@@ -350,7 +350,7 @@ All Scheiber entities belong to a single unified device in Home Assistant:
    - Device identifier: `scheiber_system`
    - Device name: "Scheiber"
    - Device model: "Marine Lighting Control System"
-   - All lights and switches appear as entities under this device
+   - All lights, switches, and pulse buttons appear as entities under this device
 
 2. **Entity Discovery** — Standard Home Assistant pattern
    - Discovery: `<mqtt_topic_prefix>/{component}/{entity_id}/config`
@@ -508,6 +508,9 @@ bloc9:
     switches:
       s3:
         name: "Water Pump"  # entity_id: switch.water_pump
+    pulses:
+      s4:
+        name: "Flybridge Door Close"  # entity_id: flybridge_door_close
 
   - bus_id: 10
     name: "Navigation Bloc9"
@@ -521,6 +524,10 @@ bloc9:
         name: "Underwater Light Starboard"
         entity_id: "underwater_light"  # shared entity_id creates one logical HA light
 ```
+
+Use the `pulses:` section for momentary trigger outputs. Reuse the same pulse
+`entity_id` on multiple Bloc9 outputs when one logical Home Assistant button
+should fan out to several physical impulse channels.
 
 **v4.0.0 List Format (still supported):**
 

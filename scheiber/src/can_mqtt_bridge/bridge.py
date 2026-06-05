@@ -19,8 +19,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from scheiber import ScheiberSystem, create_scheiber_system
 
+from .button import MQTTButton
 from .light import MQTTLight
-from .logical_entity import MQTTLogicalLight, MQTTLogicalSwitch
+from .logical_entity import MQTTLogicalButton, MQTTLogicalLight, MQTTLogicalSwitch
 from .sensor import MQTTSensor
 from .switch import MQTTSwitch
 
@@ -142,6 +143,7 @@ class MQTTBridge:
         """Create MQTT entities for direct and logical Bloc9 outputs."""
         light_entries: Dict[str, List[Dict[str, Any]]] = {}
         switch_entries: Dict[str, List[Dict[str, Any]]] = {}
+        pulse_entries: Dict[str, List[Dict[str, Any]]] = {}
 
         for device in devices:
             device_type = device.__class__.__name__.lower().replace("device", "")
@@ -150,7 +152,7 @@ class MQTTBridge:
             if not isinstance(segment_id, int):
                 segment_id = 0
 
-            for hardware_light in device.get_lights():
+            for hardware_light in getattr(device, "get_lights", lambda: [])():
                 light_entries.setdefault(hardware_light.entity_id, []).append(
                     {
                         "hardware": hardware_light,
@@ -160,10 +162,20 @@ class MQTTBridge:
                     }
                 )
 
-            for hardware_switch in device.get_switches():
+            for hardware_switch in getattr(device, "get_switches", lambda: [])():
                 switch_entries.setdefault(hardware_switch.entity_id, []).append(
                     {
                         "hardware": hardware_switch,
+                        "device_type": device_type,
+                        "device_id": device_id,
+                        "segment_id": segment_id,
+                    }
+                )
+
+            for hardware_pulse in getattr(device, "get_pulses", lambda: [])():
+                pulse_entries.setdefault(hardware_pulse.entity_id, []).append(
+                    {
+                        "hardware": hardware_pulse,
                         "device_type": device_type,
                         "device_id": device_id,
                         "segment_id": segment_id,
@@ -225,6 +237,34 @@ class MQTTBridge:
             mqtt_switch.subscribe_to_commands()
             mqtt_switch.publish_initial_state()
             self._mqtt_entities.append(mqtt_switch)
+
+        for entity_id, entries in pulse_entries.items():
+            if len(entries) > 1:
+                mqtt_button = MQTTLogicalButton(
+                    hardware_pulses=[entry["hardware"] for entry in entries],
+                    mqtt_client=self.mqtt_client,
+                    mqtt_topic_prefix=self.mqtt_topic_prefix,
+                    read_only=self.read_only,
+                )
+                self.logger.info(
+                    f"Setting up logical MQTT button {entity_id} across {len(entries)} outputs"
+                )
+            else:
+                entry = entries[0]
+                mqtt_button = MQTTButton(
+                    hardware_pulse=entry["hardware"],
+                    device_type=entry["device_type"],
+                    device_id=entry["device_id"],
+                    segment_id=entry["segment_id"],
+                    mqtt_client=self.mqtt_client,
+                    mqtt_topic_prefix=self.mqtt_topic_prefix,
+                    read_only=self.read_only,
+                )
+            mqtt_button.publish_discovery()
+            mqtt_button.publish_availability(True)
+            mqtt_button.subscribe_to_commands()
+            mqtt_button.publish_initial_state()
+            self._mqtt_entities.append(mqtt_button)
 
     def _setup_sensor_device(self, device):
         """Setup MQTT sensors for a single device."""

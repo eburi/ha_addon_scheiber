@@ -170,6 +170,7 @@ def _create_devices(
             # Extract lights and switches configuration
             lights_config = device_config.get("lights", {})
             switches_config = device_config.get("switches", {})
+            pulses_config = device_config.get("pulses", {})
 
             device = Bloc9Device(
                 device_id=device_id,
@@ -177,6 +178,7 @@ def _create_devices(
                 segment_id=segment_id,
                 lights_config=lights_config,
                 switches_config=switches_config,
+                pulses_config=pulses_config,
                 initial_state=device_state,
                 logger=logging.getLogger(f"Bloc9.{device_route}"),
             )
@@ -184,10 +186,11 @@ def _create_devices(
 
             num_lights = len(lights_config)
             num_switches = len(switches_config)
+            num_pulses = len(pulses_config)
             logger.info(
                 f"Created Bloc9 device: bus_id={device_id}, "
                 f"segment_id={segment_id}, "
-                f"{num_lights} lights, {num_switches} switches"
+                f"{num_lights} lights, {num_switches} switches, {num_pulses} pulses"
             )
         elif device_type == "bloc7":
             device = Bloc7Device(

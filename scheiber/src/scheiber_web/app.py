@@ -295,13 +295,13 @@ def create_app(
             normalized_role = role.strip().lower() or None
         else:
             return (
-                jsonify({"error": "role must be 'light', 'switch', or omitted"}),
+                jsonify({"error": "role must be 'light', 'switch', 'pulse', or omitted"}),
                 400,
             )
 
-        if normalized_role not in {None, "light", "switch"}:
+        if normalized_role not in {None, "light", "switch", "pulse"}:
             return (
-                jsonify({"error": "role must be 'light', 'switch', or omitted"}),
+                jsonify({"error": "role must be 'light', 'switch', 'pulse', or omitted"}),
                 400,
             )
 
@@ -379,8 +379,8 @@ def create_app(
         output_name = str(payload.get("output_name") or "").strip()
         selected_outputs = payload.get("outputs") or []
         device_names = payload.get("device_names") or {}
-        if role not in {"light", "switch"}:
-            return jsonify({"error": "role must be 'light' or 'switch'"}), 400
+        if role not in {"light", "switch", "pulse"}:
+            return jsonify({"error": "role must be 'light', 'switch', or 'pulse'"}), 400
         if not entity_id:
             return jsonify({"error": "entity_id is required"}), 400
         if not output_name:

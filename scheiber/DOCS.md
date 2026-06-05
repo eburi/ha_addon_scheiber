@@ -19,7 +19,7 @@ Home Assistant for:
 - guiding physical button setup with repeatable countdown-based captures,
 - editing and validating `scheiber-config.yaml`,
 - testing mappings before saving them,
-- grouping multiple Bloc9 outputs under one logical Home Assistant light or switch by reusing the same `entity_id`.
+- grouping multiple Bloc9 outputs under one logical Home Assistant light, switch, or pulse button by reusing the same `entity_id`.
 
 ## First start
 
@@ -30,7 +30,7 @@ Home Assistant for:
 5. Open the add-on UI in Home Assistant to discover devices and save your
    `scheiber-config.yaml`.
    Use the **Helper** tab when you want to stand in front of a real button and
-   teach the add-on which Bloc9 output or logical light it controls.
+   teach the add-on which Bloc9 output or logical light, switch, or pulse it controls.
 6. Once configured, Home Assistant will create entities automatically through
    MQTT Discovery.
 
@@ -65,6 +65,10 @@ devices:
     switches:
       s3:
         name: Water Pump
+    pulses:
+      s4:
+        name: Flybridge Door Close
+        entity_id: flybridge_door_close
   - type: bloc9
     bus_id: 8
     name: Aft Bloc9
@@ -75,8 +79,8 @@ devices:
 ```
 
 Only outputs you explicitly configure are exposed to Home Assistant. If two or
-more Bloc9 outputs share the same light or switch `entity_id`, the bridge
-publishes them as one logical Home Assistant entity.
+more Bloc9 outputs share the same light, switch, or pulse `entity_id`, the
+bridge publishes them as one logical Home Assistant entity.
 
 ## Home Assistant behavior
 

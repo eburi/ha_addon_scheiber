@@ -39,8 +39,8 @@ class SetupHelperService:
             raise ValueError("name is required")
 
         cleaned_role = str(role or "light").strip().lower()
-        if cleaned_role not in {"light", "switch"}:
-            raise ValueError("role must be 'light' or 'switch'")
+        if cleaned_role not in {"light", "switch", "pulse"}:
+            raise ValueError("role must be 'light', 'switch', or 'pulse'")
 
         with self._lock:
             self._ensure_subscription()
@@ -259,14 +259,23 @@ class SetupHelperService:
                 if sample.get("state") is True
             }
             dimming_observed = len(brightness_values) > 1
+            pulse_observed = self._pulse_observed(baseline_sample, current_sample, series)
             evidence = self._session["evidence"].setdefault(
                 ref,
-                {"hits": 0, "tap_hits": 0, "hold_hits": 0, "dimming_hits": 0},
+                {
+                    "hits": 0,
+                    "tap_hits": 0,
+                    "hold_hits": 0,
+                    "dimming_hits": 0,
+                    "pulse_hits": 0,
+                },
             )
             evidence["hits"] += 1
             evidence[f"{run['action']}_hits"] += 1
             if dimming_observed:
                 evidence["dimming_hits"] += 1
+            if pulse_observed:
+                evidence["pulse_hits"] += 1
 
             output_meta = current or baseline or {}
             changed_outputs.append(
@@ -280,7 +289,10 @@ class SetupHelperService:
                     "current": current_sample,
                     "message_count": len(series),
                     "dimming_observed": dimming_observed,
-                    "confidence": self._output_confidence(evidence, len(series), dimming_observed),
+                    "pulse_observed": pulse_observed,
+                    "confidence": self._output_confidence(
+                        evidence, len(series), dimming_observed, pulse_observed
+                    ),
                 }
             )
 
@@ -292,11 +304,12 @@ class SetupHelperService:
             )
         )
 
-        suggested_role = (
-            "light"
-            if any(output["dimming_observed"] for output in changed_outputs)
-            else self._session["target_role"]
-        )
+        if any(output["dimming_observed"] for output in changed_outputs):
+            suggested_role = "light"
+        elif any(output["pulse_observed"] for output in changed_outputs):
+            suggested_role = "pulse"
+        else:
+            suggested_role = self._session["target_role"]
 
         return {
             "action": run["action"],
@@ -317,7 +330,11 @@ class SetupHelperService:
         }
 
     def _output_confidence(
-        self, evidence: Dict[str, int], message_count: int, dimming_observed: bool
+        self,
+        evidence: Dict[str, int],
+        message_count: int,
+        dimming_observed: bool,
+        pulse_observed: bool,
     ) -> Dict[str, Any]:
         score = 45
         if message_count >= 2:
@@ -325,6 +342,8 @@ class SetupHelperService:
         if evidence["hits"] >= 2:
             score += 20
         if dimming_observed:
+            score += 15
+        if pulse_observed:
             score += 15
         level = "high" if score >= 80 else "medium" if score >= 60 else "low"
         return {"level": level, "score": min(score, 100)}
@@ -365,7 +384,11 @@ class SetupHelperService:
             ]
 
         recommendations = []
-        if action == "tap":
+        if any(output["pulse_observed"] for output in changed_outputs):
+            recommendations.append(
+                "This output appears to self-reset after an ON event. Repeat the press-and-release capture once more to confirm pulse behaviour."
+            )
+        elif action == "tap":
             recommendations.append(
                 "Run the press-and-hold capture next to confirm whether the light is dimmable."
             )
@@ -413,6 +436,31 @@ class SetupHelperService:
 
     def _route_slug(self, bus_id: int, segment_id: int) -> str:
         return f"{bus_id}" if segment_id == 0 else f"{bus_id}_{segment_id}"
+
+    def _pulse_observed(
+        self,
+        baseline_sample: Optional[Dict[str, Any]],
+        current_sample: Optional[Dict[str, Any]],
+        series: List[Dict[str, Any]],
+    ) -> bool:
+        if not series:
+            return False
+
+        saw_on = any(sample.get("state") is True for sample in series)
+        saw_off = any(sample.get("state") is False for sample in series)
+        if not (saw_on and saw_off):
+            return False
+
+        if any(
+            sample.get("effective_brightness", 0) not in {0, 255}
+            for sample in series
+            if sample.get("state") is True
+        ):
+            return False
+
+        baseline_state = baseline_sample["state"] if baseline_sample else False
+        current_state = current_sample["state"] if current_sample else False
+        return baseline_state is False and current_state is False
 
     def _empty_snapshot(self) -> Dict[str, Any]:
         return {

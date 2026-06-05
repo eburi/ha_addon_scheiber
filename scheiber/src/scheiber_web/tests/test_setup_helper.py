@@ -73,3 +73,42 @@ def test_setup_helper_hold_marks_dimming_as_light():
 
     assert snapshot["completed_run"]["suggested_role"] == "light"
     assert snapshot["completed_run"]["changed_outputs"][0]["dimming_observed"] is True
+
+
+def test_setup_helper_tap_detects_pulse_output():
+    runtime = FakeRuntimeController()
+    service = SetupHelperService(runtime)
+
+    baseline_message = can.Message(
+        arbitration_id=0x02160698,
+        data=bytes([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+        is_extended_id=True,
+    )
+    service._handle_message(baseline_message)
+
+    service.start_session("Flybridge Door", role="switch")
+    service.arm_run("tap")
+
+    run = service._session["active_run"]
+    run["capture_start_at"] = 0
+    run["capture_end_at"] = 9999999999
+    run["press_at"] = 0
+
+    on_message = can.Message(
+        arbitration_id=0x02160698,
+        data=bytes([0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]),
+        is_extended_id=True,
+    )
+    off_message = can.Message(
+        arbitration_id=0x02160698,
+        data=bytes([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+        is_extended_id=True,
+    )
+    service._handle_message(on_message)
+    service._handle_message(off_message)
+    run["capture_end_at"] = 0
+
+    snapshot = service.snapshot()
+
+    assert snapshot["completed_run"]["suggested_role"] == "pulse"
+    assert snapshot["completed_run"]["changed_outputs"][0]["pulse_observed"] is True

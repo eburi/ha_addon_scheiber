@@ -14,6 +14,7 @@ from .base_device import ScheiberCanDevice
 from .discovery import build_bloc9_address_byte
 from .light import DimmableLight
 from .matchers import Matcher
+from .pulse import PulseOutput
 from .switch import Switch
 
 
@@ -43,6 +44,7 @@ class Bloc9Device(ScheiberCanDevice):
         segment_id: int = 0,
         lights_config: Optional[Dict[str, Dict[str, Any]]] = None,
         switches_config: Optional[Dict[str, Dict[str, Any]]] = None,
+        pulses_config: Optional[Dict[str, Dict[str, Any]]] = None,
         initial_state: Optional[Dict[str, Any]] = None,
         logger: Optional[logging.Logger] = None,
     ):
@@ -55,6 +57,7 @@ class Bloc9Device(ScheiberCanDevice):
             can_bus: ScheiberCanBus instance
             lights_config: Dict mapping output names (s1-s6) to light config
             switches_config: Dict mapping output names (s1-s6) to switch config
+            pulses_config: Dict mapping output names (s1-s6) to pulse config
             initial_state: Previously persisted state dictionary (outputs -> state)
             logger: Optional logger
         """
@@ -66,6 +69,7 @@ class Bloc9Device(ScheiberCanDevice):
         # Track all outputs (mix of switches and lights)
         self.switches: List[Switch] = []
         self.lights: List[DimmableLight] = []
+        self.pulses: List[PulseOutput] = []
 
         # Map output names to switch numbers
         output_map = {f"s{i+1}": i for i in range(6)}
@@ -181,6 +185,26 @@ class Bloc9Device(ScheiberCanDevice):
 
                 self.switches.append(switch)
 
+        if pulses_config:
+            for output_name, config in pulses_config.items():
+                switch_nr = output_map.get(output_name.lower())
+                if switch_nr is None:
+                    self.logger.warning(f"Invalid output name: {output_name}")
+                    continue
+
+                name = config.get("name", output_name)
+                entity_id = config.get("entity_id", name.lower().replace(" ", "_"))
+                pulse = PulseOutput(
+                    device_id=device_id,
+                    switch_nr=switch_nr,
+                    name=name,
+                    entity_id=entity_id,
+                    send_command_func=self._send_switch_command,
+                    segment_id=segment_id,
+                    logger=logging.getLogger(f"Bloc9.{self.route_slug}.{output_name}"),
+                )
+                self.pulses.append(pulse)
+
         # Build matcher-to-outputs mapping for message dispatch
         self.get_matchers()
 
@@ -212,6 +236,14 @@ class Bloc9Device(ScheiberCanDevice):
                     self._matcher_to_outputs[pattern] = []
                     matchers.append(matcher)
                 self._matcher_to_outputs[pattern].append(switch)
+
+        for pulse in self.pulses:
+            for matcher in pulse.get_matchers():
+                pattern = matcher.pattern
+                if pattern not in self._matcher_to_outputs:
+                    self._matcher_to_outputs[pattern] = []
+                    matchers.append(matcher)
+                self._matcher_to_outputs[pattern].append(pulse)
 
         # Add heartbeat matcher (low-priority status)
         heartbeat_pattern = 0x00000600 | build_bloc9_address_byte(
@@ -305,6 +337,10 @@ class Bloc9Device(ScheiberCanDevice):
             output_name = f"s{switch.switch_nr + 1}"
             outputs[output_name] = switch.name
 
+        for pulse in self.pulses:
+            output_name = f"s{pulse.switch_nr + 1}"
+            outputs[output_name] = pulse.name
+
         # Notify observers with device info
         device_info = {
             "device_type": "bloc9",
@@ -360,6 +396,10 @@ class Bloc9Device(ScheiberCanDevice):
     def get_switches(self) -> List[Switch]:
         """Return list of all switches."""
         return self.switches
+
+    def get_pulses(self) -> List[PulseOutput]:
+        """Return list of all pulse outputs."""
+        return self.pulses
 
     def restore_from_state(self, state: Dict[str, Any]) -> None:
         """

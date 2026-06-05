@@ -104,6 +104,11 @@ devices:
 #   - entity_id: Entity ID (without 'switch.' prefix)
 #     Reuse the same entity_id on multiple Bloc9 switch outputs to expose them as one
 #     logical Home Assistant switch
+# - pulses: Dict mapping output names (s1-s6) to pulse config
+#   - name: Display name in Home Assistant
+#   - entity_id: Entity ID (without 'button.' prefix)
+#     Reuse the same entity_id on multiple Bloc9 pulse outputs to expose them as one
+#     logical Home Assistant button
 
 # State persistence
 # The system will automatically save state every 30 seconds

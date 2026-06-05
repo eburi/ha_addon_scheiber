@@ -39,6 +39,7 @@ def mock_light():
     light.subscribe = Mock()
     light.get_lights.return_value = []
     light.get_switches.return_value = []
+    light.get_pulses.return_value = []
     return light
 
 
@@ -50,6 +51,7 @@ def mock_switch():
     switch.entity_id = "switch_1"
     switch.get_state.return_value = False
     switch.subscribe = Mock()
+    switch.get_pulses.return_value = []
     return switch
 
 
@@ -61,6 +63,7 @@ def mock_bloc9_device(mock_light, mock_switch):
     device.device_id = 7
     device.get_lights.return_value = [mock_light]
     device.get_switches.return_value = [mock_switch]
+    device.get_pulses.return_value = []
     return device
 
 

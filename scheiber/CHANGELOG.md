@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.11.0] - 2026-06-05
+
+### Added
+- Added Bloc9 `pulse` outputs that publish to Home Assistant as button entities for momentary trigger-style channels such as relay impulses for door or other external controllers
+
+### Changed
+- The Setup Helper now recognizes quick ON->OFF self-reset behaviour during tap captures and suggests pulse mappings instead of forcing every non-dimming output into the light/switch model
+- Reusing the same `entity_id` across multiple Bloc9 pulse outputs now creates one logical Home Assistant button, matching the existing logical light and switch grouping model
+
 ## [6.10.8] - 2026-06-05
 
 ### Added
@@ -900,7 +909,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant MQTT Discovery integration
 - Brightness control and dimming support
 
-[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.8...HEAD
+[Unreleased]: https://github.com/eburi/ha_addon_scheiber/compare/v6.11.0...HEAD
+[6.11.0]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.8...v6.11.0
 [6.10.8]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.7...v6.10.8
 [6.10.7]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.6...v6.10.7
 [6.10.6]: https://github.com/eburi/ha_addon_scheiber/compare/v6.10.5...v6.10.6

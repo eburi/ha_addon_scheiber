@@ -474,11 +474,11 @@ def validate_editor_config(
                     normalized_outputs[output_name] = normalized_output
                     continue
 
-                if role not in {"light", "switch"}:
+                if role not in {"light", "switch", "pulse"}:
                     errors.append(
                         make_error(
                             "invalid_output_role",
-                            "role must be 'light' or 'switch'",
+                            "role must be 'light', 'switch', or 'pulse'",
                             output_path + ["role"],
                         )
                     )
@@ -504,8 +504,10 @@ def validate_editor_config(
                 else:
                     entity_id = entity_id.strip()
                     normalized_output["entity_id"] = entity_id
-                    if entity_id.startswith("light.") or entity_id.startswith(
-                        "switch."
+                    if (
+                        entity_id.startswith("light.")
+                        or entity_id.startswith("switch.")
+                        or entity_id.startswith("button.")
                     ):
                         errors.append(
                             make_error(
@@ -1013,7 +1015,11 @@ def runtime_to_editor_config(runtime_config: Dict[str, Any]) -> Dict[str, Any]:
 
             outputs[output_name]["name"] = output_config.get("name", "")
 
-        for role, section_name in (("light", "lights"), ("switch", "switches")):
+        for role, section_name in (
+            ("light", "lights"),
+            ("switch", "switches"),
+            ("pulse", "pulses"),
+        ):
             section = device.get(section_name, {})
             if section is None:
                 section = {}
@@ -1119,6 +1125,7 @@ def editor_to_runtime_config(editor_config: Dict[str, Any]) -> Dict[str, Any]:
             outputs = {}
             lights = {}
             switches = {}
+            pulses = {}
             for output_name, output in device["outputs"].items():
                 if output.get("name"):
                     outputs[output_name] = {"name": output["name"]}
@@ -1136,6 +1143,8 @@ def editor_to_runtime_config(editor_config: Dict[str, Any]) -> Dict[str, Any]:
                             "initial_brightness"
                         ]
                     lights[output_name] = runtime_output
+                elif output["role"] == "pulse":
+                    pulses[output_name] = runtime_output
                 else:
                     switches[output_name] = runtime_output
 
@@ -1145,6 +1154,8 @@ def editor_to_runtime_config(editor_config: Dict[str, Any]) -> Dict[str, Any]:
                 runtime_device["lights"] = lights
             if switches:
                 runtime_device["switches"] = switches
+            if pulses:
+                runtime_device["pulses"] = pulses
 
         runtime_devices.append(runtime_device)
 

@@ -401,6 +401,12 @@ function outputUsesBrightness(output) {
   return output?.role === "light";
 }
 
+function outputUsesPulse(roleOrOutput) {
+  const role =
+    typeof roleOrOutput === "string" ? roleOrOutput : roleOrOutput?.role;
+  return role === "pulse";
+}
+
 function getConfiguredBloc9Map() {
   return Object.fromEntries(
     state.config.devices
@@ -429,18 +435,21 @@ function ensureBloc9Draft(cardKey, configuredDevice, discoveredCandidate) {
 }
 
 function collectEntityIds(excludedDevicePredicate) {
-  const entityIds = new Set();
+  const entityIds = new Map();
   for (const device of state.config.devices) {
     if (excludedDevicePredicate?.(device)) continue;
     if (device.type === "bloc9") {
       for (const outputName of outputs) {
         const output = device.outputs?.[outputName];
-        if (output?.enabled && output.entity_id) entityIds.add(output.entity_id);
+        if (output?.enabled && output.entity_id) {
+          if (!entityIds.has(output.entity_id)) entityIds.set(output.entity_id, new Set());
+          entityIds.get(output.entity_id).add(output.role);
+        }
       }
       continue;
     }
     for (const sensor of device.sensors || []) {
-      if (sensor.entity_id) entityIds.add(sensor.entity_id);
+      if (sensor.entity_id) entityIds.set(sensor.entity_id, new Set(["sensor"]));
     }
   }
   return entityIds;
@@ -451,7 +460,7 @@ function validateBloc9Draft(draft, cardKey) {
   const seenEntityIds = collectEntityIds(
     (device) => device.type === "bloc9" && bloc9KeyFor(device) === cardKey,
   );
-  const localEntityIds = new Set();
+  const localEntityIds = new Map();
 
   if (!Number.isInteger(Number(draft.bus_id)) || Number(draft.bus_id) < 0 || Number(draft.bus_id) > 15) {
     errors["device.bus_id"] = "Bus ID must be between 0 and 15.";
@@ -470,8 +479,8 @@ function validateBloc9Draft(draft, cardKey) {
     const basePath = `outputs.${outputName}`;
 
     if (!role) continue;
-    if (!["light", "switch"].includes(role)) {
-      errors[`${basePath}.role`] = "Choose light or switch.";
+    if (!["light", "switch", "pulse"].includes(role)) {
+      errors[`${basePath}.role`] = "Choose light, switch, or pulse.";
       continue;
     }
     if (!String(output.name || "").trim()) {
@@ -480,15 +489,27 @@ function validateBloc9Draft(draft, cardKey) {
     const entityId = String(output.entity_id || "").trim();
     if (!entityId) {
       errors[`${basePath}.entity_id`] = "Configured outputs need an entity ID.";
-    } else if (entityId.startsWith("light.") || entityId.startsWith("switch.")) {
+    } else if (
+      entityId.startsWith("light.")
+      || entityId.startsWith("switch.")
+      || entityId.startsWith("button.")
+    ) {
       errors[`${basePath}.entity_id`] = "Do not include the Home Assistant domain.";
     } else if (!entityIdPattern.test(entityId)) {
       errors[`${basePath}.entity_id`] =
         "Use lowercase letters, numbers, and underscores only.";
-    } else if (seenEntityIds.has(entityId) || localEntityIds.has(entityId)) {
-      errors[`${basePath}.entity_id`] = "This entity ID is already in use.";
     } else {
-      localEntityIds.add(entityId);
+      const seenRoles = seenEntityIds.get(entityId);
+      const localRoles = localEntityIds.get(entityId);
+      const conflictingSeenRole = seenRoles && !seenRoles.has(role);
+      const conflictingLocalRole = localRoles && !localRoles.has(role);
+      if (conflictingSeenRole || conflictingLocalRole) {
+        errors[`${basePath}.entity_id`] =
+          "This entity ID is already used by a different role.";
+      } else {
+        if (!localEntityIds.has(entityId)) localEntityIds.set(entityId, new Set());
+        localEntityIds.get(entityId).add(role);
+      }
     }
 
     const brightness = output.initial_brightness;
@@ -578,6 +599,7 @@ function renderBloc9OutputRow(cardKey, draft, baseline, candidate, outputName, v
   const outputPanelId = `bloc9-output-${domSafeId(cardKey)}-${outputName}`;
   const outputLabel = bloc9OutputDisplayName(outputName, output);
   const outputSummary = output.role ? `${output.role} configured` : "Not configured";
+  const isPulse = outputUsesPulse(output);
 
   return `
     <section class="output-card${liveFlash ? " live-change" : ""}">
@@ -611,6 +633,7 @@ function renderBloc9OutputRow(cardKey, draft, baseline, candidate, outputName, v
               <option value="" ${!output.role ? "selected" : ""}>Not configured</option>
               <option value="light" ${output.role === "light" ? "selected" : ""}>Light</option>
               <option value="switch" ${output.role === "switch" ? "selected" : ""}>Switch</option>
+              <option value="pulse" ${output.role === "pulse" ? "selected" : ""}>Pulse</option>
             </select>
             ${validation.errors[`outputs.${outputName}.role`] ? `<small>${escapeHtml(validation.errors[`outputs.${outputName}.role`])}</small>` : ""}
           </label>
@@ -685,25 +708,29 @@ function renderBloc9OutputRow(cardKey, draft, baseline, candidate, outputName, v
               >
               <span class="slider-value">${control.brightness}</span>
             </label>`
-                : '<span class="muted">ON sends a full-on command without brightness or PWM.</span>'
+                : `<span class="muted">${isPulse
+                  ? "Trigger sends a momentary ON impulse; the Bloc9 is expected to reset the output itself."
+                  : "ON sends a full-on command without brightness or PWM."}</span>`
             }
             <div class="button-group">
-              <button
-                type="button"
-                data-action="send-control"
+             <button
+                 type="button"
+                 data-action="send-control"
                 data-card-key="${escapeHtml(cardKey)}"
                 data-output="${outputName}"
                 data-on="1"
                 ${actionAttrs(`control:${cardKey}:${outputName}:on`, !state.runtime.running || state.runtime.read_only)}
-              >On</button>
-              <button
+              >${isPulse ? "Trigger" : "On"}</button>
+              ${isPulse
+                ? ""
+                : `<button
                 type="button"
                 data-action="send-control"
                 data-card-key="${escapeHtml(cardKey)}"
                 data-output="${outputName}"
                 data-on="0"
                 ${actionAttrs(`control:${cardKey}:${outputName}:off`, !state.runtime.running || state.runtime.read_only)}
-              >Off</button>
+              >Off</button>`}
             </div>
           </div>
         </div>
@@ -1649,7 +1676,11 @@ function renderSetupHelperPanel() {
               <div>
                 <strong>${escapeHtml(`Bloc9 #${output.route_slug} ${output.output_name.toUpperCase()}`)}</strong>
                 <div class="muted">${escapeHtml(helperConflictSummary(output))}</div>
-                <div class="muted">${escapeHtml(output.dimming_observed ? "Dimming observed during hold." : "No dimming observed in this capture.")}</div>
+                <div class="muted">${escapeHtml(output.dimming_observed
+                  ? "Dimming observed during hold."
+                  : output.pulse_observed
+                    ? "Momentary ON->OFF self-reset observed during tap."
+                    : "No dimming observed in this capture.")}</div>
               </div>
               <span class="summary-chip">${escapeHtml(output.confidence?.level || "low")} ${escapeHtml(output.confidence?.score || 0)}</span>
             </label>
@@ -1674,7 +1705,7 @@ function renderSetupHelperPanel() {
           <div>
             <h3>Apply to configuration</h3>
             <p>${escapeHtml(selectedOutputs.length > 1
-              ? "Multiple outputs are selected, so this will be saved as one logical light or switch by reusing the same entity ID."
+              ? "Multiple outputs are selected, so this will be saved as one logical light, switch, or pulse by reusing the same entity ID."
               : "This will save the selected Bloc9 output directly into the configuration.")}</p>
           </div>
         </div>
@@ -1684,6 +1715,7 @@ function renderSetupHelperPanel() {
             <select data-card-kind="setup-helper" data-field="role">
               <option value="light" ${draft.role === "light" ? "selected" : ""}>Light</option>
               <option value="switch" ${draft.role === "switch" ? "selected" : ""}>Switch</option>
+              <option value="pulse" ${draft.role === "pulse" ? "selected" : ""}>Pulse</option>
             </select>
           </label>
           <label class="field-shell">
@@ -1726,7 +1758,7 @@ function renderSetupHelperPanel() {
       <div class="card-header">
         <div>
           <h3>What are you about to control?</h3>
-          <p>Pick a known light or switch, or enter a new name for the thing behind the button you are testing.</p>
+          <p>Pick a known light, switch, or pulse, or enter a new name for the thing behind the button you are testing.</p>
         </div>
       </div>
       <div class="card-grid compact-grid">
@@ -1759,6 +1791,7 @@ function renderSetupHelperPanel() {
           <select data-card-kind="setup-helper" data-field="role">
             <option value="light" ${draft.role === "light" ? "selected" : ""}>Light</option>
             <option value="switch" ${draft.role === "switch" ? "selected" : ""}>Switch</option>
+            <option value="pulse" ${draft.role === "pulse" ? "selected" : ""}>Pulse</option>
           </select>
         </label>
       </div>
@@ -1794,7 +1827,7 @@ function renderSetupHelperPanel() {
         <button type="button" data-action="helper-run-hold" ${actionAttrs("helper-run-hold", helper.status === "idle")}>Press, hold, release</button>
       </div>
       <div class="helper-guidance muted">
-        For <strong>Press and release</strong>, tap the button exactly when the countdown reaches <strong>Now</strong>. For <strong>Press, hold, release</strong>, hold through the second countdown so the helper can see whether dimming starts.
+        For <strong>Press and release</strong>, tap the button exactly when the countdown reaches <strong>Now</strong>. For <strong>Press, hold, release</strong>, hold through the second countdown so the helper can see whether dimming starts. A quick ON-&gt;OFF self-reset during the tap capture suggests a pulse output.
       </div>
     </section>
 
@@ -2082,6 +2115,7 @@ async function sendControl(cardKey, outputName, on) {
   const switchNr = outputs.indexOf(outputName);
   const control = getControlState(cardKey, outputName);
   const canUseBrightness = outputUsesBrightness(output);
+  const isPulse = outputUsesPulse(output);
   const actionKey = `control:${cardKey}:${outputName}:${on ? "on" : "off"}`;
   setBusy(actionKey, true);
   try {
@@ -2103,7 +2137,7 @@ async function sendControl(cardKey, outputName, on) {
       return;
     }
     showToast(
-      `Sent ${on ? "on" : "off"} command to ${outputName.toUpperCase()} on Bloc9 #${cardKey}.`,
+      `Sent ${isPulse ? "trigger" : on ? "on" : "off"} command to ${outputName.toUpperCase()} on Bloc9 #${cardKey}.`,
       "success",
     );
   } finally {

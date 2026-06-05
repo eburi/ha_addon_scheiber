@@ -506,6 +506,23 @@ def test_setup_helper_run_starts_countdown(tmp_path):
     assert response.get_json()["active_run"]["countdown"] == 5
 
 
+def test_setup_helper_session_accepts_pulse_role(tmp_path):
+    setup_helper = FakeSetupHelper()
+    client, _ = create_test_client(tmp_path, setup_helper=setup_helper)
+
+    response = client.post(
+        "/api/setup-helper/session",
+        json={
+            "name": "Flybridge Door",
+            "entity_id": "flybridge_door_close",
+            "role": "pulse",
+        },
+    )
+
+    assert response.status_code == 200
+    assert setup_helper.start_calls[-1]["role"] == "pulse"
+
+
 def test_setup_helper_apply_updates_multiple_outputs_as_one_logical_light(tmp_path):
     runtime = FakeRuntimeController()
     client, config_path = create_test_client(tmp_path, runtime_controller=runtime)
@@ -531,6 +548,29 @@ def test_setup_helper_apply_updates_multiple_outputs_as_one_logical_light(tmp_pa
     assert saved_text.count("entity_id: underwater_light") == 2
     assert "Underwater Light" in saved_text
     assert "name: Aft panel" in saved_text
+
+
+def test_setup_helper_apply_accepts_pulse_role(tmp_path):
+    runtime = FakeRuntimeController()
+    client, config_path = create_test_client(tmp_path, runtime_controller=runtime)
+
+    payload = client.get("/api/config").get_json()
+    response = client.post(
+        "/api/setup-helper/apply",
+        json={
+            "base_revision": payload["revision"],
+            "role": "pulse",
+            "entity_id": "flybridge_door_close",
+            "output_name": "Flybridge Door Close",
+            "device_names": {},
+            "outputs": [{"bus_id": 7, "segment_id": 0, "output_name": "s2"}],
+        },
+    )
+
+    assert response.status_code == 200
+    saved_text = Path(config_path).read_text(encoding="utf-8")
+    assert "pulses:" in saved_text
+    assert "flybridge_door_close" in saved_text
 
 
 def test_frontend_heartbeat_updates_browser_session(tmp_path):
@@ -624,6 +664,33 @@ def test_discovery_control_ignores_brightness_for_switch_role(tmp_path):
             "bus_id": 3,
             "switch_nr": 0,
             "role": "switch",
+            "on": True,
+            "brightness": 64,
+        },
+    )
+
+    assert response.status_code == 200
+    assert runtime.sent_commands == [
+        {
+            "bus_id": 3,
+            "switch_nr": 0,
+            "on": True,
+            "brightness": None,
+            "segment_id": 0,
+        }
+    ]
+
+
+def test_discovery_control_ignores_brightness_for_pulse_role(tmp_path):
+    runtime = FakeRuntimeController()
+    client, _ = create_test_client(tmp_path, runtime_controller=runtime)
+
+    response = client.post(
+        "/api/discovery/control",
+        json={
+            "bus_id": 3,
+            "switch_nr": 0,
+            "role": "pulse",
             "on": True,
             "brightness": 64,
         },
