@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.12.0] - 2026-07-03
+
+### Added
+- Added an **Interactions** setup tab that captures probable button-source CAN frames, inferred key-down/key-up bit transitions, five seconds of raw pre-trigger context, and up to ten seconds of Bloc9 reactions for reverse-engineering Light Air Switch and key-interface addressing
+- Documented the current Scheiber button interaction hypothesis, including observed `0x04001A80` and `0x04001808` button-source frame families and unresolved addressing-schema questions
+
 ## [6.11.3] - 2026-06-05
 
 ### Fixed

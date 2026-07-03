@@ -213,6 +213,52 @@ class FakeSetupHelper:
         return self.snapshot()
 
 
+class FakeInteractionDiscovery:
+    def __init__(self, should_fail=False):
+        self.should_fail = should_fail
+        self.start_calls = []
+        self.stop_calls = 0
+
+    def snapshot(self):
+        return {
+            "status": "idle",
+            "phase": "idle",
+            "location": "",
+            "started_at": None,
+            "last_message_at": None,
+            "reaction_started_at": None,
+            "reaction_deadline_at": None,
+            "remaining_reaction_seconds": None,
+            "message_counts": {
+                "button_source_status": 0,
+                "bloc9_state_update": 0,
+                "bloc9_heartbeat": 0,
+                "other": 0,
+            },
+            "button_events": [],
+            "button_candidates": [],
+            "reaction_outputs": [],
+            "raw_context": [],
+            "other_messages": [],
+            "hypothesis": {"confidence": "unknown", "summary": "", "notes": []},
+        }
+
+    def start(self, location):
+        if self.should_fail:
+            raise RuntimeError("bridge not running")
+        cleaned = str(location or "").strip()
+        if not cleaned:
+            raise ValueError("location is required")
+        self.start_calls.append(cleaned)
+        payload = self.snapshot()
+        payload.update({"status": "running", "phase": "waiting_for_button", "location": cleaned})
+        return payload
+
+    def stop(self):
+        self.stop_calls += 1
+        return self.snapshot()
+
+
 def create_test_client(
     tmp_path,
     runtime_controller=None,
@@ -220,6 +266,7 @@ def create_test_client(
     inspector=None,
     frontend_monitor=None,
     setup_helper=None,
+    interaction_discovery=None,
     *,
     web_ui_enabled=True,
     mcp_server_enabled=False,
@@ -251,6 +298,7 @@ devices:
         inspector=inspector,
         frontend_monitor=frontend_monitor or FakeFrontendMonitor(),
         setup_helper=setup_helper or FakeSetupHelper(),
+        interaction_discovery=interaction_discovery or FakeInteractionDiscovery(),
     )
     app.testing = True
     return app.test_client(), config_path
@@ -541,6 +589,46 @@ def test_setup_helper_session_accepts_pulse_role(tmp_path):
 
     assert response.status_code == 200
     assert setup_helper.start_calls[-1]["role"] == "pulse"
+
+
+def test_interaction_discovery_starts_with_location(tmp_path):
+    interaction_discovery = FakeInteractionDiscovery()
+    client, _ = create_test_client(
+        tmp_path, interaction_discovery=interaction_discovery
+    )
+
+    response = client.post(
+        "/api/interactions/start",
+        json={"location": "saloon entrance"},
+    )
+
+    assert response.status_code == 200
+    assert interaction_discovery.start_calls == ["saloon entrance"]
+    assert response.get_json()["phase"] == "waiting_for_button"
+
+
+def test_interaction_discovery_requires_location(tmp_path):
+    client, _ = create_test_client(tmp_path)
+
+    response = client.post("/api/interactions/start", json={"location": ""})
+
+    assert response.status_code == 400
+    assert response.get_json()["code"] == "invalid_request"
+
+
+def test_interaction_discovery_start_reports_runtime_conflict(tmp_path):
+    client, _ = create_test_client(
+        tmp_path,
+        interaction_discovery=FakeInteractionDiscovery(should_fail=True),
+    )
+
+    response = client.post(
+        "/api/interactions/start",
+        json={"location": "saloon entrance"},
+    )
+
+    assert response.status_code == 409
+    assert response.get_json()["code"] == "runtime_not_running"
 
 
 def test_setup_helper_apply_updates_multiple_outputs_as_one_logical_light(tmp_path):

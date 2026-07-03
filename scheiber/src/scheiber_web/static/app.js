@@ -23,6 +23,21 @@ const state = {
     active_run: null,
     completed_run: null,
   },
+  interactions: {
+    status: "idle",
+    phase: "idle",
+    location: "",
+    message_counts: {},
+    button_events: [],
+    button_candidates: [],
+    reaction_outputs: [],
+    raw_context: [],
+    other_messages: [],
+    hypothesis: { confidence: "unknown", summary: "", notes: [] },
+  },
+  interactionDraft: {
+    location: "",
+  },
   setupHelperDraft: {
     target_name: "",
     entity_id: "",
@@ -222,6 +237,10 @@ function renderCurrentTab() {
   }
   if (state.activeTab === "helper") {
     renderSetupHelperPanel();
+    return;
+  }
+  if (state.activeTab === "interactions") {
+    renderInteractionsPanel();
     return;
   }
   renderInspectPanel();
@@ -1818,6 +1837,187 @@ function renderSetupHelperPanel() {
   `;
 }
 
+function formatBitList(bits) {
+  const values = (bits || []).map((entry) => (typeof entry === "object" ? entry.bit : entry));
+  return values.length ? values.map((bit) => `bit${bit}`).join(", ") : "none";
+}
+
+function formatCountedBits(bits) {
+  return (bits || []).length
+    ? bits.map((entry) => `bit${entry.bit} (${entry.count}×)`).join(", ")
+    : "none";
+}
+
+function formatSampleState(sample) {
+  if (!sample) return "unknown";
+  const stateLabel = sample.state ? "ON" : "OFF";
+  return `${stateLabel}, brightness ${sample.effective_brightness ?? sample.raw_brightness ?? "?"}`;
+}
+
+function interactionStartReady() {
+  return Boolean(state.interactionDraft.location.trim());
+}
+
+function renderInteractionsPanel() {
+  const container = document.getElementById("interactions-panel");
+  const discovery = state.interactions;
+  const draft = state.interactionDraft;
+  const isRunning = discovery.status === "running";
+  const buttonCandidates = discovery.button_candidates || [];
+  const reactions = discovery.reaction_outputs || [];
+  const events = discovery.button_events || [];
+  const context = discovery.raw_context || [];
+  const counts = discovery.message_counts || {};
+
+  const candidateMarkup = buttonCandidates.length
+    ? buttonCandidates.map((candidate) => `
+        <section class="interaction-item">
+          <div class="interaction-item-header">
+            <div>
+              <strong>${escapeHtml(candidate.arbitration_id)} · ${escapeHtml(candidate.identity_hex || "no identity")}</strong>
+              <div class="muted">${escapeHtml(candidate.source_family)} · ${escapeHtml(candidate.confidence)} confidence · ${escapeHtml(candidate.event_count)} event${candidate.event_count === 1 ? "" : "s"}</div>
+            </div>
+            <span class="summary-chip">payload identity</span>
+          </div>
+          <div class="summary-bar compact">
+            <span class="summary-chip">Rising ${escapeHtml(formatCountedBits(candidate.rising_bits))}</span>
+            <span class="summary-chip">Falling ${escapeHtml(formatCountedBits(candidate.falling_bits))}</span>
+          </div>
+          <div class="interaction-code-list">
+            ${(candidate.statuses_seen || []).map((status) => `
+              <code>${escapeHtml(status.sample_data)} · status ${escapeHtml(status.status_hex)}</code>
+            `).join("")}
+          </div>
+        </section>
+      `).join("")
+    : '<div class="empty-inline">No button-source candidate has been captured yet.</div>';
+
+  const eventMarkup = events.length
+    ? events.slice(-8).reverse().map((event) => `
+        <div class="interaction-event">
+          <strong>${escapeHtml(event.event_type)}</strong>
+          <span>${escapeHtml(event.arbitration_id)}</span>
+          <span>${escapeHtml(event.data_hex)}</span>
+          <span>active ${escapeHtml(formatBitList(event.active_bits))}</span>
+          <span>rising ${escapeHtml(formatBitList(event.rising_bits))}</span>
+          <span>falling ${escapeHtml(formatBitList(event.falling_bits))}</span>
+        </div>
+      `).join("")
+    : '<div class="empty-inline">Press a button after starting discovery to collect key-down/key-up evidence.</div>';
+
+  const reactionMarkup = reactions.length
+    ? reactions.map((reaction) => `
+        <section class="interaction-item">
+          <div class="interaction-item-header">
+            <div>
+              <strong>Bloc9 #${escapeHtml(reaction.route_slug)} ${escapeHtml(String(reaction.output_name || "").toUpperCase())}</strong>
+              <div class="muted">${escapeHtml(formatSampleState(reaction.baseline))} → ${escapeHtml(formatSampleState(reaction.current))}</div>
+            </div>
+            <span class="summary-chip">${escapeHtml(reaction.dimming_observed ? "dimming" : "state change")}</span>
+          </div>
+          <div class="interaction-samples">
+            ${(reaction.samples || []).map((sample) => `<span class="summary-chip">${escapeHtml(formatSampleState(sample))}</span>`).join("")}
+          </div>
+        </section>
+      `).join("")
+    : '<div class="empty-inline">No changed Bloc9 output has been correlated yet.</div>';
+
+  const contextMarkup = context.length
+    ? context.slice(-16).map((entry) => `
+        <div class="interaction-event compact">
+          <strong>${escapeHtml(entry.kind)}</strong>
+          <span>${escapeHtml(entry.arbitration_id)}</span>
+          <span>${escapeHtml(entry.data)}</span>
+        </div>
+      `).join("")
+    : '<div class="empty-inline">The five-second pre-trigger context will appear once an interaction starts.</div>';
+
+  container.className = "card-list";
+  container.innerHTML = `
+    <section class="setup-card tone-discovered">
+      <div class="card-header">
+        <div>
+          <h3>Discover an installed button</h3>
+          <p>Enter where you are standing, start discovery, then press and optionally hold one physical button. The service keeps a five-second buffer and watches for Bloc9 reactions for up to ten seconds.</p>
+        </div>
+      </div>
+      <div class="card-grid compact-grid">
+        <label class="field-shell">
+          <span>Button location</span>
+          <input type="text" value="${escapeHtml(draft.location || discovery.location || "")}" placeholder="e.g. saloon entrance, aft cabin port side" data-card-kind="interactions" data-field="location">
+        </label>
+      </div>
+      <div class="card-footer">
+        <div class="card-hint">${escapeHtml(discovery.hypothesis?.summary || "Start discovery and press a physical button to capture evidence.")}</div>
+        <div class="toolbar-actions">
+          <button type="button" data-action="interactions-start" ${actionAttrs("interactions-start", isRunning || !interactionStartReady(), "primary")}>Start discovery</button>
+          <button type="button" data-action="interactions-stop" ${actionAttrs("interactions-stop", discovery.status === "idle")}>Stop</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="setup-card tone-synced">
+      <div class="card-header">
+        <div>
+          <h3>Live capture</h3>
+          <p>${escapeHtml(discovery.location ? `Location: ${discovery.location}` : "No interaction session is active.")}</p>
+        </div>
+      </div>
+      <div class="summary-bar compact">
+        <span class="summary-chip ${isRunning ? "positive" : "negative"}">${escapeHtml(discovery.status || "idle")}</span>
+        <span class="summary-chip">${escapeHtml(discovery.phase || "idle")}</span>
+        ${discovery.remaining_reaction_seconds !== null && discovery.remaining_reaction_seconds !== undefined ? `<span class="summary-chip">${escapeHtml(discovery.remaining_reaction_seconds)}s reaction window</span>` : ""}
+        <span class="summary-chip">Buttons ${escapeHtml(counts.button_source_status || 0)}</span>
+        <span class="summary-chip">Bloc9 changes ${escapeHtml(counts.bloc9_state_update || 0)}</span>
+        <span class="summary-chip">Other ${escapeHtml(counts.other || 0)}</span>
+      </div>
+      <div class="interaction-notes">
+        ${(discovery.hypothesis?.notes || []).map((note) => `<div class="diagnostic-item warning">${escapeHtml(note)}</div>`).join("")}
+      </div>
+    </section>
+
+    <section class="setup-card tone-configured">
+      <div class="card-header">
+        <div>
+          <h3>Button-source candidates</h3>
+          <p>These are probable button/status senders and raw payload identities. They are evidence for the addressing schema, not saved configuration.</p>
+        </div>
+      </div>
+      <div class="interaction-list">${candidateMarkup}</div>
+    </section>
+
+    <section class="setup-card tone-configured">
+      <div class="card-header">
+        <div>
+          <h3>Key events</h3>
+          <p>Recent status transitions inferred from button-source payloads.</p>
+        </div>
+      </div>
+      <div class="interaction-list">${eventMarkup}</div>
+    </section>
+
+    <section class="setup-card tone-synced">
+      <div class="card-header">
+        <div>
+          <h3>Bloc9 reactions</h3>
+          <p>Changed outputs and dimming cycles seen in the ten-second reaction window.</p>
+        </div>
+      </div>
+      <div class="interaction-list">${reactionMarkup}</div>
+    </section>
+
+    <section class="setup-card tone-draft">
+      <div class="card-header">
+        <div>
+          <h3>Raw context</h3>
+          <p>Frames from the pre-trigger buffer and early interaction window for protocol analysis.</p>
+        </div>
+      </div>
+      <div class="interaction-list">${contextMarkup}</div>
+    </section>
+  `;
+}
+
 function renderActiveTab() {
   renderCurrentTab();
 }
@@ -1929,6 +2129,17 @@ async function refreshSetupHelper() {
   rerender(() => renderTabIfVisible("helper"));
 }
 
+async function refreshInteractions() {
+  const response = await fetch(resolveAppUrl("api/interactions"));
+  const payload = await response.json();
+  state.interactions = payload;
+  if (!state.interactionDraft.location && payload.location) {
+    state.interactionDraft.location = payload.location;
+  }
+  if (hasActiveEditor("interactions")) return;
+  rerender(() => renderTabIfVisible("interactions"));
+}
+
 async function ensureDiscoveryRunning() {
   if (!state.runtime.running || state.discovery.status === "running") return;
   const response = await fetch(resolveAppUrl("api/discovery/start"), { method: "POST" });
@@ -2024,6 +2235,29 @@ async function stopSetupHelper() {
   }));
   state.setupHelperDraft.selected_outputs = {};
   rerender(() => renderTabIfVisible("helper"));
+}
+
+async function startInteractionDiscovery() {
+  const response = await fetch(resolveAppUrl("api/interactions/start"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ location: state.interactionDraft.location }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    showToast(payload.error || "Failed to start interaction discovery.", "error");
+    return;
+  }
+  state.interactions = payload;
+  rerender(() => renderTabIfVisible("interactions"));
+}
+
+async function stopInteractionDiscovery() {
+  const response = await fetch(resolveAppUrl("api/interactions/stop"), {
+    method: "POST",
+  });
+  state.interactions = await response.json().catch(() => state.interactions);
+  rerender(() => renderTabIfVisible("interactions"));
 }
 
 async function applySetupHelperFindings() {
@@ -2318,6 +2552,14 @@ document.addEventListener("click", async (event) => {
     await applySetupHelperFindings();
     return;
   }
+  if (action === "interactions-start") {
+    await startInteractionDiscovery();
+    return;
+  }
+  if (action === "interactions-stop") {
+    await stopInteractionDiscovery();
+    return;
+  }
 });
 
 document.addEventListener("input", (event) => {
@@ -2367,6 +2609,9 @@ document.addEventListener("input", (event) => {
   if (target.dataset.cardKind === "setup-helper-output") {
     state.setupHelperDraft.selected_outputs[target.dataset.outputRef] = target.checked;
   }
+  if (target.dataset.cardKind === "interactions") {
+    state.interactionDraft[target.dataset.field] = target.value;
+  }
 });
 
 document.addEventListener("change", (event) => {
@@ -2409,6 +2654,10 @@ document.addEventListener("change", (event) => {
     state.setupHelperDraft.selected_outputs[target.dataset.outputRef] = target.checked;
     rerender(() => renderTabIfVisible("helper"));
   }
+  if (target.dataset.cardKind === "interactions") {
+    state.interactionDraft[target.dataset.field] = target.value;
+    rerender(() => renderTabIfVisible("interactions"));
+  }
 });
 
 document.getElementById("discovery-toggle-button").addEventListener("click", toggleDiscovery);
@@ -2417,7 +2666,7 @@ document.getElementById("add-bloc7-button").addEventListener("click", addManualB
 
 async function initialize() {
   heartbeatManager?.start();
-  await Promise.all([refreshStatus(), loadConfig(), refreshDiscovery(), refreshBloc7Candidates(), refreshSetupHelper()]);
+  await Promise.all([refreshStatus(), loadConfig(), refreshDiscovery(), refreshBloc7Candidates(), refreshSetupHelper(), refreshInteractions()]);
   renderHeader();
   renderDiagnostics();
   renderCurrentTab();
@@ -2426,6 +2675,7 @@ async function initialize() {
   window.setInterval(refreshDiscovery, 2000);
   window.setInterval(refreshBloc7Candidates, 4000);
   window.setInterval(refreshSetupHelper, 1000);
+  window.setInterval(refreshInteractions, 1000);
 }
 
 initialize().catch((error) => {

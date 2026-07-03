@@ -18,6 +18,7 @@ from .config_ops import ConfigApplyError, apply_editor_config
 from .discovery import Bloc9DiscoveryService
 from .frontend_heartbeat import FrontendHeartbeatMonitor
 from .inspector import CanInspector
+from .interactions import InteractionDiscoveryService
 from .mcp import MCPRequestError, ScheiberMCPServer
 from .runtime import BridgeRuntimeController, RuntimeSettings
 from .setup_helper import SetupHelperService
@@ -53,6 +54,7 @@ def create_app(
     inspector: Optional[CanInspector] = None,
     frontend_monitor: Optional[FrontendHeartbeatMonitor] = None,
     setup_helper: Optional[SetupHelperService] = None,
+    interaction_discovery: Optional[InteractionDiscoveryService] = None,
 ) -> Flask:
     """Create the Scheiber web application."""
     app = Flask(__name__)
@@ -64,9 +66,13 @@ def create_app(
     inspector = inspector or CanInspector(runtime_controller)
     frontend_monitor = frontend_monitor or FrontendHeartbeatMonitor(logger=app.logger)
     setup_helper = setup_helper or SetupHelperService(runtime_controller)
+    interaction_discovery = interaction_discovery or InteractionDiscoveryService(
+        runtime_controller
+    )
     frontend_monitor.add_idle_callback(discovery_service.stop)
     frontend_monitor.add_idle_callback(inspector.stop)
     frontend_monitor.add_idle_callback(setup_helper.stop)
+    frontend_monitor.add_idle_callback(interaction_discovery.stop)
     mcp_server = (
         ScheiberMCPServer(settings, runtime_controller, inspector)
         if settings.mcp_server_enabled
@@ -80,6 +86,7 @@ def create_app(
     app.config["FRONTEND_MONITOR"] = frontend_monitor
     app.config["MCP_SERVER"] = mcp_server
     app.config["SETUP_HELPER"] = setup_helper
+    app.config["INTERACTION_DISCOVERY"] = interaction_discovery
 
     def require_web_ui() -> None:
         if not settings.web_ui_enabled:
@@ -369,6 +376,28 @@ def create_app(
     def stop_setup_helper():
         require_web_ui()
         return jsonify(setup_helper.stop())
+
+    @app.get("/api/interactions")
+    def get_interactions():
+        require_web_ui()
+        return jsonify(interaction_discovery.snapshot())
+
+    @app.post("/api/interactions/start")
+    def start_interactions():
+        require_web_ui()
+        payload = request.get_json(silent=True) or {}
+        try:
+            snapshot = interaction_discovery.start(payload.get("location", ""))
+        except RuntimeError as exc:
+            return jsonify({"error": str(exc), "code": "runtime_not_running"}), 409
+        except ValueError as exc:
+            return jsonify({"error": str(exc), "code": "invalid_request"}), 400
+        return jsonify(snapshot)
+
+    @app.post("/api/interactions/stop")
+    def stop_interactions():
+        require_web_ui()
+        return jsonify(interaction_discovery.stop())
 
     @app.post("/api/setup-helper/apply")
     def apply_setup_helper_findings():

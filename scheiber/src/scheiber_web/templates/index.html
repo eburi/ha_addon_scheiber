@@ -28,6 +28,7 @@
         <nav class="tab-nav" aria-label="Setup sections">
           <button type="button" class="tab-button active" data-tab="bloc9">Bloc9</button>
           <button type="button" class="tab-button" data-tab="bloc7">Bloc7</button>
+          <button type="button" class="tab-button" data-tab="interactions">Interactions</button>
           <button type="button" class="tab-button" data-tab="inspect">Inspect</button>
           <button type="button" class="tab-button" data-tab="helper">Helper</button>
         </nav>
@@ -78,6 +79,16 @@
             loading="lazy"
           ></iframe>
         </div>
+      </section>
+
+      <section id="tab-interactions" class="tab-panel" data-tab-panel="interactions">
+        <div class="panel-toolbar">
+          <div class="toolbar-text">
+            <h2>Interactions</h2>
+            <p>Capture a physical button press, the probable button-source CAN frames, and any Bloc9 reactions so the button schema can be decoded from evidence.</p>
+          </div>
+        </div>
+        <div id="interactions-panel" class="card-list empty-state">Loading interaction discovery…</div>
       </section>
 
       <section id="tab-helper" class="tab-panel" data-tab-panel="helper">
