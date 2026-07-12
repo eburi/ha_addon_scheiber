@@ -6,11 +6,56 @@ from typing import Any, Dict, List, Optional
 
 import can
 
-
 KNOWN_BUTTON_SOURCE_IDS = {
     0x04001A80: "wireless_light_air_switch_interface",
     0x04001808: "button_panel_or_key_interface",
 }
+
+# Confirmed wireless Light Air Switch family (see
+# plan/button-interaction-hypothesis.md). Every logical press/release is
+# broadcast redundantly on 0x04001A80/0x04001A82/0x04001A83 with identical
+# payloads; the low byte is not a Bloc9 bus/segment target.
+AIR_SWITCH_PREFIX = 0x04001A00
+AIR_SWITCH_MASK = 0xFFFFFF00
+AIR_SWITCH_LEADER_BYTE = 0x01
+AIR_SWITCH_BUTTON_INDEX_MASK = 0x7F
+AIR_SWITCH_PRESSED_BIT = 0x80
+
+
+def classify_air_switch_message(msg: can.Message) -> Optional[Dict[str, Any]]:
+    """Classify a confirmed Scheiber wireless Air Switch button frame.
+
+    Unlike :func:`classify_button_source_message` (which is intentionally
+    broad/provisional for investigation), this only matches the empirically
+    confirmed wireless schema: arbitration IDs under the 0x04001A00 prefix
+    carrying a 5-byte payload `01 <3-byte identity> <status>`, where the
+    identity bytes are non-zero (ruling out the deferred wired-family shape,
+    which always carries a constant zero identity). Returns None for
+    anything that does not match this exact confirmed shape.
+    """
+    data = bytes(msg.data)
+    if len(data) != 5:
+        return None
+    if (msg.arbitration_id & AIR_SWITCH_MASK) != AIR_SWITCH_PREFIX:
+        return None
+    if data[0] != AIR_SWITCH_LEADER_BYTE:
+        return None
+
+    identity = data[1:4]
+    if identity == b"\x00\x00\x00":
+        # Matches the deferred wired-family zero-identity shape.
+        return None
+
+    status_byte = data[4]
+    return {
+        "kind": "air_switch_button",
+        "arbitration_id": f"0x{msg.arbitration_id:08X}",
+        "identity_hex": identity.hex().upper(),
+        "button_index": status_byte & AIR_SWITCH_BUTTON_INDEX_MASK,
+        "pressed": bool(status_byte & AIR_SWITCH_PRESSED_BIT),
+        "status_hex": f"0x{status_byte:02X}",
+        "data_hex": data.hex().upper(),
+    }
 
 
 def classify_button_source_message(msg: can.Message) -> Optional[Dict[str, Any]]:
@@ -66,8 +111,12 @@ def diff_status_bits(previous_status: int, current_status: int) -> Dict[str, Lis
     """Return rising/falling bit transitions between two status bytes."""
     changed = previous_status ^ current_status
     return {
-        "rising_bits": [bit for bit in range(8) if changed & current_status & (1 << bit)],
-        "falling_bits": [bit for bit in range(8) if changed & previous_status & (1 << bit)],
+        "rising_bits": [
+            bit for bit in range(8) if changed & current_status & (1 << bit)
+        ],
+        "falling_bits": [
+            bit for bit in range(8) if changed & previous_status & (1 << bit)
+        ],
     }
 
 

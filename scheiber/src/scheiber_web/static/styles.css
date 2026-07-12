@@ -404,6 +404,24 @@ a.button.secondary {
   padding: 8px 10px;
 }
 
+.interaction-suggested-config {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.interaction-config-snippet {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  color: #bbf7d0;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(74, 222, 128, 0.25);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.85rem;
+}
+
 .helper-output-card {
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -463,6 +481,71 @@ a.button.secondary {
 .summary-chip.negative {
   background: rgba(239, 68, 68, 0.12);
   border-color: rgba(239, 68, 68, 0.35);
+}
+
+.summary-chip.warning {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.interaction-step-progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.interaction-step-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(71, 85, 105, 0.45);
+  background: rgba(9, 20, 35, 0.72);
+  font-size: 0.85rem;
+}
+
+.interaction-step-chip .step-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(148, 163, 184, 0.2);
+  font-size: 0.75rem;
+}
+
+.interaction-step-chip.step-current {
+  border-color: rgba(96, 165, 250, 0.6);
+  background: rgba(59, 130, 246, 0.16);
+}
+
+.interaction-step-chip.step-done .step-index {
+  background: rgba(34, 197, 94, 0.35);
+}
+
+.interaction-step-chip.step-pending {
+  opacity: 0.6;
+}
+
+.interaction-instruction {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.interaction-step-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.interaction-step-columns h4 {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  color: #cbd5e1;
 }
 
 .card-list {

@@ -25,18 +25,20 @@ const state = {
   },
   interactions: {
     status: "idle",
-    phase: "idle",
     location: "",
-    message_counts: {},
-    button_events: [],
-    button_candidates: [],
-    reaction_outputs: [],
-    raw_context: [],
-    other_messages: [],
-    hypothesis: { confidence: "unknown", summary: "", notes: [] },
+    button_count: null,
+    current_step_index: 0,
+    current_step: null,
+    is_first_step: true,
+    is_last_step: false,
+    steps: [],
+    saved_at: null,
+    saved_path: null,
+    recent_sessions: [],
   },
   interactionDraft: {
     location: "",
+    button_count: 4,
   },
   setupHelperDraft: {
     target_name: "",
@@ -50,6 +52,7 @@ const state = {
   bloc9Drafts: {},
   bloc7Drafts: {},
   bloc7CandidateDrafts: {},
+  airSwitchDrafts: {},
   busyActions: {},
   controlState: {},
   outputActivity: {},
@@ -100,6 +103,26 @@ function blankBloc7Device() {
     name: "",
     description: "",
     sensors: [],
+  };
+}
+
+function blankAirSwitchButton() {
+  return {
+    name: "",
+    entity_id: "",
+    identity: "",
+    button_index: 1,
+  };
+}
+
+function blankAirSwitchDevice() {
+  return {
+    type: "air_switch",
+    bus_id: "",
+    segment_id: 0,
+    name: "",
+    description: "",
+    buttons: [],
   };
 }
 
@@ -233,6 +256,10 @@ function renderCurrentTab() {
   }
   if (state.activeTab === "bloc7") {
     renderBloc7Cards();
+    return;
+  }
+  if (state.activeTab === "air_switch") {
+    renderAirSwitchCards();
     return;
   }
   if (state.activeTab === "helper") {
@@ -464,6 +491,12 @@ function collectEntityIds(excludedDevicePredicate) {
           if (!entityIds.has(output.entity_id)) entityIds.set(output.entity_id, new Set());
           entityIds.get(output.entity_id).add(output.role);
         }
+      }
+      continue;
+    }
+    if (device.type === "air_switch") {
+      for (const button of device.buttons || []) {
+        if (button.entity_id) entityIds.set(button.entity_id, new Set(["air_switch_button"]));
       }
       continue;
     }
@@ -992,6 +1025,134 @@ function buildBloc7DraftForSave(draft) {
         endian: sensor.value_config?.endian || "little",
         scale: Number(sensor.value_config?.scale),
       },
+    })),
+  };
+}
+
+function nextAirSwitchBusId() {
+  const ids = state.config.devices
+    .filter((device) => device.type === "air_switch")
+    .map((device) => Number(device.bus_id))
+    .filter((value) => Number.isInteger(value));
+
+  Object.values(state.airSwitchDrafts).forEach((draft) => {
+    const busId = Number(draft.bus_id);
+    if (Number.isInteger(busId)) ids.push(busId);
+  });
+
+  return ids.length ? Math.max(...ids) + 1 : 1;
+}
+
+function getAirSwitchConfiguredCards() {
+  return state.config.devices
+    .filter((device) => device.type === "air_switch")
+    .map((device) => {
+      const key = `air_switch:${routeSlug(device.bus_id, device.segment_id || 0)}`;
+      return { key, configured: device, draft: ensureAirSwitchDraft(key, device) };
+    });
+}
+
+function ensureAirSwitchDraft(cardKey, configuredDevice) {
+  if (state.airSwitchDrafts[cardKey]) return state.airSwitchDrafts[cardKey];
+  state.airSwitchDrafts[cardKey] = configuredDevice
+    ? clone(configuredDevice)
+    : blankAirSwitchDevice();
+  return state.airSwitchDrafts[cardKey];
+}
+
+const airSwitchIdentityPattern = /^[0-9A-Fa-f]{6}$/;
+
+function validateAirSwitchDraft(draft, cardKey) {
+  const errors = {};
+  const excludedRoute = cardKey.startsWith("air_switch:") ? cardKey.split(":")[1] : null;
+  const usedEntityIds = collectEntityIds(
+    (device) =>
+      device.type === "air_switch"
+      && routeSlug(device.bus_id, device.segment_id || 0) === excludedRoute,
+  );
+  const usedRoutes = new Set(
+    state.config.devices
+      .filter(
+        (device) =>
+          device.type === "air_switch"
+          && routeSlug(device.bus_id, device.segment_id || 0) !== excludedRoute,
+      )
+      .map((device) => routeSlug(device.bus_id, device.segment_id || 0)),
+  );
+  const usedButtonKeys = new Set(
+    state.config.devices
+      .filter((device) => device.type === "air_switch")
+      .flatMap((device) =>
+        routeSlug(device.bus_id, device.segment_id || 0) === excludedRoute
+          ? []
+          : (device.buttons || []).map(
+              (button) => `${String(button.identity || "").toUpperCase()}:${button.button_index}`,
+            ),
+      ),
+  );
+
+  if (!Number.isInteger(Number(draft.bus_id)) || Number(draft.bus_id) < 0 || Number(draft.bus_id) > 255) {
+    errors["device.bus_id"] = "Bus ID must be between 0 and 255.";
+  } else if (usedRoutes.has(routeSlug(draft.bus_id, draft.segment_id || 0))) {
+    errors["device.bus_id"] = "This Air Switch group is already configured.";
+  }
+
+  const localEntityIds = new Set();
+  const localButtonKeys = new Set();
+  (draft.buttons || []).forEach((button, index) => {
+    const basePath = `buttons.${index}`;
+    if (!String(button.name || "").trim()) {
+      errors[`${basePath}.name`] = "Button name is required.";
+    }
+
+    const entityId = String(button.entity_id || "").trim();
+    if (!entityId) {
+      errors[`${basePath}.entity_id`] = "Entity ID is required.";
+    } else if (entityId.startsWith("event.")) {
+      errors[`${basePath}.entity_id`] = "Do not include the Home Assistant domain.";
+    } else if (!entityIdPattern.test(entityId)) {
+      errors[`${basePath}.entity_id`] = "Use lowercase letters, numbers, and underscores only.";
+    } else if (usedEntityIds.has(entityId) || localEntityIds.has(entityId)) {
+      errors[`${basePath}.entity_id`] = "This entity ID is already in use.";
+    } else {
+      localEntityIds.add(entityId);
+    }
+
+    const identity = String(button.identity || "").trim();
+    if (!airSwitchIdentityPattern.test(identity)) {
+      errors[`${basePath}.identity`] = "Identity must be a 6-character hex string, e.g. 52AB81.";
+    }
+
+    const buttonIndex = Number(button.button_index);
+    if (!Number.isInteger(buttonIndex) || buttonIndex < 1 || buttonIndex > 8) {
+      errors[`${basePath}.button_index`] = "Button index must be between 1 and 8.";
+    }
+
+    if (airSwitchIdentityPattern.test(identity) && Number.isInteger(buttonIndex)) {
+      const buttonKey = `${identity.toUpperCase()}:${buttonIndex}`;
+      if (usedButtonKeys.has(buttonKey) || localButtonKeys.has(buttonKey)) {
+        errors[`${basePath}.button_index`] = "This identity + button index is already configured.";
+      } else {
+        localButtonKeys.add(buttonKey);
+      }
+    }
+  });
+
+  return { valid: Object.keys(errors).length === 0, errors };
+}
+
+function buildAirSwitchDraftForSave(draft) {
+  return {
+    type: "air_switch",
+    bus_id: Number(draft.bus_id),
+    segment_id: Number(draft.segment_id || 0),
+    name: String(draft.name || "").trim(),
+    description: String(draft.description || "").trim(),
+    buttons: (draft.buttons || []).map((button) => ({
+      name: String(button.name || "").trim(),
+      entity_id: String(button.entity_id || "").trim(),
+      identity: String(button.identity || "").trim().toUpperCase(),
+      button_index: Number(button.button_index),
     })),
   };
 }
@@ -1542,6 +1703,133 @@ function renderBloc7Cards() {
   container.innerHTML = html;
 }
 
+function renderAirSwitchButtonDraft(cardKey, button, index, validation) {
+  const basePath = `buttons.${index}`;
+  const fieldClass = (field) => {
+    const classes = ["field-shell"];
+    if (validation.errors[`${basePath}.${field}`]) classes.push("invalid");
+    return classes.join(" ");
+  };
+
+  return `
+    <section class="sensor-card">
+      <div class="sensor-card-header">
+        <div>
+          <h4>${escapeHtml(String(button.name || "").trim() || `Button ${index + 1}`)}</h4>
+          <p class="sensor-live-summary">Identity ${escapeHtml(button.identity || "?")} · index ${escapeHtml(button.button_index ?? "?")}</p>
+        </div>
+        <div class="sensor-card-actions">
+          <button type="button" data-action="remove-air-switch-button" data-card-key="${escapeHtml(cardKey)}" data-button-index="${index}">Remove</button>
+        </div>
+      </div>
+      <div class="card-grid">
+        <label class="${fieldClass("name")}">
+          <span>Name</span>
+          <input type="text" value="${escapeHtml(button.name || "")}" data-card-kind="air_switch" data-card-key="${escapeHtml(cardKey)}" data-button-index="${index}" data-field="name">
+          ${validation.errors[`${basePath}.name`] ? `<small>${escapeHtml(validation.errors[`${basePath}.name`])}</small>` : ""}
+        </label>
+        <label class="${fieldClass("entity_id")}">
+          <span>Entity ID</span>
+          <input type="text" value="${escapeHtml(button.entity_id || "")}" data-card-kind="air_switch" data-card-key="${escapeHtml(cardKey)}" data-button-index="${index}" data-field="entity_id">
+          ${validation.errors[`${basePath}.entity_id`] ? `<small>${escapeHtml(validation.errors[`${basePath}.entity_id`])}</small>` : ""}
+        </label>
+        <label class="${fieldClass("identity")}">
+          <span>Identity (hex)</span>
+          <input type="text" placeholder="52AB81" value="${escapeHtml(button.identity || "")}" data-card-kind="air_switch" data-card-key="${escapeHtml(cardKey)}" data-button-index="${index}" data-field="identity">
+          ${validation.errors[`${basePath}.identity`] ? `<small>${escapeHtml(validation.errors[`${basePath}.identity`])}</small>` : `<small>Captured from the Interactions tab's suggested configuration.</small>`}
+        </label>
+        <label class="${fieldClass("button_index")}">
+          <span>Button index</span>
+          <input type="number" min="1" max="8" value="${escapeHtml(button.button_index ?? 1)}" data-card-kind="air_switch" data-card-key="${escapeHtml(cardKey)}" data-button-index="${index}" data-field="button_index">
+          ${validation.errors[`${basePath}.button_index`] ? `<small>${escapeHtml(validation.errors[`${basePath}.button_index`])}</small>` : ""}
+        </label>
+      </div>
+    </section>
+  `;
+}
+
+function renderAirSwitchCards() {
+  const configuredCards = getAirSwitchConfiguredCards();
+  const newDraftEntries = Object.entries(state.airSwitchDrafts)
+    .filter(([key]) => key.startsWith("new-air-switch:"))
+    .map(([key, draft]) => ({ key, configured: null, draft }));
+  const allDraftCards = [...configuredCards, ...newDraftEntries].sort((left, right) =>
+    Number(left.draft.bus_id || 0) - Number(right.draft.bus_id || 0),
+  );
+  const container = document.getElementById("air-switch-list");
+  const summary = document.getElementById("air-switch-summary");
+
+  summary.innerHTML = `
+    <span class="summary-chip">Configured ${configuredCards.length}</span>
+    <span class="summary-chip">Drafts ${newDraftEntries.length}</span>
+  `;
+
+  const html = allDraftCards
+    .map(({ key, configured, draft }) => {
+      const validation = validateAirSwitchDraft(draft, key);
+      const normalizedDraft = buildAirSwitchDraftForSave(draft);
+      const dirty = configured ? !devicesEqual(normalizedDraft, configured) : true;
+      const actionKey = `save-air-switch:${key}`;
+      const buttonDisabled = !validation.valid || (configured ? !dirty : false);
+      const bannerTone = configured ? "configured" : "draft";
+      return `
+        <article class="setup-card tone-${bannerTone}">
+          <div class="card-banner">
+            <span class="status-badge">${escapeHtml(configured ? "configured" : "draft")}</span>
+            <span class="status-meta">Group ${escapeHtml(routeSlug(draft.bus_id || "—", draft.segment_id || 0))}</span>
+          </div>
+          <div class="card-header">
+            <div>
+              <h3>${escapeHtml(String(draft.name || "").trim() || deviceLabel({ type: "air_switch", bus_id: draft.bus_id || "?", segment_id: 0 }))}</h3>
+              <p>${escapeHtml(configured ? "Saved Air Switch group ready for edits." : "Draft Air Switch group not saved yet.")}</p>
+            </div>
+          </div>
+          <div class="card-grid">
+            <label class="field-shell ${validation.errors["device.bus_id"] ? "invalid" : ""}">
+              <span>Group ID</span>
+              <input type="number" min="0" max="255" value="${escapeHtml(draft.bus_id ?? "")}" data-card-kind="air_switch" data-card-key="${escapeHtml(key)}" data-field="bus_id">
+              ${validation.errors["device.bus_id"] ? `<small>${escapeHtml(validation.errors["device.bus_id"])}</small>` : "<small>An arbitrary number to distinguish multiple Air Switch groups; not a CAN bus address.</small>"}
+            </label>
+            <label class="field-shell ${draft.name !== (configured?.name || "") ? "dirty" : ""}">
+              <span>Name</span>
+              <input type="text" placeholder="e.g. Bow Salon Air Switch" value="${escapeHtml(draft.name || "")}" data-card-kind="air_switch" data-card-key="${escapeHtml(key)}" data-field="name">
+            </label>
+            <label class="field-shell full-width ${draft.description !== (configured?.description || "") ? "dirty" : ""}">
+              <span>Description</span>
+              <textarea rows="2" data-card-kind="air_switch" data-card-key="${escapeHtml(key)}" data-field="description">${escapeHtml(draft.description || "")}</textarea>
+            </label>
+          </div>
+          <div class="section-subheader">
+            <h4>Buttons</h4>
+            <button type="button" data-action="add-air-switch-button-row" data-card-key="${escapeHtml(key)}">Add button</button>
+          </div>
+          <div class="sensor-list">
+            ${(draft.buttons || []).length
+              ? draft.buttons
+                  .map((button, index) => renderAirSwitchButtonDraft(key, button, index, validation))
+                  .join("")
+              : '<div class="empty-inline">No buttons yet. Use the Interactions tab to capture a wireless button press first.</div>'}
+          </div>
+          <div class="card-footer">
+            <div class="card-hint">
+              ${validation.valid ? (configured ? (dirty ? "Unsaved changes ready to apply." : "No unsaved changes.") : "Ready to add to the saved configuration.") : "Complete the highlighted button fields before saving."}
+            </div>
+            <button type="button" data-action="save-air-switch" data-card-key="${escapeHtml(key)}" ${actionAttrs(actionKey, buttonDisabled, "primary")}>${escapeHtml(configured ? "Save" : "Add to configuration")}</button>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  if (!html) {
+    container.className = "card-list empty-state";
+    container.textContent = "No Air Switch groups are configured yet.";
+    return;
+  }
+  container.className = "card-list";
+  container.innerHTML = html;
+}
+
 function renderInspectPanel() {
   if (state.activeTab !== "inspect" || state.inspectLoaded) return;
   const frame = document.getElementById("inspect-frame");
@@ -1837,25 +2125,68 @@ function renderSetupHelperPanel() {
   `;
 }
 
-function formatBitList(bits) {
-  const values = (bits || []).map((entry) => (typeof entry === "object" ? entry.bit : entry));
-  return values.length ? values.map((bit) => `bit${bit}`).join(", ") : "none";
-}
-
-function formatCountedBits(bits) {
-  return (bits || []).length
-    ? bits.map((entry) => `bit${entry.bit} (${entry.count}×)`).join(", ")
-    : "none";
-}
-
-function formatSampleState(sample) {
-  if (!sample) return "unknown";
-  const stateLabel = sample.state ? "ON" : "OFF";
-  return `${stateLabel}, brightness ${sample.effective_brightness ?? sample.raw_brightness ?? "?"}`;
+function formatOutputsSummary(outputs) {
+  const entries = Object.entries(outputs || {});
+  if (!entries.length) return "no output data";
+  return entries
+    .map(([name, sample]) => {
+      const stateLabel = sample?.state ? "ON" : "OFF";
+      const brightness = sample?.effective_brightness ?? sample?.raw_brightness;
+      return `${name.toUpperCase()}: ${stateLabel}${
+        brightness !== undefined && brightness !== null ? ` (${brightness})` : ""
+      }`;
+    })
+    .join(", ");
 }
 
 function interactionStartReady() {
-  return Boolean(state.interactionDraft.location.trim());
+  return (
+    Boolean(state.interactionDraft.location.trim())
+    && [2, 4].includes(Number(state.interactionDraft.button_count))
+  );
+}
+
+function renderInteractionStepEvents(events) {
+  if (!(events || []).length) {
+    return '<div class="empty-inline">No button-source frames captured yet for this function.</div>';
+  }
+  return events
+    .slice()
+    .reverse()
+    .map((event) => {
+      const confirmed = event.confirmed_air_switch;
+      return `
+        <div class="interaction-event compact">
+          <strong>${escapeHtml(event.arbitration_id)}</strong>
+          <span>${escapeHtml(event.data_hex)}</span>
+          <span>${escapeHtml(event.source_family)}</span>
+          ${
+            confirmed
+              ? `<span class="summary-chip positive">identity ${escapeHtml(confirmed.identity_hex)} · idx ${escapeHtml(confirmed.button_index)} · ${confirmed.pressed ? "pressed" : "released"}</span>`
+              : `<span class="summary-chip">status ${escapeHtml(event.status_hex)}</span>`
+          }
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function renderInteractionStepReactions(reactions) {
+  if (!(reactions || []).length) {
+    return '<div class="empty-inline">No Bloc9/panel reaction captured yet for this function.</div>';
+  }
+  return reactions
+    .slice()
+    .reverse()
+    .map(
+      (reaction) => `
+        <div class="interaction-event compact">
+          <strong>Bloc9 #${escapeHtml(reaction.route_slug)}</strong>
+          <span>${escapeHtml(formatOutputsSummary(reaction.outputs))}</span>
+        </div>
+      `,
+    )
+    .join("");
 }
 
 function renderInteractionsPanel() {
@@ -1863,157 +2194,202 @@ function renderInteractionsPanel() {
   const discovery = state.interactions;
   const draft = state.interactionDraft;
   const isRunning = discovery.status === "running";
-  const buttonCandidates = discovery.button_candidates || [];
-  const reactions = discovery.reaction_outputs || [];
-  const events = discovery.button_events || [];
-  const context = discovery.raw_context || [];
-  const counts = discovery.message_counts || {};
+  const isComplete = discovery.status === "complete";
+  const steps = discovery.steps || [];
+  const currentStep = discovery.current_step;
+  const recentSessions = discovery.recent_sessions || [];
 
-  const candidateMarkup = buttonCandidates.length
-    ? buttonCandidates.map((candidate) => `
-        <section class="interaction-item">
-          <div class="interaction-item-header">
-            <div>
-              <strong>${escapeHtml(candidate.arbitration_id)} · ${escapeHtml(candidate.identity_hex || "no identity")}</strong>
-              <div class="muted">${escapeHtml(candidate.source_family)} · ${escapeHtml(candidate.confidence)} confidence · ${escapeHtml(candidate.event_count)} event${candidate.event_count === 1 ? "" : "s"}</div>
-            </div>
-            <span class="summary-chip">payload identity</span>
-          </div>
-          <div class="summary-bar compact">
-            <span class="summary-chip">Rising ${escapeHtml(formatCountedBits(candidate.rising_bits))}</span>
-            <span class="summary-chip">Falling ${escapeHtml(formatCountedBits(candidate.falling_bits))}</span>
-          </div>
-          <div class="interaction-code-list">
-            ${(candidate.statuses_seen || []).map((status) => `
-              <code>${escapeHtml(status.sample_data)} · status ${escapeHtml(status.status_hex)}</code>
-            `).join("")}
-          </div>
-        </section>
-      `).join("")
-    : '<div class="empty-inline">No button-source candidate has been captured yet.</div>';
-
-  const eventMarkup = events.length
-    ? events.slice(-8).reverse().map((event) => `
-        <div class="interaction-event">
-          <strong>${escapeHtml(event.event_type)}</strong>
-          <span>${escapeHtml(event.arbitration_id)}</span>
-          <span>${escapeHtml(event.data_hex)}</span>
-          <span>active ${escapeHtml(formatBitList(event.active_bits))}</span>
-          <span>rising ${escapeHtml(formatBitList(event.rising_bits))}</span>
-          <span>falling ${escapeHtml(formatBitList(event.falling_bits))}</span>
-        </div>
-      `).join("")
-    : '<div class="empty-inline">Press a button after starting discovery to collect key-down/key-up evidence.</div>';
-
-  const reactionMarkup = reactions.length
-    ? reactions.map((reaction) => `
-        <section class="interaction-item">
-          <div class="interaction-item-header">
-            <div>
-              <strong>Bloc9 #${escapeHtml(reaction.route_slug)} ${escapeHtml(String(reaction.output_name || "").toUpperCase())}</strong>
-              <div class="muted">${escapeHtml(formatSampleState(reaction.baseline))} → ${escapeHtml(formatSampleState(reaction.current))}</div>
-            </div>
-            <span class="summary-chip">${escapeHtml(reaction.dimming_observed ? "dimming" : "state change")}</span>
-          </div>
-          <div class="interaction-samples">
-            ${(reaction.samples || []).map((sample) => `<span class="summary-chip">${escapeHtml(formatSampleState(sample))}</span>`).join("")}
-          </div>
-        </section>
-      `).join("")
-    : '<div class="empty-inline">No changed Bloc9 output has been correlated yet.</div>';
-
-  const contextMarkup = context.length
-    ? context.slice(-16).map((entry) => `
-        <div class="interaction-event compact">
-          <strong>${escapeHtml(entry.kind)}</strong>
-          <span>${escapeHtml(entry.arbitration_id)}</span>
-          <span>${escapeHtml(entry.data)}</span>
-        </div>
-      `).join("")
-    : '<div class="empty-inline">The five-second pre-trigger context will appear once an interaction starts.</div>';
-
-  container.className = "card-list";
-  container.innerHTML = `
+  const setupCard = `
     <section class="setup-card tone-discovered">
       <div class="card-header">
         <div>
-          <h3>Discover an installed button</h3>
-          <p>Enter where you are standing, start discovery, then press and optionally hold one physical button. The service keeps a five-second buffer and watches for Bloc9 reactions for up to ten seconds.</p>
+          <h3>Capture a physical Air Switch unit</h3>
+          <p>Enter where you are standing and the unit's function count (2: a single horizontally-divided rocker; 4: two rockers side by side, each horizontally divided). You'll be guided through pressing each function several times, and the full capture is saved to a log file for offline pattern analysis. This covers wireless SFSP/Air Switch buttons only, not wired panel buttons.</p>
         </div>
       </div>
       <div class="card-grid compact-grid">
         <label class="field-shell">
           <span>Button location</span>
-          <input type="text" value="${escapeHtml(draft.location || discovery.location || "")}" placeholder="e.g. saloon entrance, aft cabin port side" data-card-kind="interactions" data-field="location">
+          <input
+            type="text"
+            value="${escapeHtml(draft.location || "")}"
+            placeholder="e.g. bow salon door, cockpit port"
+            data-card-kind="interactions"
+            data-field="location"
+            ${isRunning ? "disabled" : ""}
+          >
+        </label>
+        <label class="field-shell">
+          <span>Unit type</span>
+          <select data-card-kind="interactions" data-field="button_count" ${isRunning ? "disabled" : ""}>
+            <option value="2" ${Number(draft.button_count) === 2 ? "selected" : ""}>2 functions (top / bottom)</option>
+            <option value="4" ${Number(draft.button_count) === 4 ? "selected" : ""}>4 functions (top-left / bottom-left / top-right / bottom-right)</option>
+          </select>
         </label>
       </div>
       <div class="card-footer">
-        <div class="card-hint">${escapeHtml(discovery.hypothesis?.summary || "Start discovery and press a physical button to capture evidence.")}</div>
+        <div class="card-hint">${escapeHtml(
+          isRunning ? "A capture session is already running below." : "Ready when you are.",
+        )}</div>
         <div class="toolbar-actions">
-          <button type="button" data-action="interactions-start" ${actionAttrs("interactions-start", isRunning || !interactionStartReady(), "primary")}>Start discovery</button>
-          <button type="button" data-action="interactions-stop" ${actionAttrs("interactions-stop", discovery.status === "idle")}>Stop</button>
+          <button type="button" data-action="interactions-start" ${actionAttrs("interactions-start", isRunning || !interactionStartReady(), "primary")}>Start guided capture</button>
         </div>
       </div>
     </section>
+  `;
 
-    <section class="setup-card tone-synced">
-      <div class="card-header">
-        <div>
-          <h3>Live capture</h3>
-          <p>${escapeHtml(discovery.location ? `Location: ${discovery.location}` : "No interaction session is active.")}</p>
+  const savedBanner = isComplete
+    ? discovery.saved_path
+      ? `
+        <section class="setup-card tone-configured">
+          <div class="card-header">
+            <div>
+              <h3>Session saved</h3>
+              <p>Saved to <code>${escapeHtml(discovery.saved_path)}</code> for location "${escapeHtml(discovery.location)}" (${escapeHtml(discovery.button_count)}-function unit).</p>
+            </div>
+          </div>
+        </section>
+      `
+      : `
+        <section class="setup-card tone-draft">
+          <div class="card-header">
+            <div>
+              <h3>Session finished (not saved to disk)</h3>
+              <p>No interactions log file is configured for this environment. The captured data below stays visible until you start a new session.</p>
+            </div>
+          </div>
+        </section>
+      `
+    : "";
+
+  const stepProgressMarkup = steps
+    .map((step, index) => {
+      const status =
+        index === discovery.current_step_index
+          ? "current"
+          : index < discovery.current_step_index
+            ? "done"
+            : "pending";
+      return `
+        <div class="interaction-step-chip step-${status}">
+          <span class="step-index">${index + 1}</span>
+          <span class="step-label">${escapeHtml(step.label)}</span>
+          <span class="step-count">${step.event_count} event${step.event_count === 1 ? "" : "s"}</span>
         </div>
-      </div>
-      <div class="summary-bar compact">
-        <span class="summary-chip ${isRunning ? "positive" : "negative"}">${escapeHtml(discovery.status || "idle")}</span>
-        <span class="summary-chip">${escapeHtml(discovery.phase || "idle")}</span>
-        ${discovery.remaining_reaction_seconds !== null && discovery.remaining_reaction_seconds !== undefined ? `<span class="summary-chip">${escapeHtml(discovery.remaining_reaction_seconds)}s reaction window</span>` : ""}
-        <span class="summary-chip">Buttons ${escapeHtml(counts.button_source_status || 0)}</span>
-        <span class="summary-chip">Bloc9 changes ${escapeHtml(counts.bloc9_state_update || 0)}</span>
-        <span class="summary-chip">Other ${escapeHtml(counts.other || 0)}</span>
-      </div>
-      <div class="interaction-notes">
-        ${(discovery.hypothesis?.notes || []).map((note) => `<div class="diagnostic-item warning">${escapeHtml(note)}</div>`).join("")}
-      </div>
-    </section>
+      `;
+    })
+    .join("");
 
+  const stepDetailMarkup =
+    isRunning && currentStep
+      ? `
+        <section class="setup-card tone-synced">
+          <div class="card-header">
+            <div>
+              <h3>Function ${discovery.current_step_index + 1} of ${steps.length}: ${escapeHtml(currentStep.label)}</h3>
+              <p class="interaction-instruction">${escapeHtml(currentStep.instruction)}</p>
+            </div>
+          </div>
+          <div class="summary-bar compact">
+            <span class="summary-chip positive">${currentStep.event_count} button frame${currentStep.event_count === 1 ? "" : "s"}</span>
+            <span class="summary-chip">${currentStep.reaction_count} reaction${currentStep.reaction_count === 1 ? "" : "s"}</span>
+            ${currentStep.companion_count ? `<span class="summary-chip">${currentStep.companion_count} companion frame${currentStep.companion_count === 1 ? "" : "s"}</span>` : ""}
+          </div>
+          ${
+            currentStep.confirmed_air_switch
+              ? `<div class="summary-bar compact">
+                  <span class="summary-chip positive">identity ${escapeHtml(currentStep.confirmed_air_switch.identity_hex)}</span>
+                  <span class="summary-chip positive">button index ${escapeHtml(currentStep.confirmed_air_switch.button_index)}</span>
+                  ${
+                    currentStep.confirmed_air_switch.distinct_pairs_seen > 1
+                      ? `<span class="summary-chip warning">${currentStep.confirmed_air_switch.distinct_pairs_seen} distinct identity/index pairs seen — check for a stray extra receiver or button</span>`
+                      : ""
+                  }
+                </div>`
+              : ""
+          }
+          ${
+            currentStep.suggested_config
+              ? `<div class="interaction-suggested-config">
+                  <div class="muted">Suggested Air Switch configuration for this function:</div>
+                  <pre class="interaction-config-snippet">${escapeHtml(currentStep.suggested_config.yaml)}</pre>
+                </div>`
+              : ""
+          }
+          <div class="interaction-step-columns">
+            <div>
+              <h4>Recent button frames</h4>
+              <div class="interaction-list">${renderInteractionStepEvents(currentStep.recent_events)}</div>
+            </div>
+            <div>
+              <h4>Recent reactions</h4>
+              <div class="interaction-list">${renderInteractionStepReactions(currentStep.recent_reactions)}</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <div class="card-hint">${escapeHtml(
+              discovery.is_last_step
+                ? "This is the last function. Click Finish & Save once you've pressed it several times."
+                : "Once you've pressed this function several times, move to the next one.",
+            )}</div>
+            <div class="toolbar-actions">
+              <button type="button" data-action="interactions-previous" ${actionAttrs("interactions-previous", discovery.is_first_step)}>Previous</button>
+              ${
+                discovery.is_last_step
+                  ? `<button type="button" data-action="interactions-finish" ${actionAttrs("interactions-finish", false, "primary")}>Finish & Save</button>`
+                  : `<button type="button" data-action="interactions-next" ${actionAttrs("interactions-next", false, "primary")}>Next function</button>`
+              }
+              <button type="button" data-action="interactions-stop">Cancel</button>
+            </div>
+          </div>
+        </section>
+      `
+      : "";
+
+  const allStepsMarkup =
+    isRunning || isComplete
+      ? `
+        <section class="setup-card tone-draft">
+          <div class="card-header">
+            <div>
+              <h3>Progress</h3>
+              <p>Location: ${escapeHtml(discovery.location || "—")} · ${escapeHtml(discovery.button_count || "?")}-function unit</p>
+            </div>
+          </div>
+          <div class="interaction-step-progress">${stepProgressMarkup}</div>
+        </section>
+      `
+      : "";
+
+  const recentSessionsMarkup = recentSessions.length
+    ? recentSessions
+        .map(
+          (entry) => `
+            <div class="interaction-event compact">
+              <strong>${escapeHtml(entry.location || "unknown location")}</strong>
+              <span>${escapeHtml(entry.button_count)}-function</span>
+              <span>${escapeHtml(entry.total_events)} events</span>
+              <span>${escapeHtml(entry.total_reactions)} reactions</span>
+            </div>
+          `,
+        )
+        .join("")
+    : '<div class="empty-inline">No sessions have been saved yet.</div>';
+
+  container.className = "card-list";
+  container.innerHTML = `
+    ${setupCard}
+    ${savedBanner}
+    ${allStepsMarkup}
+    ${stepDetailMarkup}
     <section class="setup-card tone-configured">
       <div class="card-header">
         <div>
-          <h3>Button-source candidates</h3>
-          <p>These are probable button/status senders and raw payload identities. They are evidence for the addressing schema, not saved configuration.</p>
+          <h3>Recently saved sessions</h3>
+          <p>Loaded from the interactions log file on disk, most recent last.</p>
         </div>
       </div>
-      <div class="interaction-list">${candidateMarkup}</div>
-    </section>
-
-    <section class="setup-card tone-configured">
-      <div class="card-header">
-        <div>
-          <h3>Key events</h3>
-          <p>Recent status transitions inferred from button-source payloads.</p>
-        </div>
-      </div>
-      <div class="interaction-list">${eventMarkup}</div>
-    </section>
-
-    <section class="setup-card tone-synced">
-      <div class="card-header">
-        <div>
-          <h3>Bloc9 reactions</h3>
-          <p>Changed outputs and dimming cycles seen in the ten-second reaction window.</p>
-        </div>
-      </div>
-      <div class="interaction-list">${reactionMarkup}</div>
-    </section>
-
-    <section class="setup-card tone-draft">
-      <div class="card-header">
-        <div>
-          <h3>Raw context</h3>
-          <p>Frames from the pre-trigger buffer and early interaction window for protocol analysis.</p>
-        </div>
-      </div>
-      <div class="interaction-list">${contextMarkup}</div>
+      <div class="interaction-list">${recentSessionsMarkup}</div>
     </section>
   `;
 }
@@ -2070,6 +2446,21 @@ function updateBloc7DraftField(cardKey, field, value, sensorIndex = null) {
   sensor[field] = value;
 }
 
+function updateAirSwitchDraftField(cardKey, field, value, buttonIndex = null) {
+  const draft = state.airSwitchDrafts[cardKey];
+  if (!draft) return;
+  if (buttonIndex === null) {
+    draft[field] = ["bus_id", "segment_id"].includes(field)
+      ? parseNumberOrNull(value)
+      : value;
+    return;
+  }
+
+  draft.buttons[buttonIndex] = draft.buttons[buttonIndex] || blankAirSwitchButton();
+  const button = draft.buttons[buttonIndex];
+  button[field] = field === "button_index" ? parseNumberOrNull(value) : value;
+}
+
 async function refreshStatus() {
   const response = await fetch(resolveAppUrl("api/status"));
   const payload = await response.json();
@@ -2090,6 +2481,10 @@ async function loadConfig() {
     }
     if (device.type === "bloc7") {
       state.bloc7Drafts[`bloc7:${device.bus_id}`] = clone(device);
+    }
+    if (device.type === "air_switch") {
+      state.airSwitchDrafts[`air_switch:${routeSlug(device.bus_id, device.segment_id || 0)}`] =
+        clone(device);
     }
   }
   renderDiagnostics();
@@ -2241,7 +2636,10 @@ async function startInteractionDiscovery() {
   const response = await fetch(resolveAppUrl("api/interactions/start"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ location: state.interactionDraft.location }),
+    body: JSON.stringify({
+      location: state.interactionDraft.location,
+      button_count: Number(state.interactionDraft.button_count),
+    }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -2249,6 +2647,49 @@ async function startInteractionDiscovery() {
     return;
   }
   state.interactions = payload;
+  rerender(() => renderTabIfVisible("interactions"));
+}
+
+async function nextInteractionStep() {
+  const response = await fetch(resolveAppUrl("api/interactions/next-step"), {
+    method: "POST",
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    showToast(payload.error || "Failed to advance to the next function.", "error");
+    return;
+  }
+  state.interactions = payload;
+  rerender(() => renderTabIfVisible("interactions"));
+}
+
+async function previousInteractionStep() {
+  const response = await fetch(resolveAppUrl("api/interactions/previous-step"), {
+    method: "POST",
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    showToast(payload.error || "Failed to go back to the previous function.", "error");
+    return;
+  }
+  state.interactions = payload;
+  rerender(() => renderTabIfVisible("interactions"));
+}
+
+async function finishInteractionSession() {
+  const response = await fetch(resolveAppUrl("api/interactions/finish"), {
+    method: "POST",
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    showToast(payload.error || "Failed to finish the capture session.", "error");
+    return;
+  }
+  state.interactions = payload;
+  showToast(
+    payload.saved_path ? `Session saved to ${payload.saved_path}.` : "Session finished.",
+    payload.saved_path ? "success" : "warning",
+  );
   rerender(() => renderTabIfVisible("interactions"));
 }
 
@@ -2474,6 +2915,48 @@ async function saveBloc7Card(cardKey) {
   }
 }
 
+function addManualAirSwitchDraft() {
+  const draftKey = `new-air-switch:${Date.now()}`;
+  state.airSwitchDrafts[draftKey] = {
+    ...blankAirSwitchDevice(),
+    bus_id: nextAirSwitchBusId(),
+    buttons: [blankAirSwitchButton()],
+  };
+  state.activeTab = "air_switch";
+  rerender(renderCurrentTab);
+}
+
+async function saveAirSwitchCard(cardKey) {
+  const draft = buildAirSwitchDraftForSave(state.airSwitchDrafts[cardKey]);
+  const route = routeSlug(draft.bus_id, draft.segment_id || 0);
+  const configuredIndex = state.config.devices.findIndex(
+    (device) =>
+      device.type === "air_switch" && routeSlug(device.bus_id, device.segment_id || 0) === route,
+  );
+  const nextConfig = clone(state.config);
+  if (configuredIndex >= 0) {
+    nextConfig.devices[configuredIndex] = draft;
+  } else {
+    nextConfig.devices.push(draft);
+  }
+
+  const actionKey = `save-air-switch:${cardKey}`;
+  setBusy(actionKey, true);
+  try {
+    const success = await applyConfig(
+      nextConfig,
+      configuredIndex >= 0 ? `Saved Air Switch group #${route}.` : `Added Air Switch group #${route}.`,
+    );
+    if (!success) return;
+    delete state.airSwitchDrafts[cardKey];
+    state.airSwitchDrafts[`air_switch:${route}`] = clone(draft);
+    await refreshStatus();
+    rerender(() => renderTabIfVisible("air_switch"));
+  } finally {
+    setBusy(actionKey, false);
+  }
+}
+
 document.addEventListener("click", async (event) => {
   const tabButton = event.target.closest("[data-tab]");
   if (tabButton && tabButton.classList.contains("tab-button")) {
@@ -2532,6 +3015,23 @@ document.addEventListener("click", async (event) => {
     rerender(() => renderTabIfVisible("bloc7"));
     return;
   }
+  if (action === "save-air-switch") {
+    await saveAirSwitchCard(actionTarget.dataset.cardKey);
+    return;
+  }
+  if (action === "add-air-switch-button-row") {
+    state.airSwitchDrafts[actionTarget.dataset.cardKey].buttons.push(blankAirSwitchButton());
+    rerender(() => renderTabIfVisible("air_switch"));
+    return;
+  }
+  if (action === "remove-air-switch-button") {
+    state.airSwitchDrafts[actionTarget.dataset.cardKey].buttons.splice(
+      Number(actionTarget.dataset.buttonIndex),
+      1,
+    );
+    rerender(() => renderTabIfVisible("air_switch"));
+    return;
+  }
   if (action === "helper-start") {
     await startSetupHelperSession();
     return;
@@ -2554,6 +3054,18 @@ document.addEventListener("click", async (event) => {
   }
   if (action === "interactions-start") {
     await startInteractionDiscovery();
+    return;
+  }
+  if (action === "interactions-next") {
+    await nextInteractionStep();
+    return;
+  }
+  if (action === "interactions-previous") {
+    await previousInteractionStep();
+    return;
+  }
+  if (action === "interactions-finish") {
+    await finishInteractionSession();
     return;
   }
   if (action === "interactions-stop") {
@@ -2588,6 +3100,15 @@ document.addEventListener("input", (event) => {
       target.dataset.suggestionKey,
       target.dataset.field,
       target.value,
+    );
+    return;
+  }
+  if (target.dataset.cardKind === "air_switch") {
+    updateAirSwitchDraftField(
+      target.dataset.cardKey,
+      target.dataset.field,
+      target.value,
+      target.dataset.buttonIndex !== undefined ? Number(target.dataset.buttonIndex) : null,
     );
     return;
   }
@@ -2646,6 +3167,16 @@ document.addEventListener("change", (event) => {
     rerender(() => renderTabIfVisible("bloc7"));
     return;
   }
+  if (target.dataset.cardKind === "air_switch") {
+    updateAirSwitchDraftField(
+      target.dataset.cardKey,
+      target.dataset.field,
+      target.value,
+      target.dataset.buttonIndex !== undefined ? Number(target.dataset.buttonIndex) : null,
+    );
+    rerender(() => renderTabIfVisible("air_switch"));
+    return;
+  }
   if (target.dataset.cardKind === "setup-helper" || target.dataset.cardKind === "setup-helper-device") {
     rerender(() => renderTabIfVisible("helper"));
     return;
@@ -2663,6 +3194,7 @@ document.addEventListener("change", (event) => {
 document.getElementById("discovery-toggle-button").addEventListener("click", toggleDiscovery);
 document.getElementById("bloc7-refresh-button").addEventListener("click", refreshBloc7Candidates);
 document.getElementById("add-bloc7-button").addEventListener("click", addManualBloc7Draft);
+document.getElementById("add-air-switch-button").addEventListener("click", addManualAirSwitchDraft);
 
 async function initialize() {
   heartbeatManager?.start();

@@ -139,6 +139,15 @@ class ScheiberCanDevice(ABC):
         """
         return []
 
+    def get_air_switch_buttons(self) -> List:
+        """
+        Return list of wireless Air Switch buttons (if any).
+
+        Returns:
+            List of AirSwitchButton objects (empty by default)
+        """
+        return []
+
     def __str__(self) -> str:
         """String representation."""
         return (

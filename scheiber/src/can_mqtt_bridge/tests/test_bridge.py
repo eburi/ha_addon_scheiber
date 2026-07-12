@@ -292,7 +292,9 @@ class TestMQTTDiscoveryLights:
 
         assert len(config_calls) == 1
         discovery_config = json.loads(config_calls[0][0][1])
-        assert discovery_config["unique_id"] == "scheiber_logical_light_underwater_light"
+        assert (
+            discovery_config["unique_id"] == "scheiber_logical_light_underwater_light"
+        )
         assert (
             discovery_config["state_topic"]
             == "homeassistant/scheiber/logical/light/underwater_light/state"
@@ -351,7 +353,10 @@ class TestMQTTDiscoveryLights:
 
         assert len(config_calls) == 1
         discovery_config = json.loads(config_calls[0][0][1])
-        assert discovery_config["unique_id"] == "scheiber_logical_button_flybridge_door_close"
+        assert (
+            discovery_config["unique_id"]
+            == "scheiber_logical_button_flybridge_door_close"
+        )
         assert (
             discovery_config["command_topic"]
             == "homeassistant/scheiber/logical/button/flybridge_door_close/set"
@@ -546,6 +551,91 @@ class TestMQTTSensors:
         # Verify subscription
         subscribe_calls = [call[0][0] for call in mock_client.subscribe.call_args_list]
         assert "homeassistant/scheiber/bloc9/7/s1/set" in subscribe_calls
+
+
+class TestMQTTAirSwitchButtons:
+    """Test MQTT event-entity setup for wireless Air Switch buttons."""
+
+    @patch("can_mqtt_bridge.bridge.mqtt.Client")
+    @patch("can_mqtt_bridge.bridge.create_scheiber_system")
+    def test_air_switch_button_discovery_and_press_event(
+        self, mock_create_system, mock_mqtt_client
+    ):
+        from scheiber.air_switch import AirSwitchButton
+
+        hardware_button = AirSwitchButton(
+            identity_hex="52AB81",
+            button_index=2,
+            name="Top Left",
+            entity_id="bow_salon_top_left",
+        )
+
+        mock_device = MagicMock()
+        mock_device.__class__.__name__ = "AirSwitchDevice"
+        mock_device.device_id = 1
+        mock_device.get_lights.return_value = []
+        mock_device.get_switches.return_value = []
+        mock_device.get_pulses.return_value = []
+        mock_device.get_sensors.return_value = []
+        mock_device.get_air_switch_buttons.return_value = [hardware_button]
+
+        mock_system = MagicMock()
+        mock_system.get_all_devices.return_value = [mock_device]
+        mock_create_system.return_value = mock_system
+
+        mock_client = MagicMock()
+        mock_mqtt_client.return_value = mock_client
+
+        bridge = MQTTBridge(can_interface="can0", mqtt_host="localhost")
+        bridge.start()
+
+        discovery_call = next(
+            call
+            for call in mock_client.publish.call_args_list
+            if call[0][0] == "homeassistant/event/bow_salon_top_left/config"
+        )
+        discovery_config = json.loads(discovery_call[0][1])
+        assert discovery_config["event_types"] == ["press"]
+        assert discovery_config["device_class"] == "button"
+        assert discovery_config["unique_id"] == "scheiber_air_switch_52ab81_btn2"
+
+        # A real press on the hardware object should publish a press event,
+        # exercising the full device -> MQTT wiring done in bridge.start().
+        hardware_button.handle_observation(True)
+        state_call = next(
+            call
+            for call in mock_client.publish.call_args_list
+            if call[0][0] == "homeassistant/scheiber/air_switch/52ab81/btn2/state"
+        )
+        assert json.loads(state_call[0][1]) == {"event_type": "press"}
+
+    @patch("can_mqtt_bridge.bridge.mqtt.Client")
+    @patch("can_mqtt_bridge.bridge.create_scheiber_system")
+    def test_devices_without_air_switch_buttons_are_skipped(
+        self, mock_create_system, mock_mqtt_client
+    ):
+        mock_device = MagicMock()
+        mock_device.__class__.__name__ = "Bloc9Device"
+        mock_device.device_id = 7
+        mock_device.get_lights.return_value = []
+        mock_device.get_switches.return_value = []
+        mock_device.get_pulses.return_value = []
+        mock_device.get_sensors.return_value = []
+        mock_device.get_air_switch_buttons.return_value = []
+
+        mock_system = MagicMock()
+        mock_system.get_all_devices.return_value = [mock_device]
+        mock_create_system.return_value = mock_system
+
+        mock_client = MagicMock()
+        mock_mqtt_client.return_value = mock_client
+
+        bridge = MQTTBridge(can_interface="can0", mqtt_host="localhost")
+        bridge.start()  # must not raise
+
+        assert not any(
+            "/event/" in call[0][0] for call in mock_client.publish.call_args_list
+        )
 
 
 class TestMQTTDiscoverySwitches:

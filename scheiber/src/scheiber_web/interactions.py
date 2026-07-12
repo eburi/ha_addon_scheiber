@@ -1,39 +1,124 @@
-"""Interaction discovery service for button-to-Bloc9 protocol analysis."""
+"""Guided capture of Scheiber wireless Air Switch (SFSP) button presses.
+
+Scheiber calls this hardware "Light Air Switch"; the boat's own French
+labelling is "Sans Fil Sans Pile" (SFSP, i.e. "no wires, no battery").
+Physical units are mounted in a Vimar frame and come in two shapes:
+
+- Two-function: a single rocker, divided horizontally into a top button and
+  a bottom button.
+- Four-function: two rockers side by side (divided vertically from each
+  other), each of which is also divided horizontally into a top and bottom
+  button, giving four independent functions (top-left, bottom-left,
+  top-right, bottom-right).
+
+This service walks an operator through a structured capture: enter a
+location and the unit's function count, then press-and-release each
+function several times while every button-source CAN frame and any
+resulting Bloc9/panel reaction is recorded. Finished sessions are appended
+to a JSON Lines log file so that data collected across many different
+physical units (and the multiple wireless receivers installed on the boat)
+can be analyzed offline for patterns: is the same bit layout used across
+units, and how does the CAN bus avoid duplicate reports when more than one
+receiver hears the same press?
+
+This is intentionally scoped to the wireless Air Switch/SFSP family only.
+Wired panel buttons (which also carry state-indicator lights) are a
+separate, deferred investigation, though their CAN traffic may still be
+captured here as a *reaction* when a wireless press changes a light that a
+panel also reflects.
+"""
 
 from __future__ import annotations
 
-import copy
+import json
+import logging
+import os
+import re
 import threading
 import time
-from collections import Counter, deque
-from typing import Any, Deque, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 import can
 
 from scheiber.button_discovery import (
+    classify_air_switch_message,
     classify_button_source_message,
-    diff_status_bits,
 )
 from scheiber.discovery import classify_bloc9_message
 
+logger = logging.getLogger(__name__)
+
+# Ordered function sequences an operator is guided through, keyed by how
+# many individual functions the physical Vimar unit provides.
+STEP_SEQUENCES: Dict[int, List[Dict[str, str]]] = {
+    2: [
+        {
+            "key": "top",
+            "label": "Top",
+            "instruction": "Press and release the TOP button several times (aim for 5+ presses).",
+        },
+        {
+            "key": "bottom",
+            "label": "Bottom",
+            "instruction": "Press and release the BOTTOM button several times (aim for 5+ presses).",
+        },
+    ],
+    4: [
+        {
+            "key": "top_left",
+            "label": "Top Left",
+            "instruction": "Press and release the TOP-LEFT button several times (aim for 5+ presses).",
+        },
+        {
+            "key": "bottom_left",
+            "label": "Bottom Left",
+            "instruction": "Press and release the BOTTOM-LEFT button several times (aim for 5+ presses).",
+        },
+        {
+            "key": "top_right",
+            "label": "Top Right",
+            "instruction": "Press and release the TOP-RIGHT button several times (aim for 5+ presses).",
+        },
+        {
+            "key": "bottom_right",
+            "label": "Bottom Right",
+            "instruction": "Press and release the BOTTOM-RIGHT button several times (aim for 5+ presses).",
+        },
+    ],
+}
+
+# The confirmed wireless Air Switch family (see
+# plan/button-interaction-hypothesis.md) plus its unconfirmed companion
+# messages (e.g. 0x0402xxxx/0x0408xxxx) all live under this prefix. Capturing
+# the whole family, not just the 5-byte button-status shape, keeps evidence
+# useful for investigating how multiple wireless receivers avoid duplicate
+# reports.
+AIR_SWITCH_FAMILY_PREFIX = 0x04000000
+AIR_SWITCH_FAMILY_MASK = 0xFF000000
+
+
+def _slugify_entity_id(value: str) -> str:
+    """Slugify free-text into an entity-id-safe string (lowercase, underscores)."""
+    slug = re.sub(r"[^a-z0-9]+", "_", str(value or "").strip().lower())
+    return slug.strip("_")
+
 
 class InteractionDiscoveryService:
-    """Capture probable button-source messages and correlated Bloc9 reactions."""
+    """Guide an operator through capturing one physical Air Switch unit."""
 
-    BUFFER_SECONDS = 5.0
-    REACTION_SECONDS = 10.0
-
-    def __init__(self, runtime_controller):
+    def __init__(
+        self,
+        runtime_controller,
+        log_file_path: Optional[str] = None,
+    ):
         self.runtime_controller = runtime_controller
+        self.log_file_path = log_file_path
         self._lock = threading.RLock()
         self._subscribed = False
-        self._active = False
         self._session: Optional[Dict[str, Any]] = None
-        self._recent_messages: Deque[Dict[str, Any]] = deque()
-        self._latest_outputs: Dict[str, Dict[str, Any]] = {}
-        self._button_states: Dict[str, Dict[str, Any]] = {}
 
-    def start(self, location: str) -> Dict[str, Any]:
+    def start(self, location: str, button_count: Any) -> Dict[str, Any]:
         if not self.runtime_controller.has_live_runtime():
             raise RuntimeError(
                 "The bridge must be running before interaction discovery can start"
@@ -43,75 +128,130 @@ class InteractionDiscoveryService:
         if not cleaned_location:
             raise ValueError("location is required")
 
+        try:
+            normalized_button_count = int(button_count)
+        except (TypeError, ValueError):
+            normalized_button_count = None
+        if normalized_button_count not in STEP_SEQUENCES:
+            raise ValueError("button_count must be 2 or 4")
+
         with self._lock:
             self._ensure_subscription()
             now = time.time()
-            self._active = True
-            self._recent_messages.clear()
             self._session = {
                 "status": "running",
-                "phase": "waiting_for_button",
                 "location": cleaned_location,
+                "button_count": normalized_button_count,
                 "started_at": now,
                 "last_message_at": None,
-                "reaction_started_at": None,
-                "reaction_deadline_at": None,
-                "message_counts": {
-                    "button_source_status": 0,
-                    "bloc9_state_update": 0,
-                    "bloc9_heartbeat": 0,
-                    "other": 0,
-                },
-                "button_events": [],
-                "button_candidates": {},
-                "reaction_outputs": {},
-                "raw_context": [],
-                "other_messages": Counter(),
-                "other_samples": {},
-                "baseline_outputs": copy.deepcopy(self._latest_outputs),
+                "current_step_index": 0,
+                "steps": [
+                    {
+                        "key": step["key"],
+                        "label": step["label"],
+                        "instruction": step["instruction"],
+                        "events": [],
+                        "reactions": [],
+                        "companion_frames": [],
+                    }
+                    for step in STEP_SEQUENCES[normalized_button_count]
+                ],
+                "saved_at": None,
+                "saved_path": None,
             }
+            return self.snapshot()
+
+    def next_step(self) -> Dict[str, Any]:
+        with self._lock:
+            session = self._require_active_session()
+            if session["current_step_index"] >= len(session["steps"]) - 1:
+                raise ValueError("Already on the last step; use finish instead")
+            session["current_step_index"] += 1
+            return self.snapshot()
+
+    def previous_step(self) -> Dict[str, Any]:
+        with self._lock:
+            session = self._require_active_session()
+            if session["current_step_index"] <= 0:
+                raise ValueError("Already on the first step")
+            session["current_step_index"] -= 1
+            return self.snapshot()
+
+    def finish(self) -> Dict[str, Any]:
+        with self._lock:
+            session = self._require_active_session()
+            session["status"] = "complete"
+            self._save_session(session)
             return self.snapshot()
 
     def stop(self) -> Dict[str, Any]:
         with self._lock:
-            self._active = False
-            if self._session is not None:
+            if self._session is not None and self._session["status"] == "running":
                 self._session["status"] = "stopped"
-                if self._session.get("phase") not in {"complete", "idle"}:
-                    self._session["phase"] = "stopped"
             return self.snapshot()
 
     def snapshot(self) -> Dict[str, Any]:
         with self._lock:
-            self._advance_if_needed()
             if self._session is None:
                 return self._empty_snapshot()
 
             session = self._session
+            steps_summary = [
+                self._step_summary(session, step) for step in session["steps"]
+            ]
+            current_index = session["current_step_index"]
+
             return {
                 "status": session["status"],
-                "phase": session["phase"],
                 "location": session["location"],
+                "button_count": session["button_count"],
                 "started_at": session["started_at"],
                 "last_message_at": session["last_message_at"],
-                "reaction_started_at": session["reaction_started_at"],
-                "reaction_deadline_at": session["reaction_deadline_at"],
-                "remaining_reaction_seconds": self._remaining_reaction_seconds(session),
-                "message_counts": dict(session["message_counts"]),
-                "button_events": list(session["button_events"][-20:]),
-                "button_candidates": self._button_candidate_snapshot(session),
-                "reaction_outputs": self._reaction_output_snapshot(session),
-                "raw_context": list(session["raw_context"][-40:]),
-                "other_messages": [
-                    {
-                        "arbitration_id": arbitration_id,
-                        "count": count,
-                        "sample_data": session["other_samples"].get(arbitration_id, ""),
-                    }
-                    for arbitration_id, count in session["other_messages"].most_common(10)
-                ],
-                "hypothesis": self._hypothesis_snapshot(session),
+                "current_step_index": current_index,
+                "current_step": steps_summary[current_index] if steps_summary else None,
+                "is_first_step": current_index <= 0,
+                "is_last_step": current_index >= len(steps_summary) - 1,
+                "steps": steps_summary,
+                "saved_at": session["saved_at"],
+                "saved_path": session["saved_path"],
             }
+
+    def recent_sessions(self, limit: int = 5) -> List[Dict[str, Any]]:
+        """Return summaries of the most recently saved sessions, if any."""
+        if not self.log_file_path or not os.path.exists(self.log_file_path):
+            return []
+
+        try:
+            with open(self.log_file_path, "r", encoding="utf-8") as handle:
+                lines = [line for line in handle if line.strip()]
+        except OSError as exc:
+            logger.error(f"Failed to read interactions log: {exc}")
+            return []
+
+        summaries = []
+        for line in lines[-limit:]:
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            steps = record.get("steps", [])
+            summaries.append(
+                {
+                    "saved_at": record.get("saved_at"),
+                    "location": record.get("location"),
+                    "button_count": record.get("button_count"),
+                    "total_events": sum(len(step.get("events", [])) for step in steps),
+                    "total_reactions": sum(
+                        len(step.get("reactions", [])) for step in steps
+                    ),
+                }
+            )
+        return summaries
+
+    def _require_active_session(self) -> Dict[str, Any]:
+        if self._session is None:
+            raise RuntimeError("No interaction session is active; start one first")
+        return self._session
 
     def _ensure_subscription(self) -> None:
         if self._subscribed:
@@ -121,352 +261,188 @@ class InteractionDiscoveryService:
 
     def _handle_message(self, msg: can.Message) -> None:
         timestamp = getattr(msg, "timestamp", None) or time.time()
-        button_observation = classify_button_source_message(msg)
-        bloc9_observation = classify_bloc9_message(msg)
-        raw_entry = self._raw_entry(msg, timestamp, button_observation, bloc9_observation)
 
         with self._lock:
-            self._remember_recent(raw_entry, timestamp)
-            if bloc9_observation is not None and bloc9_observation["kind"] == "state_update":
-                self._update_latest_outputs(bloc9_observation, timestamp)
-
-            if not self._active or self._session is None:
-                return
-
             session = self._session
-            session["last_message_at"] = timestamp
-            if session["phase"] != "waiting_for_button":
-                session["raw_context"].append(raw_entry)
-                session["raw_context"] = session["raw_context"][-80:]
+            if session is None or session["status"] != "running":
+                return
 
+            step = session["steps"][session["current_step_index"]]
+
+            button_observation = classify_button_source_message(msg)
             if button_observation is not None:
-                session["message_counts"]["button_source_status"] += 1
-                self._record_button_observation(session, button_observation, timestamp)
+                session["last_message_at"] = timestamp
+                air_switch_observation = classify_air_switch_message(msg)
+                step["events"].append(
+                    {
+                        "timestamp": timestamp,
+                        "arbitration_id": button_observation["arbitration_id"],
+                        "data_hex": button_observation["data_hex"],
+                        "source_family": button_observation["source_family"],
+                        "status_hex": button_observation["status_hex"],
+                        "confirmed_air_switch": air_switch_observation,
+                    }
+                )
                 return
 
-            if bloc9_observation is not None:
-                if bloc9_observation["kind"] == "heartbeat":
-                    session["message_counts"]["bloc9_heartbeat"] += 1
-                    return
-
-                session["message_counts"]["bloc9_state_update"] += 1
-                self._record_bloc9_observation(session, bloc9_observation, timestamp)
+            bloc9_observation = classify_bloc9_message(msg)
+            if (
+                bloc9_observation is not None
+                and bloc9_observation["kind"] == "state_update"
+            ):
+                session["last_message_at"] = timestamp
+                step["reactions"].append(
+                    {
+                        "timestamp": timestamp,
+                        "arbitration_id": bloc9_observation["arbitration_id"],
+                        "route_slug": bloc9_observation["route_slug"],
+                        "bus_id": bloc9_observation["bus_id"],
+                        "segment_id": bloc9_observation["segment_id"],
+                        "outputs": bloc9_observation["outputs"],
+                    }
+                )
                 return
 
-            session["message_counts"]["other"] += 1
-            arbitration_id = f"0x{msg.arbitration_id:08X}"
-            session["other_messages"][arbitration_id] += 1
-            session["other_samples"].setdefault(arbitration_id, msg.data.hex().upper())
+            if (
+                msg.arbitration_id & AIR_SWITCH_FAMILY_MASK
+            ) == AIR_SWITCH_FAMILY_PREFIX:
+                # Unconfirmed companion traffic (e.g. 0x0402xxxx/0x0408xxxx)
+                # that reliably accompanies button events but whose meaning
+                # isn't decoded yet; kept for offline pattern analysis.
+                session["last_message_at"] = timestamp
+                step["companion_frames"].append(
+                    {
+                        "timestamp": timestamp,
+                        "arbitration_id": f"0x{msg.arbitration_id:08X}",
+                        "data_hex": bytes(msg.data).hex().upper(),
+                    }
+                )
 
-    def _remember_recent(self, entry: Dict[str, Any], timestamp: float) -> None:
-        self._recent_messages.append(entry)
-        cutoff = timestamp - self.BUFFER_SECONDS
-        while self._recent_messages and self._recent_messages[0]["timestamp"] < cutoff:
-            self._recent_messages.popleft()
-
-    def _raw_entry(
-        self,
-        msg: can.Message,
-        timestamp: float,
-        button_observation: Optional[Dict[str, Any]],
-        bloc9_observation: Optional[Dict[str, Any]],
+    def _step_summary(
+        self, session: Dict[str, Any], step: Dict[str, Any]
     ) -> Dict[str, Any]:
-        kind = "other"
-        if button_observation is not None:
-            kind = "button_source_status"
-        elif bloc9_observation is not None:
-            kind = f"bloc9_{bloc9_observation['kind']}"
+        confirmed = self._step_confirmed_summary(step)
         return {
-            "timestamp": timestamp,
-            "arbitration_id": f"0x{msg.arbitration_id:08X}",
-            "data": msg.data.hex().upper(),
-            "kind": kind,
+            "key": step["key"],
+            "label": step["label"],
+            "instruction": step["instruction"],
+            "event_count": len(step["events"]),
+            "reaction_count": len(step["reactions"]),
+            "companion_count": len(step["companion_frames"]),
+            "recent_events": step["events"][-10:],
+            "recent_reactions": step["reactions"][-10:],
+            "confirmed_air_switch": confirmed,
+            "suggested_config": self._suggested_config(session, step, confirmed),
         }
 
-    def _record_button_observation(
-        self,
-        session: Dict[str, Any],
-        observation: Dict[str, Any],
-        timestamp: float,
-    ) -> None:
-        if session["phase"] == "waiting_for_button":
-            session["phase"] = "waiting_for_bloc9_change"
-            session["raw_context"] = list(self._recent_messages)
-
-        previous = self._button_states.get(observation["candidate_key"])
-        previous_status = previous["status_byte"] if previous else None
-        transitions = (
-            diff_status_bits(previous_status, observation["status_byte"])
-            if previous_status is not None
-            else {"rising_bits": [], "falling_bits": []}
-        )
-        event_type = self._button_event_type(observation, previous_status, transitions)
-
-        event = {
-            "timestamp": timestamp,
-            "event_type": event_type,
-            "arbitration_id": observation["arbitration_id"],
-            "source_family": observation["source_family"],
-            "candidate_key": observation["candidate_key"],
-            "identity_hex": observation["identity_hex"],
-            "status_hex": observation["status_hex"],
-            "active_bits": observation["active_bits"],
-            "lower_active_bits": observation["lower_active_bits"],
-            "high_bit_set": observation["high_bit_set"],
-            "rising_bits": transitions["rising_bits"],
-            "falling_bits": transitions["falling_bits"],
-            "data_hex": observation["data_hex"],
-            "confidence": observation["confidence"],
-        }
-        session["button_events"].append(event)
-
-        candidate = session["button_candidates"].setdefault(
-            observation["candidate_key"],
-            {
-                "candidate_key": observation["candidate_key"],
-                "arbitration_id": observation["arbitration_id"],
-                "source_family": observation["source_family"],
-                "identity_hex": observation["identity_hex"],
-                "first_seen_at": timestamp,
-                "last_seen_at": timestamp,
-                "event_count": 0,
-                "statuses_seen": {},
-                "rising_bits": Counter(),
-                "falling_bits": Counter(),
-                "sample_data": [],
-                "confidence": observation["confidence"],
-            },
-        )
-        candidate["last_seen_at"] = timestamp
-        candidate["event_count"] += 1
-        candidate["statuses_seen"][observation["status_hex"]] = observation["data_hex"]
-        for bit in transitions["rising_bits"]:
-            candidate["rising_bits"][bit] += 1
-        for bit in transitions["falling_bits"]:
-            candidate["falling_bits"][bit] += 1
-        if observation["data_hex"] not in candidate["sample_data"]:
-            candidate["sample_data"].append(observation["data_hex"])
-            candidate["sample_data"] = candidate["sample_data"][:6]
-
-        self._button_states[observation["candidate_key"]] = {
-            "status_byte": observation["status_byte"],
-            "timestamp": timestamp,
-        }
-
-    def _record_bloc9_observation(
-        self,
-        session: Dict[str, Any],
-        observation: Dict[str, Any],
-        timestamp: float,
-    ) -> None:
-        if session["phase"] in {"waiting_for_button", "waiting_for_bloc9_change"}:
-            session["phase"] = "waiting_for_reaction"
-            session["reaction_started_at"] = timestamp
-            session["reaction_deadline_at"] = timestamp + self.REACTION_SECONDS
-            if not session["raw_context"]:
-                session["raw_context"] = list(self._recent_messages)
-
-        if session["phase"] not in {"waiting_for_reaction", "complete"}:
-            return
-
-        if (
-            session["reaction_started_at"] is not None
-            and timestamp > session["reaction_deadline_at"]
-        ):
-            self._complete_session(session)
-            return
-
-        for output_name, sample in observation["outputs"].items():
-            output_ref = f"{observation['route_slug']}:{output_name}"
-            baseline = session["baseline_outputs"].get(output_ref, {}).get("sample")
-            reaction = session["reaction_outputs"].setdefault(
-                output_ref,
-                {
-                    "output_ref": output_ref,
-                    "bus_id": observation["bus_id"],
-                    "segment_id": observation["segment_id"],
-                    "route_slug": observation["route_slug"],
-                    "output_name": output_name,
-                    "baseline": baseline,
-                    "first_seen_at": timestamp,
-                    "last_seen_at": timestamp,
-                    "message_count": 0,
-                    "samples": [],
-                },
-            )
-            reaction["last_seen_at"] = timestamp
-            reaction["message_count"] += 1
-            if not reaction["samples"] or reaction["samples"][-1] != sample:
-                reaction["samples"].append(sample)
-                reaction["samples"] = reaction["samples"][-12:]
-
-    def _update_latest_outputs(
-        self, observation: Dict[str, Any], timestamp: float
-    ) -> None:
-        for output_name, sample in observation["outputs"].items():
-            output_ref = f"{observation['route_slug']}:{output_name}"
-            self._latest_outputs[output_ref] = {
-                "bus_id": observation["bus_id"],
-                "segment_id": observation["segment_id"],
-                "route_slug": observation["route_slug"],
-                "output_name": output_name,
-                "sample": sample,
-                "last_seen_at": timestamp,
-            }
-
-    def _advance_if_needed(self) -> None:
-        if not self._active or self._session is None:
-            return
-        session = self._session
-        deadline = session.get("reaction_deadline_at")
-        if deadline is not None and time.time() >= deadline:
-            self._complete_session(session)
-
-    def _complete_session(self, session: Dict[str, Any]) -> None:
-        session["status"] = "complete"
-        session["phase"] = "complete"
-        self._active = False
-
-    def _button_event_type(
-        self,
-        observation: Dict[str, Any],
-        previous_status: Optional[int],
-        transitions: Dict[str, List[int]],
-    ) -> str:
-        if previous_status is None:
-            return "initial_pressed" if observation["high_bit_set"] else "initial_released"
-        if transitions["rising_bits"] and observation["high_bit_set"]:
-            return "key_down"
-        if transitions["falling_bits"] and not observation["high_bit_set"]:
-            return "key_up"
-        if observation["high_bit_set"]:
-            return "pressed_status"
-        return "released_status"
-
-    def _button_candidate_snapshot(self, session: Dict[str, Any]) -> List[Dict[str, Any]]:
-        candidates = []
-        for candidate in session["button_candidates"].values():
-            candidates.append(
-                {
-                    "candidate_key": candidate["candidate_key"],
-                    "arbitration_id": candidate["arbitration_id"],
-                    "source_family": candidate["source_family"],
-                    "identity_hex": candidate["identity_hex"],
-                    "first_seen_at": candidate["first_seen_at"],
-                    "last_seen_at": candidate["last_seen_at"],
-                    "event_count": candidate["event_count"],
-                    "statuses_seen": [
-                        {"status_hex": status, "sample_data": sample}
-                        for status, sample in sorted(candidate["statuses_seen"].items())
-                    ],
-                    "rising_bits": [
-                        {"bit": bit, "count": count}
-                        for bit, count in candidate["rising_bits"].most_common()
-                    ],
-                    "falling_bits": [
-                        {"bit": bit, "count": count}
-                        for bit, count in candidate["falling_bits"].most_common()
-                    ],
-                    "sample_data": list(candidate["sample_data"]),
-                    "confidence": candidate["confidence"],
-                }
-            )
-        return sorted(
-            candidates, key=lambda item: (item["arbitration_id"], item["identity_hex"])
-        )
-
-    def _reaction_output_snapshot(self, session: Dict[str, Any]) -> List[Dict[str, Any]]:
-        outputs = []
-        for output in session["reaction_outputs"].values():
-            samples = output["samples"]
-            baseline = output["baseline"]
-            final = samples[-1] if samples else None
-            brightness_values = {
-                sample.get("effective_brightness")
-                for sample in samples
-                if sample.get("state") is True
-            }
-            changed = (
-                baseline != final
-                or len({self._sample_key(sample) for sample in samples}) > 1
-            )
-            if not changed:
+    def _step_confirmed_summary(self, step: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Return the most common confirmed (identity, button_index) pair, if any."""
+        counts: Dict[Any, int] = {}
+        for event in step["events"]:
+            confirmed = event.get("confirmed_air_switch")
+            if confirmed is None:
                 continue
-            outputs.append(
-                {
-                    **output,
-                    "current": final,
-                    "sample_count": len(samples),
-                    "dimming_observed": len(brightness_values) > 1,
-                }
-            )
-        return sorted(
-            outputs,
-            key=lambda item: (item["route_slug"], item["output_name"]),
-        )
+            key = (confirmed["identity_hex"], confirmed["button_index"])
+            counts[key] = counts.get(key, 0) + 1
 
-    def _hypothesis_snapshot(self, session: Dict[str, Any]) -> Dict[str, Any]:
-        button_count = len(session["button_candidates"])
-        output_count = len(self._reaction_output_snapshot(session))
-        if button_count and output_count:
-            confidence = "medium"
-            summary = "Button-source status frames and Bloc9 output reactions were both captured."
-        elif button_count:
-            confidence = "low"
-            summary = "Button-source status frames were captured, but no Bloc9 reaction was observed yet."
-        elif output_count:
-            confidence = "low"
-            summary = "Bloc9 output reactions were captured before a decoded button-source candidate was seen."
-        else:
-            confidence = "unknown"
-            summary = "No useful interaction evidence has been captured yet."
+        if not counts:
+            return None
+
+        (identity_hex, button_index), occurrences = max(
+            counts.items(), key=lambda item: item[1]
+        )
         return {
-            "confidence": confidence,
-            "summary": summary,
-            "notes": [
-                "Known local captures use 0x04001A80 for the 2.4 GHz wireless interface and 0x04001808 for a panel or key interface.",
-                "The classifier treats payload bytes before the final status byte as observed identity bytes, not a proven global address schema.",
-                "The final status byte appears bitwise encoded; bit 7 commonly marks pressed status in captured wireless examples.",
+            "identity_hex": identity_hex,
+            "button_index": button_index,
+            "occurrences": occurrences,
+            "distinct_pairs_seen": len(counts),
+        }
+
+    def _suggested_config(
+        self,
+        session: Dict[str, Any],
+        step: Dict[str, Any],
+        confirmed: Optional[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        if confirmed is None:
+            return None
+
+        location = str(session.get("location") or "").strip()
+        location_slug = _slugify_entity_id(location) or "air_switch"
+        step_slug = _slugify_entity_id(step["label"])
+        name = f"{location.title()} {step['label']}" if location else step["label"]
+        entity_id = f"{location_slug}_{step_slug}"
+
+        return {
+            "name": name,
+            "entity_id": entity_id,
+            "identity": confirmed["identity_hex"],
+            "button_index": confirmed["button_index"],
+            "yaml": (
+                "- name: "
+                + _yaml_quote(name)
+                + "\n  entity_id: "
+                + entity_id
+                + "\n  identity: "
+                + _yaml_quote(confirmed["identity_hex"])
+                + "\n  button_index: "
+                + str(confirmed["button_index"])
+            ),
+        }
+
+    def _save_session(self, session: Dict[str, Any]) -> None:
+        if not self.log_file_path:
+            session["saved_at"] = None
+            session["saved_path"] = None
+            return
+
+        record = {
+            "saved_at": time.time(),
+            "location": session["location"],
+            "button_count": session["button_count"],
+            "started_at": session["started_at"],
+            "steps": [
+                {
+                    "key": step["key"],
+                    "label": step["label"],
+                    "events": step["events"],
+                    "reactions": step["reactions"],
+                    "companion_frames": step["companion_frames"],
+                }
+                for step in session["steps"]
             ],
         }
 
-    def _remaining_reaction_seconds(self, session: Dict[str, Any]) -> Optional[int]:
-        deadline = session.get("reaction_deadline_at")
-        if deadline is None or session.get("status") != "running":
-            return None
-        return max(0, int(round(deadline - time.time())))
-
-    def _sample_key(self, sample: Dict[str, Any]) -> tuple:
-        return (
-            sample.get("state"),
-            sample.get("raw_brightness"),
-            sample.get("effective_brightness"),
-        )
+        try:
+            path = Path(self.log_file_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "a", encoding="utf-8") as handle:
+                handle.write(json.dumps(record) + "\n")
+            session["saved_at"] = record["saved_at"]
+            session["saved_path"] = str(path)
+        except OSError as exc:
+            logger.error(f"Failed to write interactions log: {exc}")
+            session["saved_at"] = None
+            session["saved_path"] = None
 
     def _empty_snapshot(self) -> Dict[str, Any]:
         return {
             "status": "idle",
-            "phase": "idle",
             "location": "",
+            "button_count": None,
             "started_at": None,
             "last_message_at": None,
-            "reaction_started_at": None,
-            "reaction_deadline_at": None,
-            "remaining_reaction_seconds": None,
-            "message_counts": {
-                "button_source_status": 0,
-                "bloc9_state_update": 0,
-                "bloc9_heartbeat": 0,
-                "other": 0,
-            },
-            "button_events": [],
-            "button_candidates": [],
-            "reaction_outputs": [],
-            "raw_context": [],
-            "other_messages": [],
-            "hypothesis": {
-                "confidence": "unknown",
-                "summary": "Start discovery and press a physical button to capture evidence.",
-                "notes": [],
-            },
+            "current_step_index": 0,
+            "current_step": None,
+            "is_first_step": True,
+            "is_last_step": False,
+            "steps": [],
+            "saved_at": None,
+            "saved_path": None,
         }
+
+
+def _yaml_quote(value: str) -> str:
+    """Render a double-quoted YAML scalar, escaping backslashes and quotes."""
+    escaped = str(value or "").replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'

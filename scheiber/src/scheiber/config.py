@@ -20,9 +20,13 @@ except ImportError:  # pragma: no cover
     fcntl = None
 
 ENTITY_ID_RE = re.compile(r"^[a-z0-9_]+$")
+AIR_SWITCH_IDENTITY_RE = re.compile(r"^[0-9A-Fa-f]{6}$")
 BLOC9_OUTPUT_KEYS = tuple(f"s{i}" for i in range(1, 7))
 SENSOR_DEVICE_TYPES = {"bloc7", "source_selector"}
-SUPPORTED_DEVICE_TYPES = {"bloc9", *SENSOR_DEVICE_TYPES}
+AIR_SWITCH_DEVICE_TYPE = "air_switch"
+AIR_SWITCH_BUTTON_INDEX_MIN = 1
+AIR_SWITCH_BUTTON_INDEX_MAX = 8
+SUPPORTED_DEVICE_TYPES = {"bloc9", *SENSOR_DEVICE_TYPES, AIR_SWITCH_DEVICE_TYPE}
 OUTPUT_METADATA_KEYS = {"name"}
 BLOC7_SENSOR_TYPES = {
     "voltage",
@@ -80,6 +84,16 @@ def empty_editor_sensor() -> Dict[str, Any]:
             "endian": "little",
             "scale": 1.0,
         },
+    }
+
+
+def empty_editor_air_switch_button() -> Dict[str, Any]:
+    """Return the default editor state for a wireless Air Switch button."""
+    return {
+        "name": "",
+        "entity_id": "",
+        "identity": "",
+        "button_index": AIR_SWITCH_BUTTON_INDEX_MIN,
     }
 
 
@@ -269,6 +283,7 @@ def validate_editor_config(
     normalized_devices = []
     seen_device_keys = set()
     seen_entity_ids: Dict[str, Dict[str, Any]] = {}
+    seen_air_switch_buttons: set = set()
 
     for device_index, device in enumerate(devices):
         device_path = ["devices", device_index]
@@ -290,6 +305,7 @@ def validate_editor_config(
             "description",
             "outputs",
             "sensors",
+            "buttons",
         }
         for key in device.keys():
             if key not in allowed_device_keys:
@@ -820,6 +836,154 @@ def validate_editor_config(
                 )
 
             normalized_device["sensors"] = normalized_sensors
+        elif device_type == AIR_SWITCH_DEVICE_TYPE:
+            buttons = device.get("buttons", [])
+            if buttons is None:
+                buttons = []
+            if not isinstance(buttons, list):
+                errors.append(
+                    make_error(
+                        "invalid_buttons",
+                        "buttons must be a list",
+                        device_path + ["buttons"],
+                    )
+                )
+                continue
+
+            normalized_buttons = []
+            for button_position, button in enumerate(buttons):
+                button_path = device_path + ["buttons", button_position]
+                if not isinstance(button, dict):
+                    errors.append(
+                        make_error(
+                            "invalid_button",
+                            "Each button must be an object",
+                            button_path,
+                        )
+                    )
+                    continue
+
+                allowed_button_keys = {"name", "entity_id", "identity", "button_index"}
+                for key in button.keys():
+                    if key not in allowed_button_keys:
+                        errors.append(
+                            make_error(
+                                "unknown_button_key",
+                                f"Unsupported button key '{key}'",
+                                button_path + [key],
+                            )
+                        )
+
+                button_name = button.get("name", "")
+                if not isinstance(button_name, str) or not button_name.strip():
+                    errors.append(
+                        make_error(
+                            "missing_button_name",
+                            "Air Switch buttons require a name",
+                            button_path + ["name"],
+                        )
+                    )
+                    button_name = ""
+                else:
+                    button_name = button_name.strip()
+
+                entity_id = button.get("entity_id", "")
+                if not isinstance(entity_id, str) or not entity_id.strip():
+                    errors.append(
+                        make_error(
+                            "missing_entity_id",
+                            "Air Switch buttons require an entity_id",
+                            button_path + ["entity_id"],
+                        )
+                    )
+                    entity_id = ""
+                else:
+                    entity_id = entity_id.strip()
+                    if entity_id.startswith("event."):
+                        errors.append(
+                            make_error(
+                                "entity_id_with_domain",
+                                "entity_id must not include a Home Assistant domain prefix",
+                                button_path + ["entity_id"],
+                            )
+                        )
+                    elif not ENTITY_ID_RE.match(entity_id):
+                        errors.append(
+                            make_error(
+                                "invalid_entity_id",
+                                "entity_id must contain only lowercase letters, numbers, and underscores",
+                                button_path + ["entity_id"],
+                            )
+                        )
+                    elif entity_id in seen_entity_ids:
+                        existing = seen_entity_ids[entity_id]
+                        errors.append(
+                            make_error(
+                                "duplicate_entity_id",
+                                f"entity_id '{entity_id}' is already used",
+                                button_path + ["entity_id"],
+                                details={"conflicts_with": existing.get("paths", [])},
+                            )
+                        )
+                    else:
+                        seen_entity_ids[entity_id] = {
+                            "kind": "air_switch_button",
+                            "role": None,
+                            "paths": [button_path + ["entity_id"]],
+                        }
+
+                identity = button.get("identity", "")
+                normalized_identity = ""
+                if not isinstance(identity, str) or not AIR_SWITCH_IDENTITY_RE.match(
+                    identity.strip()
+                ):
+                    errors.append(
+                        make_error(
+                            "invalid_air_switch_identity",
+                            "identity must be a 6-character hex string (3 bytes), "
+                            "e.g. '52AB81'",
+                            button_path + ["identity"],
+                        )
+                    )
+                else:
+                    normalized_identity = identity.strip().upper()
+
+                button_index, button_index_error = _normalize_int_field(
+                    button.get("button_index"),
+                    "invalid_button_index",
+                    "button_index must be an integer between "
+                    f"{AIR_SWITCH_BUTTON_INDEX_MIN} and {AIR_SWITCH_BUTTON_INDEX_MAX}",
+                    button_path + ["button_index"],
+                    min_value=AIR_SWITCH_BUTTON_INDEX_MIN,
+                    max_value=AIR_SWITCH_BUTTON_INDEX_MAX,
+                )
+                if button_index_error:
+                    errors.append(button_index_error)
+
+                if normalized_identity and button_index is not None:
+                    button_key = (normalized_identity, button_index)
+                    if button_key in seen_air_switch_buttons:
+                        errors.append(
+                            make_error(
+                                "duplicate_air_switch_button",
+                                f"identity '{normalized_identity}' button_index "
+                                f"{button_index} is already configured",
+                                button_path + ["button_index"],
+                            )
+                        )
+                    else:
+                        seen_air_switch_buttons.add(button_key)
+
+                normalized_buttons.append(
+                    {
+                        "name": button_name,
+                        "entity_id": entity_id,
+                        "identity": normalized_identity,
+                        "button_index": button_index,
+                    }
+                )
+
+            normalized_device["buttons"] = normalized_buttons
         else:  # pragma: no cover - guarded by SUPPORTED_DEVICE_TYPES validation
             continue
 
@@ -956,6 +1120,54 @@ def runtime_to_editor_config(runtime_config: Dict[str, Any]) -> Dict[str, Any]:
                     "name": device.get("name", ""),
                     "description": device.get("description", ""),
                     "sensors": sensors,
+                }
+            )
+            continue
+
+        if device_type == AIR_SWITCH_DEVICE_TYPE:
+            buttons = device.get("buttons", [])
+            if buttons is None:
+                buttons = []
+            if not isinstance(buttons, list):
+                raise ConfigValidationError(
+                    [
+                        make_error(
+                            "invalid_buttons",
+                            "'buttons' must be a list",
+                            ["devices", device_index, "buttons"],
+                        )
+                    ]
+                )
+
+            editor_buttons = []
+            for button_index, button_config in enumerate(buttons):
+                if not isinstance(button_config, dict):
+                    raise ConfigValidationError(
+                        [
+                            make_error(
+                                "invalid_button",
+                                "Each button must be an object",
+                                ["devices", device_index, "buttons", button_index],
+                            )
+                        ]
+                    )
+                editor_buttons.append(
+                    {
+                        "name": button_config.get("name", ""),
+                        "entity_id": button_config.get("entity_id", ""),
+                        "identity": button_config.get("identity", ""),
+                        "button_index": button_config.get("button_index"),
+                    }
+                )
+
+            editor_devices.append(
+                {
+                    "type": device_type,
+                    "bus_id": device.get("bus_id"),
+                    "segment_id": device.get("segment_id", 0),
+                    "name": device.get("name", ""),
+                    "description": device.get("description", ""),
+                    "buttons": editor_buttons,
                 }
             )
             continue
@@ -1121,6 +1333,18 @@ def editor_to_runtime_config(editor_config: Dict[str, Any]) -> Dict[str, Any]:
                     }
                 )
             runtime_device["sensors"] = sensors
+        elif device["type"] == AIR_SWITCH_DEVICE_TYPE:
+            buttons = []
+            for button in device.get("buttons", []):
+                buttons.append(
+                    {
+                        "name": button["name"],
+                        "entity_id": button["entity_id"],
+                        "identity": button["identity"],
+                        "button_index": button["button_index"],
+                    }
+                )
+            runtime_device["buttons"] = buttons
         else:
             outputs = {}
             lights = {}

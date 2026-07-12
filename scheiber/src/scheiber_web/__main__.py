@@ -57,6 +57,10 @@ def build_settings(args: argparse.Namespace) -> RuntimeSettings:
     if not state_file and args.data_dir:
         state_file = str(Path(args.data_dir) / "scheiber_state.json")
 
+    interactions_log_file = None
+    if args.data_dir:
+        interactions_log_file = str(Path(args.data_dir) / "interactions_log.jsonl")
+
     return RuntimeSettings(
         can_interface=args.can_interface,
         mqtt_host=args.mqtt_host,
@@ -66,6 +70,7 @@ def build_settings(args: argparse.Namespace) -> RuntimeSettings:
         mqtt_topic_prefix=args.mqtt_topic_prefix,
         config_path=args.config or "/config/scheiber-config.yaml",
         state_file=state_file,
+        interactions_log_file=interactions_log_file,
         log_level=args.log_level,
         read_only=args.read_only,
         host=args.host,

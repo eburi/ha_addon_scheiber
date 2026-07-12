@@ -8,6 +8,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from .air_switch import AirSwitchDevice
 from .base_device import ScheiberCanDevice
 from .bloc7 import Bloc7Device
 from .bloc9 import Bloc9Device
@@ -25,6 +26,7 @@ __all__ = [
     "Bloc7Device",
     "Bloc9Device",
     "SourceSelectorDevice",
+    "AirSwitchDevice",
 ]
 
 
@@ -219,6 +221,20 @@ def _create_devices(
                 f"Created SourceSelector device: bus_id={device_id}, "
                 f"segment_id={segment_id}, "
                 f"{len(device.get_sensors())} sensors"
+            )
+        elif device_type == "air_switch":
+            device = AirSwitchDevice(
+                device_id=device_id,
+                can_bus=can_bus,
+                config=device_config,
+                segment_id=segment_id,
+                logger=logging.getLogger(f"AirSwitch.{device_route}"),
+            )
+            devices.append(device)
+            logger.info(
+                f"Created AirSwitch device: bus_id={device_id}, "
+                f"segment_id={segment_id}, "
+                f"{len(device.get_air_switch_buttons())} buttons"
             )
         else:
             logger.warning(f"Unknown device type: {device_type}")

@@ -67,7 +67,8 @@ def create_app(
     frontend_monitor = frontend_monitor or FrontendHeartbeatMonitor(logger=app.logger)
     setup_helper = setup_helper or SetupHelperService(runtime_controller)
     interaction_discovery = interaction_discovery or InteractionDiscoveryService(
-        runtime_controller
+        runtime_controller,
+        log_file_path=settings.interactions_log_file,
     )
     frontend_monitor.add_idle_callback(discovery_service.stop)
     frontend_monitor.add_idle_callback(inspector.stop)
@@ -105,7 +106,9 @@ def create_app(
                 if isinstance(response_version, str):
                     return response_version
 
-        if mcp_server is not None and mcp_server.supports_protocol_version(request_version):
+        if mcp_server is not None and mcp_server.supports_protocol_version(
+            request_version
+        ):
             return request_version
         if mcp_server is not None:
             return mcp_server.latest_protocol_version()
@@ -302,13 +305,17 @@ def create_app(
             normalized_role = role.strip().lower() or None
         else:
             return (
-                jsonify({"error": "role must be 'light', 'switch', 'pulse', or omitted"}),
+                jsonify(
+                    {"error": "role must be 'light', 'switch', 'pulse', or omitted"}
+                ),
                 400,
             )
 
         if normalized_role not in {None, "light", "switch", "pulse"}:
             return (
-                jsonify({"error": "role must be 'light', 'switch', 'pulse', or omitted"}),
+                jsonify(
+                    {"error": "role must be 'light', 'switch', 'pulse', or omitted"}
+                ),
                 400,
             )
 
@@ -380,18 +387,54 @@ def create_app(
     @app.get("/api/interactions")
     def get_interactions():
         require_web_ui()
-        return jsonify(interaction_discovery.snapshot())
+        payload = interaction_discovery.snapshot()
+        payload["recent_sessions"] = interaction_discovery.recent_sessions()
+        return jsonify(payload)
 
     @app.post("/api/interactions/start")
     def start_interactions():
         require_web_ui()
         payload = request.get_json(silent=True) or {}
         try:
-            snapshot = interaction_discovery.start(payload.get("location", ""))
+            snapshot = interaction_discovery.start(
+                payload.get("location", ""), payload.get("button_count")
+            )
         except RuntimeError as exc:
             return jsonify({"error": str(exc), "code": "runtime_not_running"}), 409
         except ValueError as exc:
             return jsonify({"error": str(exc), "code": "invalid_request"}), 400
+        return jsonify(snapshot)
+
+    @app.post("/api/interactions/next-step")
+    def next_interactions_step():
+        require_web_ui()
+        try:
+            snapshot = interaction_discovery.next_step()
+        except RuntimeError as exc:
+            return jsonify({"error": str(exc), "code": "no_active_session"}), 409
+        except ValueError as exc:
+            return jsonify({"error": str(exc), "code": "invalid_request"}), 400
+        return jsonify(snapshot)
+
+    @app.post("/api/interactions/previous-step")
+    def previous_interactions_step():
+        require_web_ui()
+        try:
+            snapshot = interaction_discovery.previous_step()
+        except RuntimeError as exc:
+            return jsonify({"error": str(exc), "code": "no_active_session"}), 409
+        except ValueError as exc:
+            return jsonify({"error": str(exc), "code": "invalid_request"}), 400
+        return jsonify(snapshot)
+
+    @app.post("/api/interactions/finish")
+    def finish_interactions():
+        require_web_ui()
+        try:
+            snapshot = interaction_discovery.finish()
+        except RuntimeError as exc:
+            return jsonify({"error": str(exc), "code": "no_active_session"}), 409
+        snapshot["recent_sessions"] = interaction_discovery.recent_sessions()
         return jsonify(snapshot)
 
     @app.post("/api/interactions/stop")
@@ -415,7 +458,12 @@ def create_app(
         if not output_name:
             return jsonify({"error": "output_name is required"}), 400
         if not isinstance(selected_outputs, list) or not selected_outputs:
-            return jsonify({"error": "outputs must contain at least one discovered output"}), 400
+            return (
+                jsonify(
+                    {"error": "outputs must contain at least one discovered output"}
+                ),
+                400,
+            )
 
         config_state = load_editor_state(settings.config_path)
         next_config = config_state["config"]
@@ -430,7 +478,14 @@ def create_app(
                 segment_id = int(output.get("segment_id", 0))
                 output_key = str(output["output_name"])
             except (KeyError, TypeError, ValueError):
-                return jsonify({"error": "Each output needs bus_id, segment_id, and output_name"}), 400
+                return (
+                    jsonify(
+                        {
+                            "error": "Each output needs bus_id, segment_id, and output_name"
+                        }
+                    ),
+                    400,
+                )
 
             device = next(
                 (

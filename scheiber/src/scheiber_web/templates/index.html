@@ -28,6 +28,7 @@
         <nav class="tab-nav" aria-label="Setup sections">
           <button type="button" class="tab-button active" data-tab="bloc9">Bloc9</button>
           <button type="button" class="tab-button" data-tab="bloc7">Bloc7</button>
+          <button type="button" class="tab-button" data-tab="air_switch">Air Switch</button>
           <button type="button" class="tab-button" data-tab="interactions">Interactions</button>
           <button type="button" class="tab-button" data-tab="inspect">Inspect</button>
           <button type="button" class="tab-button" data-tab="helper">Helper</button>
@@ -64,6 +65,20 @@
         <div id="bloc7-list" class="card-list empty-state">Loading Bloc7 devices…</div>
       </section>
 
+      <section id="tab-air_switch" class="tab-panel" data-tab-panel="air_switch">
+        <div class="panel-toolbar">
+          <div class="toolbar-text">
+            <h2>Air Switch</h2>
+            <p>Configure battery-less wireless Light Air Switch buttons. Capture a press in the Interactions tab first to learn each button's identity and index, then add it here as a Home Assistant event entity.</p>
+          </div>
+          <div class="toolbar-actions">
+            <button id="add-air-switch-button">Add draft</button>
+          </div>
+        </div>
+        <div id="air-switch-summary" class="summary-bar"></div>
+        <div id="air-switch-list" class="card-list empty-state">Loading Air Switch groups…</div>
+      </section>
+
       <section id="tab-inspect" class="tab-panel" data-tab-panel="inspect">
         <div class="panel-toolbar">
           <div class="toolbar-text">
@@ -85,7 +100,7 @@
         <div class="panel-toolbar">
           <div class="toolbar-text">
             <h2>Interactions</h2>
-            <p>Capture a physical button press, the probable button-source CAN frames, and any Bloc9 reactions so the button schema can be decoded from evidence.</p>
+            <p>Guided capture for wireless Air Switch (SFSP) buttons. Enter a location and the physical unit's function count, then press each function several times as instructed. Every session is saved to a log file for later offline pattern analysis.</p>
           </div>
         </div>
         <div id="interactions-panel" class="card-list empty-state">Loading interaction discovery…</div>

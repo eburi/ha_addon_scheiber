@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from scheiber import ScheiberSystem, create_scheiber_system
 
+from .air_switch_button import MQTTAirSwitchButton
 from .button import MQTTButton
 from .light import MQTTLight
 from .logical_entity import MQTTLogicalButton, MQTTLogicalLight, MQTTLogicalSwitch
@@ -113,6 +114,7 @@ class MQTTBridge:
         self._setup_bloc9_outputs(devices)
         for device in devices:
             self._setup_sensor_device(device)
+        self._setup_air_switch_buttons(devices)
 
         # Subscribe to CAN statistics
         self.system.subscribe_to_stats(self._on_can_stats)
@@ -296,6 +298,24 @@ class MQTTBridge:
             mqtt_sensor.subscribe_to_updates()
             mqtt_sensor.publish_state()
             self._mqtt_entities.append(mqtt_sensor)
+
+    def _setup_air_switch_buttons(self, devices):
+        """Create MQTT event entities for configured wireless Air Switch buttons."""
+        for device in devices:
+            for hardware_button in getattr(
+                device, "get_air_switch_buttons", lambda: []
+            )():
+                mqtt_button = MQTTAirSwitchButton(
+                    hardware_button=hardware_button,
+                    mqtt_client=self.mqtt_client,
+                    mqtt_topic_prefix=self.mqtt_topic_prefix,
+                )
+                mqtt_button.publish_discovery()
+                mqtt_button.publish_availability(True)
+                self._mqtt_entities.append(mqtt_button)
+                self.logger.info(
+                    f"Setting up MQTT Air Switch button {hardware_button.entity_id}"
+                )
 
     def _on_mqtt_connect(self, client, userdata, flags, rc):
         """Handle MQTT connection."""

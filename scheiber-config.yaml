@@ -207,3 +207,31 @@ devices:
       s2:
         name: "Secret Light"
         entity_id: "secret_light"
+
+  # Wireless Air Switch buttons are battery-less and cannot be discovered by
+  # sending CAN commands. Use the setup web UI's Interactions tab to capture
+  # a physical press first; it reports the `identity` and `button_index`
+  # values to use below. `bus_id` here is just an organizational group
+  # number (not a real CAN bus address); every button is matched by its own
+  # identity/button_index pair.
+  - type: air_switch
+    bus_id: 1
+    name: "Bow Salon Air Switch"
+    description: "4-button Air Switch at the bow salon door"
+    buttons:
+      - name: "Bottom Left"
+        entity_id: "bow_salon_button_bottom_left"
+        identity: "52AB81"
+        button_index: 1
+      - name: "Top Left"
+        entity_id: "bow_salon_button_top_left"
+        identity: "52AB81"
+        button_index: 2
+      - name: "Bottom Right"
+        entity_id: "bow_salon_button_bottom_right"
+        identity: "52AB81"
+        button_index: 3
+      - name: "Top Right"
+        entity_id: "bow_salon_button_top_right"
+        identity: "52AB81"
+        button_index: 4

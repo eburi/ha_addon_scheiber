@@ -108,3 +108,32 @@ def test_main_supports_mcp_without_web_ui(monkeypatch):
     assert captured["settings"].web_ui_enabled is False
     assert captured["settings"].mcp_server_enabled is True
     assert captured["runtime_controller"].started is True
+
+
+def test_build_settings_derives_state_and_interactions_log_from_data_dir():
+    args = web_main.build_parser().parse_args(
+        [
+            "--can-interface",
+            "can1",
+            "--mqtt-host",
+            "localhost",
+            "--data-dir",
+            "/data",
+        ]
+    )
+
+    settings = web_main.build_settings(args)
+
+    assert settings.state_file == "/data/scheiber_state.json"
+    assert settings.interactions_log_file == "/data/interactions_log.jsonl"
+
+
+def test_build_settings_leaves_interactions_log_unset_without_data_dir():
+    args = web_main.build_parser().parse_args(
+        ["--can-interface", "can1", "--mqtt-host", "localhost"]
+    )
+
+    settings = web_main.build_settings(args)
+
+    assert settings.state_file is None
+    assert settings.interactions_log_file is None

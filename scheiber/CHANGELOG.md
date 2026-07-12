@@ -7,7 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.14.0] - 2026-07-06
+
+### Added
+- Added wireless **Air Switch** (Scheiber Light Air Switch) support: battery-less wireless buttons can now be configured as a new `air_switch` device type in `scheiber-config.yaml` and are exposed to Home Assistant as MQTT `event` entities (`device_class: button`) that fire a `press` event, matching Home Assistant's own physical-button/remote convention
+- Added an **Air Switch** tab to the setup web UI for adding, naming, and removing configured buttons (identity + button index) without hand-editing YAML
+- Added `classify_air_switch_message()`, a confirmed decoder for the wireless protocol validated against live captures from a physical four-button Air Switch: arbitration IDs `0x04001A80`/`0x04001A82`/`0x04001A83` redundantly carry a 5-byte payload (`01` + 3-byte stable transmitter identity + status byte), where the status byte's high bit is pressed/released and the low 7 bits are a 1-based button index
+- The setup web UI's **Interactions** tab now guides an operator through a structured capture of one physical wireless Air Switch (SFSP, "Sans Fil Sans Pile") unit at a time: enter a location and the unit's function count (2: single horizontally-divided rocker; 4: two rockers side by side, each horizontally divided), then press-and-release each function several times as instructed (top/bottom, or top-left/bottom-left/top-right/bottom-right), with a live-updating ready-to-copy `air_switch` configuration snippet once a function's identity and button index are confirmed
+- Finished Interactions capture sessions are appended as JSON Lines records to an `interactions_log.jsonl` file in the add-on's data directory, so evidence collected across many physical units and multiple visits can be analyzed offline instead of only inspected live in the browser
+- Added `scheiber/src/tools/analyze_air_switch_log.py`, a standalone script that reads the interactions log and prints per-session confirmed identity/button-index pairs, Bloc9/panel reactions, and unconfirmed companion frames per function, plus a cross-session identity summary to help spot patterns and investigate how the boat's multiple wireless receivers might (or might not) avoid duplicate reports
+
+### Changed
+- `plan/button-interaction-hypothesis.md` documents the confirmed wireless protocol, real fan-out examples (a single physical button toggling multiple Bloc9 outputs as a scene), the new guided-capture workflow, and records the open question of how multiple installed wireless receivers avoid reporting the same physical press independently
+
 ## [6.12.0] - 2026-07-03
+
 
 ### Added
 - Added an **Interactions** setup tab that captures probable button-source CAN frames, inferred key-down/key-up bit transitions, five seconds of raw pre-trigger context, and up to ten seconds of Bloc9 reactions for reverse-engineering Light Air Switch and key-interface addressing

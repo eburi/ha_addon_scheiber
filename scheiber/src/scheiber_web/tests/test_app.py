@@ -218,44 +218,105 @@ class FakeInteractionDiscovery:
         self.should_fail = should_fail
         self.start_calls = []
         self.stop_calls = 0
+        self.next_step_calls = 0
+        self.previous_step_calls = 0
+        self.finish_calls = 0
+        self._status = "idle"
+        self._location = ""
+        self._button_count = None
+        self._current_step_index = 0
+        self._steps = []
 
     def snapshot(self):
         return {
-            "status": "idle",
-            "phase": "idle",
-            "location": "",
+            "status": self._status,
+            "location": self._location,
+            "button_count": self._button_count,
             "started_at": None,
             "last_message_at": None,
-            "reaction_started_at": None,
-            "reaction_deadline_at": None,
-            "remaining_reaction_seconds": None,
-            "message_counts": {
-                "button_source_status": 0,
-                "bloc9_state_update": 0,
-                "bloc9_heartbeat": 0,
-                "other": 0,
-            },
-            "button_events": [],
-            "button_candidates": [],
-            "reaction_outputs": [],
-            "raw_context": [],
-            "other_messages": [],
-            "hypothesis": {"confidence": "unknown", "summary": "", "notes": []},
+            "current_step_index": self._current_step_index,
+            "current_step": (
+                self._steps[self._current_step_index] if self._steps else None
+            ),
+            "is_first_step": self._current_step_index <= 0,
+            "is_last_step": self._current_step_index >= len(self._steps) - 1,
+            "steps": self._steps,
+            "saved_at": None,
+            "saved_path": None,
         }
 
-    def start(self, location):
+    def recent_sessions(self):
+        return []
+
+    def start(self, location, button_count):
         if self.should_fail:
             raise RuntimeError("bridge not running")
         cleaned = str(location or "").strip()
         if not cleaned:
             raise ValueError("location is required")
-        self.start_calls.append(cleaned)
-        payload = self.snapshot()
-        payload.update({"status": "running", "phase": "waiting_for_button", "location": cleaned})
-        return payload
+        if button_count not in (2, 4):
+            raise ValueError("button_count must be 2 or 4")
+        self.start_calls.append((cleaned, button_count))
+        self._status = "running"
+        self._location = cleaned
+        self._button_count = button_count
+        self._current_step_index = 0
+        keys = (
+            ["top", "bottom"]
+            if button_count == 2
+            else [
+                "top_left",
+                "bottom_left",
+                "top_right",
+                "bottom_right",
+            ]
+        )
+        self._steps = [
+            {
+                "key": key,
+                "label": key.replace("_", " ").title(),
+                "instruction": f"Press {key}",
+                "event_count": 0,
+                "reaction_count": 0,
+                "companion_count": 0,
+                "recent_events": [],
+                "recent_reactions": [],
+                "confirmed_air_switch": None,
+                "suggested_config": None,
+            }
+            for key in keys
+        ]
+        return self.snapshot()
+
+    def next_step(self):
+        if not self._steps:
+            raise RuntimeError("No interaction session is active; start one first")
+        if self._current_step_index >= len(self._steps) - 1:
+            raise ValueError("Already on the last step; use finish instead")
+        self.next_step_calls += 1
+        self._current_step_index += 1
+        return self.snapshot()
+
+    def previous_step(self):
+        if not self._steps:
+            raise RuntimeError("No interaction session is active; start one first")
+        if self._current_step_index <= 0:
+            raise ValueError("Already on the first step")
+        self.previous_step_calls += 1
+        self._current_step_index -= 1
+        return self.snapshot()
+
+    def finish(self):
+        if not self._steps:
+            raise RuntimeError("No interaction session is active; start one first")
+        self.finish_calls += 1
+        self._status = "complete"
+        return self.snapshot()
 
     def stop(self):
         self.stop_calls += 1
+        if self._status == "running":
+            self._status = "stopped"
         return self.snapshot()
 
 
@@ -529,7 +590,11 @@ def test_setup_helper_session_starts(tmp_path):
 
     response = client.post(
         "/api/setup-helper/session",
-        json={"name": "Underwater Light", "entity_id": "underwater_light", "role": "light"},
+        json={
+            "name": "Underwater Light",
+            "entity_id": "underwater_light",
+            "role": "light",
+        },
     )
 
     assert response.status_code == 200
@@ -599,18 +664,39 @@ def test_interaction_discovery_starts_with_location(tmp_path):
 
     response = client.post(
         "/api/interactions/start",
-        json={"location": "saloon entrance"},
+        json={"location": "saloon entrance", "button_count": 4},
     )
 
     assert response.status_code == 200
-    assert interaction_discovery.start_calls == ["saloon entrance"]
-    assert response.get_json()["phase"] == "waiting_for_button"
+    assert interaction_discovery.start_calls == [("saloon entrance", 4)]
+    body = response.get_json()
+    assert body["status"] == "running"
+    assert [step["key"] for step in body["steps"]] == [
+        "top_left",
+        "bottom_left",
+        "top_right",
+        "bottom_right",
+    ]
 
 
 def test_interaction_discovery_requires_location(tmp_path):
     client, _ = create_test_client(tmp_path)
 
-    response = client.post("/api/interactions/start", json={"location": ""})
+    response = client.post(
+        "/api/interactions/start", json={"location": "", "button_count": 2}
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["code"] == "invalid_request"
+
+
+def test_interaction_discovery_requires_valid_button_count(tmp_path):
+    client, _ = create_test_client(tmp_path)
+
+    response = client.post(
+        "/api/interactions/start",
+        json={"location": "saloon entrance", "button_count": 3},
+    )
 
     assert response.status_code == 400
     assert response.get_json()["code"] == "invalid_request"
@@ -624,11 +710,69 @@ def test_interaction_discovery_start_reports_runtime_conflict(tmp_path):
 
     response = client.post(
         "/api/interactions/start",
-        json={"location": "saloon entrance"},
+        json={"location": "saloon entrance", "button_count": 2},
     )
 
     assert response.status_code == 409
     assert response.get_json()["code"] == "runtime_not_running"
+
+
+def test_interaction_discovery_next_and_previous_step(tmp_path):
+    interaction_discovery = FakeInteractionDiscovery()
+    client, _ = create_test_client(
+        tmp_path, interaction_discovery=interaction_discovery
+    )
+    client.post(
+        "/api/interactions/start",
+        json={"location": "bow salon door", "button_count": 2},
+    )
+
+    next_response = client.post("/api/interactions/next-step")
+    assert next_response.status_code == 200
+    assert next_response.get_json()["current_step_index"] == 1
+    assert interaction_discovery.next_step_calls == 1
+
+    previous_response = client.post("/api/interactions/previous-step")
+    assert previous_response.status_code == 200
+    assert previous_response.get_json()["current_step_index"] == 0
+    assert interaction_discovery.previous_step_calls == 1
+
+
+def test_interaction_discovery_next_step_without_session_reports_conflict(tmp_path):
+    client, _ = create_test_client(tmp_path)
+
+    response = client.post("/api/interactions/next-step")
+
+    assert response.status_code == 409
+    assert response.get_json()["code"] == "no_active_session"
+
+
+def test_interaction_discovery_finish_marks_session_complete(tmp_path):
+    interaction_discovery = FakeInteractionDiscovery()
+    client, _ = create_test_client(
+        tmp_path, interaction_discovery=interaction_discovery
+    )
+    client.post(
+        "/api/interactions/start",
+        json={"location": "bow salon door", "button_count": 2},
+    )
+
+    response = client.post("/api/interactions/finish")
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["status"] == "complete"
+    assert body["recent_sessions"] == []
+    assert interaction_discovery.finish_calls == 1
+
+
+def test_get_interactions_includes_recent_sessions(tmp_path):
+    client, _ = create_test_client(tmp_path)
+
+    response = client.get("/api/interactions")
+
+    assert response.status_code == 200
+    assert response.get_json()["recent_sessions"] == []
 
 
 def test_setup_helper_apply_updates_multiple_outputs_as_one_logical_light(tmp_path):
