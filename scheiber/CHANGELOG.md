@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [6.14.0] - 2026-07-06
+## [7.0.0] - 2026-07-24
 
 ### Added
 - Added wireless **Air Switch** (Scheiber Light Air Switch) support: battery-less wireless buttons can now be configured as a new `air_switch` device type in `scheiber-config.yaml` and are exposed to Home Assistant as MQTT `event` entities (`device_class: button`) that fire a `press` event, matching Home Assistant's own physical-button/remote convention
@@ -16,9 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The setup web UI's **Interactions** tab now guides an operator through a structured capture of one physical wireless Air Switch (SFSP, "Sans Fil Sans Pile") unit at a time: enter a location and the unit's function count (2: single horizontally-divided rocker; 4: two rockers side by side, each horizontally divided), then press-and-release each function several times as instructed (top/bottom, or top-left/bottom-left/top-right/bottom-right), with a live-updating ready-to-copy `air_switch` configuration snippet once a function's identity and button index are confirmed
 - Finished Interactions capture sessions are appended as JSON Lines records to an `interactions_log.jsonl` file in the add-on's data directory, so evidence collected across many physical units and multiple visits can be analyzed offline instead of only inspected live in the browser
 - Added `scheiber/src/tools/analyze_air_switch_log.py`, a standalone script that reads the interactions log and prints per-session confirmed identity/button-index pairs, Bloc9/panel reactions, and unconfirmed companion frames per function, plus a cross-session identity summary to help spot patterns and investigate how the boat's multiple wireless receivers might (or might not) avoid duplicate reports
+- Added persistent **AirSwitch Discovery** mode in the setup web UI. It runs until the user explicitly stops it, survives browser disconnects, persists discovered AirSwitch identities/indexes to the add-on data directory, and continuously completes the observed AirSwitch model as buttons are pressed.
+- Added safe AirSwitch config apply endpoints that upsert discovered AirSwitch identities/indexes into `scheiber-config.yaml` using the existing revision/atomic-save/runtime-reload workflow.
 
 ### Changed
 - `plan/button-interaction-hypothesis.md` documents the confirmed wireless protocol, real fan-out examples (a single physical button toggling multiple Bloc9 outputs as a scene), the new guided-capture workflow, and records the open question of how multiple installed wireless receivers avoid reporting the same physical press independently
+- AirSwitch MQTT discovery now exposes each physical AirSwitch transmitter as its own Home Assistant device (`scheiber_air_switch_<identity>`) with event entities underneath it, instead of attaching all buttons to the single global Scheiber device.
+- AirSwitch config is now topology-derived and identity-keyed (`type: air_switch`, `identity: "52AB81"`, `buttons: {index: {name, published}}`). The previous v6.14 list shape is still accepted and normalized when loading config.
+
+### Breaking
+- AirSwitch is now a v7 topology-derived device model. Existing v6.14 AirSwitch configs are accepted for migration, but newly saved configs use the new identity-keyed shape and stable topology-derived unique IDs rather than the previous artificial `bus_id` grouping model.
 
 ## [6.12.0] - 2026-07-03
 

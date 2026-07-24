@@ -39,11 +39,23 @@ class AirSwitchButton:
     every logical press.
     """
 
-    def __init__(self, identity_hex: str, button_index: int, name: str, entity_id: str):
+    def __init__(
+        self,
+        identity_hex: str,
+        button_index: int,
+        name: str = "",
+        entity_id: Optional[str] = None,
+        published: bool = True,
+        device_name: str = "",
+    ):
         self.identity_hex = identity_hex.upper()
         self.button_index = button_index
-        self.name = name
-        self.entity_id = entity_id
+        self.name = name or f"Button {button_index}"
+        self.entity_id = (
+            entity_id or f"air_switch_{self.identity_hex.lower()}_{button_index}"
+        )
+        self.published = bool(published)
+        self.device_name = device_name or f"AirSwitch {self.identity_hex}"
         self._pressed = False
         self._observers: List[Callable[[Dict[str, Any]], None]] = []
 
@@ -81,11 +93,11 @@ class AirSwitchButton:
 class AirSwitchDevice(ScheiberCanDevice):
     """Read-only container for configured wireless Air Switch buttons.
 
-    Unlike Bloc9/Bloc7/SourceSelector, this device's `bus_id` is purely a
-    config-organizational identifier (there is no real per-installation CAN
-    addressing for wireless Air Switch transmitters); every button is
-    matched by its own (identity, button_index) pair carried in the CAN
-    payload, confirmed empirically across multiple physical units.
+    Unlike Bloc9/Bloc7/SourceSelector, this device is identified by the
+    transmitter identity carried in the payload, not by a CAN bus route. The
+    numeric `device_id` passed to the base class is derived from the identity
+    only to fit the shared device container; external identity remains
+    `identity_hex`.
     """
 
     def __init__(
@@ -99,13 +111,19 @@ class AirSwitchDevice(ScheiberCanDevice):
         super().__init__(
             device_id, "air_switch", can_bus, segment_id=segment_id, logger=logger
         )
+        self.identity_hex = str(config.get("identity") or f"{device_id:06X}").upper()
+        self.name = config.get("name") or f"AirSwitch {self.identity_hex}"
         self._buttons: Dict[Tuple[str, int], AirSwitchButton] = {}
-        for button_config in config.get("buttons", []) or []:
+        for button_config in _iter_button_configs(
+            self.identity_hex, config.get("buttons", {})
+        ):
             button = AirSwitchButton(
-                identity_hex=button_config["identity"],
+                identity_hex=button_config.get("identity", self.identity_hex),
                 button_index=button_config["button_index"],
-                name=button_config["name"],
-                entity_id=button_config["entity_id"],
+                name=button_config.get("name", ""),
+                entity_id=button_config.get("entity_id"),
+                published=button_config.get("published", True),
+                device_name=self.name,
             )
             self._buttons[button.key] = button
         self._unknown_buttons: set = set()
@@ -113,6 +131,16 @@ class AirSwitchDevice(ScheiberCanDevice):
     def get_matchers(self) -> List[Matcher]:
         """Match the whole confirmed wireless Air Switch family."""
         return [Matcher(pattern=AIR_SWITCH_MATCH_PATTERN, mask=AIR_SWITCH_MATCH_MASK)]
+
+    @property
+    def route_slug(self) -> str:
+        """Use transmitter identity as the stable AirSwitch route slug."""
+        return self.identity_hex
+
+    @property
+    def state_key(self) -> str:
+        """Return the persistence key for this AirSwitch device."""
+        return f"air_switch_{self.identity_hex}"
 
     def get_air_switch_buttons(self) -> List[AirSwitchButton]:
         """Return configured Air Switch button instances."""
@@ -143,3 +171,26 @@ class AirSwitchDevice(ScheiberCanDevice):
     def store_to_state(self) -> Dict[str, Any]:
         """Air Switch buttons are stateless; nothing to persist."""
         return {}
+
+
+def _iter_button_configs(
+    identity_hex: str, buttons_config: Any
+) -> List[Dict[str, Any]]:
+    """Normalize legacy list and v7 index-keyed map button config shapes."""
+    if isinstance(buttons_config, list):
+        return buttons_config
+    if not isinstance(buttons_config, dict):
+        return []
+
+    buttons = []
+    for index_text, config in buttons_config.items():
+        if not isinstance(config, dict):
+            continue
+        buttons.append(
+            {
+                "identity": identity_hex,
+                "button_index": int(index_text),
+                **config,
+            }
+        )
+    return buttons

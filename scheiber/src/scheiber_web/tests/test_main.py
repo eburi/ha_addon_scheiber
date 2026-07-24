@@ -126,6 +126,7 @@ def test_build_settings_derives_state_and_interactions_log_from_data_dir():
 
     assert settings.state_file == "/data/scheiber_state.json"
     assert settings.interactions_log_file == "/data/interactions_log.jsonl"
+    assert settings.air_switch_discovery_state_file == "/data/air_switch_discovery.json"
 
 
 def test_build_settings_leaves_interactions_log_unset_without_data_dir():
@@ -137,3 +138,4 @@ def test_build_settings_leaves_interactions_log_unset_without_data_dir():
 
     assert settings.state_file is None
     assert settings.interactions_log_file is None
+    assert settings.air_switch_discovery_state_file is None

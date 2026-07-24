@@ -53,6 +53,13 @@ const state = {
   bloc7Drafts: {},
   bloc7CandidateDrafts: {},
   airSwitchDrafts: {},
+  airSwitchDiscovery: {
+    running: false,
+    updated_at: null,
+    air_switches: [],
+    state_file_path: null,
+  },
+  airSwitchConfigDrafts: {},
   busyActions: {},
   controlState: {},
   outputActivity: {},
@@ -495,7 +502,10 @@ function collectEntityIds(excludedDevicePredicate) {
       continue;
     }
     if (device.type === "air_switch") {
-      for (const button of device.buttons || []) {
+      const buttons = Array.isArray(device.buttons)
+        ? device.buttons
+        : Object.values(device.buttons || {});
+      for (const button of buttons) {
         if (button.entity_id) entityIds.set(button.entity_id, new Set(["air_switch_button"]));
       }
       continue;
@@ -1157,6 +1167,51 @@ function buildAirSwitchDraftForSave(draft) {
   };
 }
 
+function getConfiguredAirSwitch(identity) {
+  return (
+    state.config.devices.find(
+      (device) => device.type === "air_switch" && device.identity === identity,
+    ) || null
+  );
+}
+
+function ensureAirSwitchConfigDraft(observed) {
+  const identity = observed.identity;
+  if (state.airSwitchConfigDrafts[identity]) return state.airSwitchConfigDrafts[identity];
+  const configured = getConfiguredAirSwitch(identity);
+  const buttons = {};
+  for (const item of observed.indexes || []) {
+    const configuredButton = configured?.buttons?.[String(item.index)] || {};
+    buttons[String(item.index)] = {
+      name: configuredButton.name || item.default_label || `Index ${item.index}`,
+      published: configuredButton.published !== false,
+      entity_id: configuredButton.entity_id || "",
+    };
+  }
+  state.airSwitchConfigDrafts[identity] = {
+    identity,
+    name: configured?.name || `AirSwitch ${identity}`,
+    description: configured?.description || "",
+    buttons,
+  };
+  return state.airSwitchConfigDrafts[identity];
+}
+
+function updateAirSwitchConfigDraft(identity, field, value, index = null) {
+  const draft = state.airSwitchConfigDrafts[identity];
+  if (!draft) return;
+  if (index === null) {
+    draft[field] = value;
+    return;
+  }
+  draft.buttons[String(index)] = draft.buttons[String(index)] || {
+    name: `Index ${index}`,
+    published: true,
+    entity_id: "",
+  };
+  draft.buttons[String(index)][field] = field === "published" ? Boolean(value) : value;
+}
+
 function getBloc7LiveReading(sensor) {
   const matcherPattern = parseArbitrationId(sensor?.matcher?.pattern);
   const startByte = Number(sensor?.value_config?.start_byte);
@@ -1703,131 +1758,106 @@ function renderBloc7Cards() {
   container.innerHTML = html;
 }
 
-function renderAirSwitchButtonDraft(cardKey, button, index, validation) {
-  const basePath = `buttons.${index}`;
-  const fieldClass = (field) => {
-    const classes = ["field-shell"];
-    if (validation.errors[`${basePath}.${field}`]) classes.push("invalid");
-    return classes.join(" ");
-  };
-
-  return `
-    <section class="sensor-card">
-      <div class="sensor-card-header">
-        <div>
-          <h4>${escapeHtml(String(button.name || "").trim() || `Button ${index + 1}`)}</h4>
-          <p class="sensor-live-summary">Identity ${escapeHtml(button.identity || "?")} · index ${escapeHtml(button.button_index ?? "?")}</p>
-        </div>
-        <div class="sensor-card-actions">
-          <button type="button" data-action="remove-air-switch-button" data-card-key="${escapeHtml(cardKey)}" data-button-index="${index}">Remove</button>
-        </div>
-      </div>
-      <div class="card-grid">
-        <label class="${fieldClass("name")}">
-          <span>Name</span>
-          <input type="text" value="${escapeHtml(button.name || "")}" data-card-kind="air_switch" data-card-key="${escapeHtml(cardKey)}" data-button-index="${index}" data-field="name">
-          ${validation.errors[`${basePath}.name`] ? `<small>${escapeHtml(validation.errors[`${basePath}.name`])}</small>` : ""}
-        </label>
-        <label class="${fieldClass("entity_id")}">
-          <span>Entity ID</span>
-          <input type="text" value="${escapeHtml(button.entity_id || "")}" data-card-kind="air_switch" data-card-key="${escapeHtml(cardKey)}" data-button-index="${index}" data-field="entity_id">
-          ${validation.errors[`${basePath}.entity_id`] ? `<small>${escapeHtml(validation.errors[`${basePath}.entity_id`])}</small>` : ""}
-        </label>
-        <label class="${fieldClass("identity")}">
-          <span>Identity (hex)</span>
-          <input type="text" placeholder="52AB81" value="${escapeHtml(button.identity || "")}" data-card-kind="air_switch" data-card-key="${escapeHtml(cardKey)}" data-button-index="${index}" data-field="identity">
-          ${validation.errors[`${basePath}.identity`] ? `<small>${escapeHtml(validation.errors[`${basePath}.identity`])}</small>` : `<small>Captured from the Interactions tab's suggested configuration.</small>`}
-        </label>
-        <label class="${fieldClass("button_index")}">
-          <span>Button index</span>
-          <input type="number" min="1" max="8" value="${escapeHtml(button.button_index ?? 1)}" data-card-kind="air_switch" data-card-key="${escapeHtml(cardKey)}" data-button-index="${index}" data-field="button_index">
-          ${validation.errors[`${basePath}.button_index`] ? `<small>${escapeHtml(validation.errors[`${basePath}.button_index`])}</small>` : ""}
-        </label>
-      </div>
-    </section>
-  `;
-}
-
 function renderAirSwitchCards() {
-  const configuredCards = getAirSwitchConfiguredCards();
-  const newDraftEntries = Object.entries(state.airSwitchDrafts)
-    .filter(([key]) => key.startsWith("new-air-switch:"))
-    .map(([key, draft]) => ({ key, configured: null, draft }));
-  const allDraftCards = [...configuredCards, ...newDraftEntries].sort((left, right) =>
-    Number(left.draft.bus_id || 0) - Number(right.draft.bus_id || 0),
-  );
   const container = document.getElementById("air-switch-list");
   const summary = document.getElementById("air-switch-summary");
+  const discovery = state.airSwitchDiscovery;
+  const observedSwitches = discovery.air_switches || [];
+  const configuredCount = state.config.devices.filter((device) => device.type === "air_switch").length;
 
   summary.innerHTML = `
-    <span class="summary-chip">Configured ${configuredCards.length}</span>
-    <span class="summary-chip">Drafts ${newDraftEntries.length}</span>
+    <span class="summary-chip ${discovery.running ? "positive" : "negative"}">${discovery.running ? "Discovery running" : "Discovery stopped"}</span>
+    <span class="summary-chip">Seen ${observedSwitches.length}</span>
+    <span class="summary-chip">Configured ${configuredCount}</span>
+    ${discovery.state_file_path ? `<span class="summary-chip">State ${escapeHtml(discovery.state_file_path)}</span>` : ""}
   `;
 
-  const html = allDraftCards
-    .map(({ key, configured, draft }) => {
-      const validation = validateAirSwitchDraft(draft, key);
-      const normalizedDraft = buildAirSwitchDraftForSave(draft);
-      const dirty = configured ? !devicesEqual(normalizedDraft, configured) : true;
-      const actionKey = `save-air-switch:${key}`;
-      const buttonDisabled = !validation.valid || (configured ? !dirty : false);
-      const bannerTone = configured ? "configured" : "draft";
+  const cards = observedSwitches
+    .map((observed) => {
+      const draft = ensureAirSwitchConfigDraft(observed);
+      const configured = getConfiguredAirSwitch(observed.identity);
+      const buttons = observed.indexes || [];
       return `
-        <article class="setup-card tone-${bannerTone}">
+        <article class="setup-card tone-${configured ? "configured" : "discovered"}">
           <div class="card-banner">
-            <span class="status-badge">${escapeHtml(configured ? "configured" : "draft")}</span>
-            <span class="status-meta">Group ${escapeHtml(routeSlug(draft.bus_id || "—", draft.segment_id || 0))}</span>
+            <span class="status-badge">${escapeHtml(configured ? "configured" : "discovered")}</span>
+            <span class="status-meta">AirSwitch identity ${escapeHtml(observed.identity)}</span>
           </div>
           <div class="card-header">
             <div>
-              <h3>${escapeHtml(String(draft.name || "").trim() || deviceLabel({ type: "air_switch", bus_id: draft.bus_id || "?", segment_id: 0 }))}</h3>
-              <p>${escapeHtml(configured ? "Saved Air Switch group ready for edits." : "Draft Air Switch group not saved yet.")}</p>
+              <h3>${escapeHtml(draft.name || `AirSwitch ${observed.identity}`)}</h3>
+              <p>${escapeHtml(`Seen ${buttons.length} index${buttons.length === 1 ? "" : "es"}; CAN IDs: ${Object.keys(observed.can_ids || {}).join(", ") || "none yet"}`)}</p>
             </div>
           </div>
           <div class="card-grid">
-            <label class="field-shell ${validation.errors["device.bus_id"] ? "invalid" : ""}">
-              <span>Group ID</span>
-              <input type="number" min="0" max="255" value="${escapeHtml(draft.bus_id ?? "")}" data-card-kind="air_switch" data-card-key="${escapeHtml(key)}" data-field="bus_id">
-              ${validation.errors["device.bus_id"] ? `<small>${escapeHtml(validation.errors["device.bus_id"])}</small>` : "<small>An arbitrary number to distinguish multiple Air Switch groups; not a CAN bus address.</small>"}
-            </label>
-            <label class="field-shell ${draft.name !== (configured?.name || "") ? "dirty" : ""}">
+            <label class="field-shell">
               <span>Name</span>
-              <input type="text" placeholder="e.g. Bow Salon Air Switch" value="${escapeHtml(draft.name || "")}" data-card-kind="air_switch" data-card-key="${escapeHtml(key)}" data-field="name">
+              <input type="text" value="${escapeHtml(draft.name || "")}" data-card-kind="air-switch-config" data-identity="${escapeHtml(observed.identity)}" data-field="name">
             </label>
-            <label class="field-shell full-width ${draft.description !== (configured?.description || "") ? "dirty" : ""}">
+            <label class="field-shell full-width">
               <span>Description</span>
-              <textarea rows="2" data-card-kind="air_switch" data-card-key="${escapeHtml(key)}" data-field="description">${escapeHtml(draft.description || "")}</textarea>
+              <textarea rows="2" data-card-kind="air-switch-config" data-identity="${escapeHtml(observed.identity)}" data-field="description">${escapeHtml(draft.description || "")}</textarea>
             </label>
           </div>
           <div class="section-subheader">
-            <h4>Buttons</h4>
-            <button type="button" data-action="add-air-switch-button-row" data-card-key="${escapeHtml(key)}">Add button</button>
+            <h4>Indexes</h4>
           </div>
           <div class="sensor-list">
-            ${(draft.buttons || []).length
-              ? draft.buttons
-                  .map((button, index) => renderAirSwitchButtonDraft(key, button, index, validation))
-                  .join("")
-              : '<div class="empty-inline">No buttons yet. Use the Interactions tab to capture a wireless button press first.</div>'}
-          </div>
-          <div class="card-footer">
-            <div class="card-hint">
-              ${validation.valid ? (configured ? (dirty ? "Unsaved changes ready to apply." : "No unsaved changes.") : "Ready to add to the saved configuration.") : "Complete the highlighted button fields before saving."}
-            </div>
-            <button type="button" data-action="save-air-switch" data-card-key="${escapeHtml(key)}" ${actionAttrs(actionKey, buttonDisabled, "primary")}>${escapeHtml(configured ? "Save" : "Add to configuration")}</button>
+            ${buttons
+              .map((item) => {
+                const buttonDraft = draft.buttons[String(item.index)] || {};
+                return `
+                  <section class="sensor-card">
+                    <div class="sensor-card-header">
+                      <div>
+                        <h4>${escapeHtml(buttonDraft.name || item.default_label || `Index ${item.index}`)}</h4>
+                        <p class="sensor-live-summary">index ${escapeHtml(item.index)} · press ${escapeHtml(item.press_count || 0)} · release ${escapeHtml(item.release_count || 0)}</p>
+                      </div>
+                      <span class="summary-chip ${buttonDraft.published !== false ? "positive" : "negative"}">${buttonDraft.published !== false ? "published" : "not published"}</span>
+                    </div>
+                    <div class="card-grid compact-grid">
+                      <label class="field-shell">
+                        <span>Name</span>
+                        <input type="text" value="${escapeHtml(buttonDraft.name || item.default_label || "")}" data-card-kind="air-switch-config" data-identity="${escapeHtml(observed.identity)}" data-index="${escapeHtml(item.index)}" data-field="name">
+                      </label>
+                      <label class="field-shell">
+                        <span>Entity ID override (optional)</span>
+                        <input type="text" value="${escapeHtml(buttonDraft.entity_id || "")}" data-card-kind="air-switch-config" data-identity="${escapeHtml(observed.identity)}" data-index="${escapeHtml(item.index)}" data-field="entity_id">
+                      </label>
+                      <label class="helper-output-card">
+                        <input type="checkbox" ${buttonDraft.published !== false ? "checked" : ""} data-card-kind="air-switch-config" data-identity="${escapeHtml(observed.identity)}" data-index="${escapeHtml(item.index)}" data-field="published">
+                        <div><strong>Publish to Home Assistant</strong><div class="muted">When disabled, keep this index in config but remove/withhold its MQTT discovery entity.</div></div>
+                      </label>
+                    </div>
+                  </section>
+                `;
+              })
+              .join("")}
           </div>
         </article>
       `;
     })
     .join("");
 
-  if (!html) {
-    container.className = "card-list empty-state";
-    container.textContent = "No Air Switch groups are configured yet.";
-    return;
-  }
   container.className = "card-list";
-  container.innerHTML = html;
+  container.innerHTML = `
+    <section class="setup-card tone-synced">
+      <div class="card-header">
+        <div>
+          <h3>AirSwitch Discovery</h3>
+          <p>Discovery keeps running until you stop it, survives browser disconnects, and persists observed identities/indexes for configuration.</p>
+        </div>
+      </div>
+      <div class="card-footer">
+        <div class="card-hint">${escapeHtml(discovery.running ? "Watching confirmed wireless AirSwitch frames." : "Discovery is stopped.")}</div>
+        <div class="toolbar-actions">
+          <button type="button" data-action="air-switch-toggle-discovery" ${actionAttrs("air-switch-toggle-discovery", false, "primary")}>${escapeHtml(discovery.running ? "Stop discovery" : "Start discovery")}</button>
+          <button type="button" data-action="air-switch-apply" ${actionAttrs("air-switch-apply", !observedSwitches.length)}>Apply discovered config</button>
+        </div>
+      </div>
+    </section>
+    ${cards || '<div class="empty-inline">No AirSwitch identities have been discovered yet. Start discovery and press a wireless AirSwitch button.</div>'}
+  `;
 }
 
 function renderInspectPanel() {
@@ -2483,8 +2513,7 @@ async function loadConfig() {
       state.bloc7Drafts[`bloc7:${device.bus_id}`] = clone(device);
     }
     if (device.type === "air_switch") {
-      state.airSwitchDrafts[`air_switch:${routeSlug(device.bus_id, device.segment_id || 0)}`] =
-        clone(device);
+      state.airSwitchConfigDrafts[device.identity] = clone(device);
     }
   }
   renderDiagnostics();
@@ -2533,6 +2562,66 @@ async function refreshInteractions() {
   }
   if (hasActiveEditor("interactions")) return;
   rerender(() => renderTabIfVisible("interactions"));
+}
+
+async function refreshAirSwitchDiscovery() {
+  const response = await fetch(resolveAppUrl("api/air-switch/discovery"));
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    showToast(payload.error || "Failed to refresh AirSwitch discovery.", "warning");
+    return;
+  }
+  state.airSwitchDiscovery = payload;
+  for (const observed of payload.air_switches || []) {
+    ensureAirSwitchConfigDraft(observed);
+  }
+  if (hasActiveEditor("air-switch-config")) return;
+  rerender(() => renderTabIfVisible("air_switch"));
+}
+
+async function toggleAirSwitchDiscovery() {
+  const action = state.airSwitchDiscovery.running ? "stop" : "start";
+  const response = await fetch(resolveAppUrl(`api/air-switch/discovery/${action}`), {
+    method: "POST",
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    showToast(payload.error || "Failed to change AirSwitch discovery state.", "error");
+    return;
+  }
+  state.airSwitchDiscovery = payload;
+  rerender(() => renderTabIfVisible("air_switch"));
+}
+
+async function applyAirSwitchDiscoveryConfig() {
+  const updates = Object.values(state.airSwitchConfigDrafts).map((draft) => ({
+    identity: draft.identity,
+    name: draft.name,
+    description: draft.description,
+    buttons: draft.buttons,
+  }));
+  const response = await fetch(resolveAppUrl("api/air-switch/config/apply"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      air_switches: updates,
+      base_revision: state.baseRevision,
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    state.diagnostics = payload.diagnostics || state.diagnostics;
+    renderDiagnostics();
+    showToast(payload.details || payload.error || "Failed to apply AirSwitch configuration.", "error");
+    return;
+  }
+  state.config = payload.config;
+  state.baseRevision = payload.revision;
+  state.diagnostics = payload.diagnostics || { errors: [], warnings: [] };
+  renderDiagnostics();
+  showToast("AirSwitch configuration applied.", "success");
+  await refreshStatus();
+  await refreshAirSwitchDiscovery();
 }
 
 async function ensureDiscoveryRunning() {
@@ -3019,6 +3108,14 @@ document.addEventListener("click", async (event) => {
     await saveAirSwitchCard(actionTarget.dataset.cardKey);
     return;
   }
+  if (action === "air-switch-toggle-discovery") {
+    await toggleAirSwitchDiscovery();
+    return;
+  }
+  if (action === "air-switch-apply") {
+    await applyAirSwitchDiscoveryConfig();
+    return;
+  }
   if (action === "add-air-switch-button-row") {
     state.airSwitchDrafts[actionTarget.dataset.cardKey].buttons.push(blankAirSwitchButton());
     rerender(() => renderTabIfVisible("air_switch"));
@@ -3112,6 +3209,15 @@ document.addEventListener("input", (event) => {
     );
     return;
   }
+  if (target.dataset.cardKind === "air-switch-config") {
+    updateAirSwitchConfigDraft(
+      target.dataset.identity,
+      target.dataset.field,
+      target.type === "checkbox" ? target.checked : target.value,
+      target.dataset.index || null,
+    );
+    return;
+  }
   if (target.dataset.cardKind === "bloc9-control") {
     const control = getControlState(target.dataset.cardKey, target.dataset.output);
     control.brightness = Number(target.value);
@@ -3177,6 +3283,16 @@ document.addEventListener("change", (event) => {
     rerender(() => renderTabIfVisible("air_switch"));
     return;
   }
+  if (target.dataset.cardKind === "air-switch-config") {
+    updateAirSwitchConfigDraft(
+      target.dataset.identity,
+      target.dataset.field,
+      target.type === "checkbox" ? target.checked : target.value,
+      target.dataset.index || null,
+    );
+    rerender(() => renderTabIfVisible("air_switch"));
+    return;
+  }
   if (target.dataset.cardKind === "setup-helper" || target.dataset.cardKind === "setup-helper-device") {
     rerender(() => renderTabIfVisible("helper"));
     return;
@@ -3194,11 +3310,10 @@ document.addEventListener("change", (event) => {
 document.getElementById("discovery-toggle-button").addEventListener("click", toggleDiscovery);
 document.getElementById("bloc7-refresh-button").addEventListener("click", refreshBloc7Candidates);
 document.getElementById("add-bloc7-button").addEventListener("click", addManualBloc7Draft);
-document.getElementById("add-air-switch-button").addEventListener("click", addManualAirSwitchDraft);
 
 async function initialize() {
   heartbeatManager?.start();
-  await Promise.all([refreshStatus(), loadConfig(), refreshDiscovery(), refreshBloc7Candidates(), refreshSetupHelper(), refreshInteractions()]);
+  await Promise.all([refreshStatus(), loadConfig(), refreshDiscovery(), refreshBloc7Candidates(), refreshSetupHelper(), refreshInteractions(), refreshAirSwitchDiscovery()]);
   renderHeader();
   renderDiagnostics();
   renderCurrentTab();
@@ -3206,6 +3321,7 @@ async function initialize() {
   window.setInterval(refreshStatus, 5000);
   window.setInterval(refreshDiscovery, 2000);
   window.setInterval(refreshBloc7Candidates, 4000);
+  window.setInterval(refreshAirSwitchDiscovery, 2000);
   window.setInterval(refreshSetupHelper, 1000);
   window.setInterval(refreshInteractions, 1000);
 }

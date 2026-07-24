@@ -51,17 +51,24 @@ class MQTTAirSwitchButton:
         hardware_button.subscribe(self._on_hardware_event)
 
     def publish_discovery(self):
+        if not self.hardware_button.published:
+            self.mqtt_client.publish(self.config_topic, None, retain=True, qos=1)
+            return
+
         discovery_config = {
-            "name": self.discovery_name,
+            "name": self.hardware_button.name,
             "unique_id": self.unique_id,
             "state_topic": self.state_topic,
             "event_types": self.EVENT_TYPES,
             "device_class": "button",
             "availability_topic": self.availability_topic,
+            "default_entity_id": f"event.{self.entity_id}",
             "device": {
-                "identifiers": ["scheiber_system"],
-                "name": "Scheiber",
-                "model": "Marine Lighting Control System",
+                "identifiers": [
+                    f"scheiber_air_switch_{self.hardware_button.identity_hex.lower()}"
+                ],
+                "name": self.hardware_button.device_name,
+                "model": "Light Air Switch / SFSP",
                 "manufacturer": "Scheiber",
             },
         }
@@ -70,6 +77,8 @@ class MQTTAirSwitchButton:
         )
 
     def publish_availability(self, available: bool = True):
+        if not self.hardware_button.published:
+            return
         payload = "online" if available else "offline"
         self.mqtt_client.publish(self.availability_topic, payload, retain=True, qos=1)
 
@@ -88,6 +97,8 @@ class MQTTAirSwitchButton:
 
     def _on_hardware_event(self, event: dict) -> None:
         event_type = event.get("event_type", "press")
+        if not self.hardware_button.published:
+            return
         if event_type not in self.EVENT_TYPES:
             self.logger.warning(f"Unknown Air Switch event type: {event_type}")
             return

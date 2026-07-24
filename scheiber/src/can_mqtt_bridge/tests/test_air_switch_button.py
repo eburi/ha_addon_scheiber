@@ -30,7 +30,7 @@ def test_publish_discovery_uses_event_platform_shape():
     config = json.loads(payload)
 
     assert topic == "homeassistant/event/bow_salon_top_left/config"
-    assert config["name"] == "Bow Salon Top Left"
+    assert config["name"] == "Top Left"
     assert config["unique_id"] == "scheiber_air_switch_52ab81_btn2"
     assert config["event_types"] == ["press"]
     assert config["device_class"] == "button"
@@ -40,6 +40,8 @@ def test_publish_discovery_uses_event_platform_shape():
     assert config["availability_topic"] == (
         "homeassistant/scheiber/air_switch/52ab81/btn2/availability"
     )
+    assert config["device"]["identifiers"] == ["scheiber_air_switch_52ab81"]
+    assert config["device"]["name"] == "AirSwitch 52AB81"
     assert client.publish.call_args.kwargs.get("retain", True) is True
 
 

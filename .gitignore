@@ -167,6 +167,7 @@ home-assistant_v2.db-*
 node_modules/
 
 # Project specific
+candump_data/
 scheiber/src/.venv/
 docs/doc_/
 

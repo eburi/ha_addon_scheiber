@@ -28,6 +28,7 @@ class RuntimeSettings:
     config_path: str = "/config/scheiber-config.yaml"
     state_file: Optional[str] = None
     interactions_log_file: Optional[str] = None
+    air_switch_discovery_state_file: Optional[str] = None
     log_level: str = "info"
     read_only: bool = False
     host: str = "0.0.0.0"

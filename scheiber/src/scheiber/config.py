@@ -301,6 +301,7 @@ def validate_editor_config(
             "type",
             "bus_id",
             "segment_id",
+            "identity",
             "name",
             "description",
             "outputs",
@@ -328,31 +329,55 @@ def validate_editor_config(
             )
             continue
 
-        bus_id = device.get("bus_id")
-        if not isinstance(bus_id, int):
-            errors.append(
-                make_error(
-                    "invalid_bus_id",
-                    "bus_id must be an integer",
-                    device_path + ["bus_id"],
+        if device_type == AIR_SWITCH_DEVICE_TYPE:
+            identity = device.get("identity")
+            if identity is None and isinstance(device.get("buttons"), list):
+                for legacy_button in device.get("buttons") or []:
+                    if isinstance(legacy_button, dict) and legacy_button.get(
+                        "identity"
+                    ):
+                        identity = legacy_button.get("identity")
+                        break
+            if not isinstance(identity, str) or not AIR_SWITCH_IDENTITY_RE.match(
+                identity.strip()
+            ):
+                errors.append(
+                    make_error(
+                        "invalid_air_switch_identity",
+                        "identity must be a 6-character hex string (3 bytes), e.g. '52AB81'",
+                        device_path + ["identity"],
+                    )
                 )
-            )
-            continue
+                continue
+            normalized_air_switch_identity = identity.strip().upper()
+            # Keep a numeric route internally for the shared device container.
+            bus_id = int(normalized_air_switch_identity, 16)
+        else:
+            bus_id = device.get("bus_id")
+            if not isinstance(bus_id, int):
+                errors.append(
+                    make_error(
+                        "invalid_bus_id",
+                        "bus_id must be an integer",
+                        device_path + ["bus_id"],
+                    )
+                )
+                continue
 
-        max_bus_id = 15 if device_type == "bloc9" else 255
-        if not 0 <= bus_id <= max_bus_id:
-            errors.append(
-                make_error(
-                    "invalid_bus_id_range",
-                    (
-                        "bus_id must be between 0 and 15"
-                        if device_type == "bloc9"
-                        else "bus_id must be between 0 and 255"
-                    ),
-                    device_path + ["bus_id"],
+            max_bus_id = 15 if device_type == "bloc9" else 255
+            if not 0 <= bus_id <= max_bus_id:
+                errors.append(
+                    make_error(
+                        "invalid_bus_id_range",
+                        (
+                            "bus_id must be between 0 and 15"
+                            if device_type == "bloc9"
+                            else "bus_id must be between 0 and 255"
+                        ),
+                        device_path + ["bus_id"],
+                    )
                 )
-            )
-            continue
+                continue
 
         segment_id = device.get("segment_id", 0)
         if not isinstance(segment_id, int):
@@ -375,13 +400,26 @@ def validate_editor_config(
             )
             continue
 
-        device_key = (device_type, bus_id, segment_id)
+        device_key = (
+            (device_type, normalized_air_switch_identity)
+            if device_type == AIR_SWITCH_DEVICE_TYPE
+            else (device_type, bus_id, segment_id)
+        )
         if device_key in seen_device_keys:
             errors.append(
                 make_error(
                     "duplicate_device",
-                    f"Duplicate {device_type} bus_id {bus_id} segment_id {segment_id}",
-                    device_path + ["segment_id"],
+                    (
+                        f"Duplicate air_switch identity {normalized_air_switch_identity}"
+                        if device_type == AIR_SWITCH_DEVICE_TYPE
+                        else f"Duplicate {device_type} bus_id {bus_id} segment_id {segment_id}"
+                    ),
+                    device_path
+                    + (
+                        ["identity"]
+                        if device_type == AIR_SWITCH_DEVICE_TYPE
+                        else ["segment_id"]
+                    ),
                 )
             )
         seen_device_keys.add(device_key)
@@ -413,6 +451,8 @@ def validate_editor_config(
             "name": name.strip() if isinstance(name, str) else "",
             "description": description.strip() if isinstance(description, str) else "",
         }
+        if device_type == AIR_SWITCH_DEVICE_TYPE:
+            normalized_device["identity"] = normalized_air_switch_identity
 
         if device_type == "bloc9":
             outputs = device.get("outputs", {})
@@ -837,22 +877,42 @@ def validate_editor_config(
 
             normalized_device["sensors"] = normalized_sensors
         elif device_type == AIR_SWITCH_DEVICE_TYPE:
-            buttons = device.get("buttons", [])
+            buttons = device.get("buttons", {})
             if buttons is None:
-                buttons = []
-            if not isinstance(buttons, list):
+                buttons = {}
+            if isinstance(buttons, list):
+                button_items = []
+                for button_position, button in enumerate(buttons):
+                    if not isinstance(button, dict):
+                        errors.append(
+                            make_error(
+                                "invalid_button",
+                                "Each button must be an object",
+                                device_path + ["buttons", button_position],
+                            )
+                        )
+                        continue
+                    index = button.get("button_index")
+                    button_items.append(
+                        (index, button, device_path + ["buttons", button_position])
+                    )
+            elif isinstance(buttons, dict):
+                button_items = [
+                    (index, button, device_path + ["buttons", index])
+                    for index, button in buttons.items()
+                ]
+            else:
                 errors.append(
                     make_error(
                         "invalid_buttons",
-                        "buttons must be a list",
+                        "buttons must be an object keyed by index, or a legacy list",
                         device_path + ["buttons"],
                     )
                 )
                 continue
 
-            normalized_buttons = []
-            for button_position, button in enumerate(buttons):
-                button_path = device_path + ["buttons", button_position]
+            normalized_buttons = {}
+            for raw_index, button, button_path in button_items:
                 if not isinstance(button, dict):
                     errors.append(
                         make_error(
@@ -863,7 +923,13 @@ def validate_editor_config(
                     )
                     continue
 
-                allowed_button_keys = {"name", "entity_id", "identity", "button_index"}
+                allowed_button_keys = {
+                    "name",
+                    "entity_id",
+                    "identity",
+                    "button_index",
+                    "published",
+                }
                 for key in button.keys():
                     if key not in allowed_button_keys:
                         errors.append(
@@ -875,11 +941,13 @@ def validate_editor_config(
                         )
 
                 button_name = button.get("name", "")
-                if not isinstance(button_name, str) or not button_name.strip():
+                if button_name is None:
+                    button_name = ""
+                if not isinstance(button_name, str):
                     errors.append(
                         make_error(
-                            "missing_button_name",
-                            "Air Switch buttons require a name",
+                            "invalid_button_name",
+                            "Air Switch button name must be a string",
                             button_path + ["name"],
                         )
                     )
@@ -888,16 +956,19 @@ def validate_editor_config(
                     button_name = button_name.strip()
 
                 entity_id = button.get("entity_id", "")
-                if not isinstance(entity_id, str) or not entity_id.strip():
-                    errors.append(
-                        make_error(
-                            "missing_entity_id",
-                            "Air Switch buttons require an entity_id",
-                            button_path + ["entity_id"],
-                        )
-                    )
+                if entity_id is None:
                     entity_id = ""
-                else:
+                if entity_id:
+                    if not isinstance(entity_id, str):
+                        errors.append(
+                            make_error(
+                                "invalid_entity_id",
+                                "entity_id must contain only lowercase letters, numbers, and underscores",
+                                button_path + ["entity_id"],
+                            )
+                        )
+                        entity_id = ""
+                        continue
                     entity_id = entity_id.strip()
                     if entity_id.startswith("event."):
                         errors.append(
@@ -932,24 +1003,21 @@ def validate_editor_config(
                             "paths": [button_path + ["entity_id"]],
                         }
 
-                identity = button.get("identity", "")
-                normalized_identity = ""
-                if not isinstance(identity, str) or not AIR_SWITCH_IDENTITY_RE.match(
-                    identity.strip()
+                identity = button.get("identity") or normalized_air_switch_identity
+                if (
+                    not isinstance(identity, str)
+                    or identity.strip().upper() != normalized_air_switch_identity
                 ):
                     errors.append(
                         make_error(
                             "invalid_air_switch_identity",
-                            "identity must be a 6-character hex string (3 bytes), "
-                            "e.g. '52AB81'",
+                            "button identity must match the AirSwitch device identity",
                             button_path + ["identity"],
                         )
                     )
-                else:
-                    normalized_identity = identity.strip().upper()
 
                 button_index, button_index_error = _normalize_int_field(
-                    button.get("button_index"),
+                    raw_index,
                     "invalid_button_index",
                     "button_index must be an integer between "
                     f"{AIR_SWITCH_BUTTON_INDEX_MIN} and {AIR_SWITCH_BUTTON_INDEX_MAX}",
@@ -960,13 +1028,24 @@ def validate_editor_config(
                 if button_index_error:
                     errors.append(button_index_error)
 
-                if normalized_identity and button_index is not None:
-                    button_key = (normalized_identity, button_index)
+                published = button.get("published", True)
+                if not isinstance(published, bool):
+                    errors.append(
+                        make_error(
+                            "invalid_published",
+                            "published must be true or false",
+                            button_path + ["published"],
+                        )
+                    )
+                    published = True
+
+                if button_index is not None:
+                    button_key = (normalized_air_switch_identity, button_index)
                     if button_key in seen_air_switch_buttons:
                         errors.append(
                             make_error(
                                 "duplicate_air_switch_button",
-                                f"identity '{normalized_identity}' button_index "
+                                f"identity '{normalized_air_switch_identity}' button_index "
                                 f"{button_index} is already configured",
                                 button_path + ["button_index"],
                             )
@@ -974,14 +1053,14 @@ def validate_editor_config(
                     else:
                         seen_air_switch_buttons.add(button_key)
 
-                normalized_buttons.append(
-                    {
+                if button_index is not None:
+                    normalized_button = {
                         "name": button_name,
-                        "entity_id": entity_id,
-                        "identity": normalized_identity,
-                        "button_index": button_index,
+                        "published": published,
                     }
-                )
+                    if entity_id:
+                        normalized_button["entity_id"] = entity_id
+                    normalized_buttons[str(button_index)] = normalized_button
 
             normalized_device["buttons"] = normalized_buttons
         else:  # pragma: no cover - guarded by SUPPORTED_DEVICE_TYPES validation
@@ -993,7 +1072,11 @@ def validate_editor_config(
         raise ConfigValidationError(errors, warnings)
 
     normalized_devices.sort(
-        key=lambda item: (item["type"], item["bus_id"], item["segment_id"])
+        key=lambda item: (
+            item["type"],
+            item.get("identity") or item.get("bus_id"),
+            item.get("segment_id", 0),
+        )
     )
     return {"schema_version": 1, "devices": normalized_devices}, warnings
 
@@ -1125,46 +1208,64 @@ def runtime_to_editor_config(runtime_config: Dict[str, Any]) -> Dict[str, Any]:
             continue
 
         if device_type == AIR_SWITCH_DEVICE_TYPE:
-            buttons = device.get("buttons", [])
+            identity = device.get("identity")
+            buttons = device.get("buttons", {})
             if buttons is None:
-                buttons = []
-            if not isinstance(buttons, list):
+                buttons = {}
+
+            editor_buttons = {}
+            if isinstance(buttons, list):
+                for button_index, button_config in enumerate(buttons):
+                    if not isinstance(button_config, dict):
+                        raise ConfigValidationError(
+                            [
+                                make_error(
+                                    "invalid_button",
+                                    "Each button must be an object",
+                                    ["devices", device_index, "buttons", button_index],
+                                )
+                            ]
+                        )
+                    button_identity = button_config.get("identity", identity)
+                    if identity is None:
+                        identity = button_identity
+                    editor_buttons[str(button_config.get("button_index"))] = {
+                        "name": button_config.get("name", ""),
+                        "entity_id": button_config.get("entity_id", ""),
+                        "published": button_config.get("published", True),
+                    }
+            elif isinstance(buttons, dict):
+                for index, button_config in buttons.items():
+                    if not isinstance(button_config, dict):
+                        raise ConfigValidationError(
+                            [
+                                make_error(
+                                    "invalid_button",
+                                    "Each button must be an object",
+                                    ["devices", device_index, "buttons", index],
+                                )
+                            ]
+                        )
+                    editor_buttons[str(index)] = {
+                        "name": button_config.get("name", ""),
+                        "entity_id": button_config.get("entity_id", ""),
+                        "published": button_config.get("published", True),
+                    }
+            else:
                 raise ConfigValidationError(
                     [
                         make_error(
                             "invalid_buttons",
-                            "'buttons' must be a list",
+                            "'buttons' must be an object keyed by index, or a legacy list",
                             ["devices", device_index, "buttons"],
                         )
                     ]
                 )
 
-            editor_buttons = []
-            for button_index, button_config in enumerate(buttons):
-                if not isinstance(button_config, dict):
-                    raise ConfigValidationError(
-                        [
-                            make_error(
-                                "invalid_button",
-                                "Each button must be an object",
-                                ["devices", device_index, "buttons", button_index],
-                            )
-                        ]
-                    )
-                editor_buttons.append(
-                    {
-                        "name": button_config.get("name", ""),
-                        "entity_id": button_config.get("entity_id", ""),
-                        "identity": button_config.get("identity", ""),
-                        "button_index": button_config.get("button_index"),
-                    }
-                )
-
             editor_devices.append(
                 {
                     "type": device_type,
-                    "bus_id": device.get("bus_id"),
-                    "segment_id": device.get("segment_id", 0),
+                    "identity": identity,
                     "name": device.get("name", ""),
                     "description": device.get("description", ""),
                     "buttons": editor_buttons,
@@ -1301,11 +1402,13 @@ def editor_to_runtime_config(editor_config: Dict[str, Any]) -> Dict[str, Any]:
     """Convert the editor-facing shape to the YAML/runtime shape."""
     runtime_devices = []
     for device in editor_config.get("devices", []):
-        runtime_device: Dict[str, Any] = {
-            "type": device["type"],
-            "bus_id": device["bus_id"],
-        }
-        if device.get("segment_id", 0) != 0:
+        runtime_device: Dict[str, Any] = {"type": device["type"]}
+        if device["type"] != AIR_SWITCH_DEVICE_TYPE:
+            runtime_device["bus_id"] = device["bus_id"]
+        if (
+            device["type"] != AIR_SWITCH_DEVICE_TYPE
+            and device.get("segment_id", 0) != 0
+        ):
             runtime_device["segment_id"] = device["segment_id"]
         if device.get("name"):
             runtime_device["name"] = device["name"]
@@ -1334,16 +1437,16 @@ def editor_to_runtime_config(editor_config: Dict[str, Any]) -> Dict[str, Any]:
                 )
             runtime_device["sensors"] = sensors
         elif device["type"] == AIR_SWITCH_DEVICE_TYPE:
-            buttons = []
-            for button in device.get("buttons", []):
-                buttons.append(
-                    {
-                        "name": button["name"],
-                        "entity_id": button["entity_id"],
-                        "identity": button["identity"],
-                        "button_index": button["button_index"],
-                    }
-                )
+            runtime_device["identity"] = device["identity"]
+            buttons = {}
+            for index, button in (device.get("buttons", {}) or {}).items():
+                runtime_button = {
+                    "name": button.get("name", ""),
+                    "published": bool(button.get("published", True)),
+                }
+                if button.get("entity_id"):
+                    runtime_button["entity_id"] = button["entity_id"]
+                buttons[str(index)] = runtime_button
             runtime_device["buttons"] = buttons
         else:
             outputs = {}

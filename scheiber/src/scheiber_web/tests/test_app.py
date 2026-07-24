@@ -775,6 +775,49 @@ def test_get_interactions_includes_recent_sessions(tmp_path):
     assert response.get_json()["recent_sessions"] == []
 
 
+def test_air_switch_discovery_endpoint_starts_and_stops(tmp_path):
+    client, _ = create_test_client(tmp_path)
+
+    start_response = client.post("/api/air-switch/discovery/start")
+    assert start_response.status_code == 200
+    assert start_response.get_json()["running"] is True
+
+    stop_response = client.post("/api/air-switch/discovery/stop")
+    assert stop_response.status_code == 200
+    assert stop_response.get_json()["running"] is False
+
+
+def test_air_switch_config_apply_upserts_discovered_device(tmp_path):
+    runtime = FakeRuntimeController()
+    client, config_path = create_test_client(tmp_path, runtime_controller=runtime)
+    state = load_editor_state(str(config_path))
+
+    response = client.post(
+        "/api/air-switch/config/apply",
+        json={
+            "base_revision": state["revision"],
+            "air_switches": [
+                {
+                    "identity": "52AB81",
+                    "name": "Bow Salon AirSwitch",
+                    "buttons": {
+                        "1": {"name": "Bottom Left", "published": True},
+                        "5": {"name": "Both Bottom?", "published": False},
+                    },
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert runtime.reload_calls == 1
+    saved = load_editor_state(str(config_path))["config"]
+    air_switch = next(d for d in saved["devices"] if d["type"] == "air_switch")
+    assert air_switch["identity"] == "52AB81"
+    assert air_switch["buttons"]["1"]["name"] == "Bottom Left"
+    assert air_switch["buttons"]["5"]["published"] is False
+
+
 def test_setup_helper_apply_updates_multiple_outputs_as_one_logical_light(tmp_path):
     runtime = FakeRuntimeController()
     client, config_path = create_test_client(tmp_path, runtime_controller=runtime)

@@ -8,7 +8,7 @@ Scheiber sells Light Air Switch hardware as a very-low-voltage lighting system w
 
 Live-captured, controlled evidence (2026-07-05, `buttercup.local`, four-button Air Switch mounted at the bow salon door) confirms the wireless payload schema with high confidence. See `candump_data` captures referenced in the implementation PR for the raw frames.
 
-**Arbitration IDs**: `0x04001A80`, `0x04001A82`, `0x04001A83` (prefix `0x04001A00`, mask `0xFFFFFF00`). Every logical press or release is broadcast redundantly on all three IDs within a few milliseconds, always carrying byte-for-byte identical data. The low byte does not encode a Bloc9 bus/segment target (no evidence ties it to which Bloc9 reacts); it is treated as a fixed redundancy/retransmission scheme of the wireless-to-CAN interface itself. `0x04001A81` has never been observed.
+**Arbitration IDs**: `0x04001A80`, `0x04001A82`, `0x04001A83` (prefix `0x04001A00`, mask `0xFFFFFF00`). Every logical press or release is broadcast redundantly on one or more of these CAN IDs within a few milliseconds, always carrying byte-for-byte identical data for that report. The low byte does not encode a Bloc9 bus/segment target (no evidence ties it to which Bloc9 reacts); it is treated as a redundancy/retransmission or receiver-path scheme of the wireless-to-CAN interface itself. `0x04001A81` has never been observed.
 
 **Payload** (5 bytes): `01 <3-byte identity> <status>`
 
@@ -29,9 +29,47 @@ Example (bow salon unit, identity `52AB81`, top-left button, one press+release c
 04001A83  01 52 AB 81 02
 ```
 
+Important terminology: `52AB81` and `52A8DC` are **not CAN arbitration IDs**. They are 3-byte transmitter identities found in bytes 1-3 of the CAN payload. In a frame such as `0x04001A80  01 52 AB 81 82`, the CAN arbitration ID is `0x04001A80`, the Air Switch identity is `52AB81`, and the status byte is `0x82`.
+
 Pressing the same physical button repeatedly reproduces the exact same identity+index bytes every time; the toggled on/off outcome is entirely decided by the reacting Bloc9's own programming (confirmed: the bow salon unit's 4 buttons independently toggled Bloc9 outputs on bus 1 (X32 Salon), bus 3 (X226 exterior), and bus 10 segment 2 (X224 bow courtesy light) — a single wireless button can fan out to multiple Bloc9 outputs as a "scene").
 
 This is now implemented: `scheiber/src/scheiber/button_discovery.py:classify_air_switch_message()` decodes it, and `scheiber/src/scheiber/air_switch.py` exposes configured buttons to the MQTT bridge as Home Assistant `event` entities (see `plan/tasks/` for the implementation notes).
+
+## Saved Interaction Log Learnings
+
+Saved sessions captured on `buttercup.local` and analyzed with `scheiber/src/tools/analyze_air_switch_log.py` add the following current evidence:
+
+### Bow salon 4-function unit
+
+- Location entered: `bow salon`.
+- Payload identity: `52AB81`.
+- Observed physical mapping:
+  - Top Left -> button index `2`.
+  - Bottom Left -> button index `1`.
+  - Top Right -> button index `4`.
+  - Bottom Right -> mostly button index `3`, but also repeated button index `5` reports during the same step.
+- Observed CAN arbitration IDs carrying this identity/status traffic: `0x04001A80`, `0x04001A82`, and `0x04001A83`.
+- Interpretation: the basic 4-function mapping pattern appears to be bottom-left=1, top-left=2, bottom-right=3, top-right=4. The bottom-right `index=5` reports are anomalous and should be recaptured deliberately; they may represent a mis-press/combined physical press, a fifth learned function/code, or a receiver/reporting artifact.
+- Reactions observed during the guided session:
+  - Top Left: Bloc9 `#3` outputs `s5/s6`.
+  - Bottom Left: Bloc9 `#10_2` outputs `s1/s2` and `s3/s4`.
+  - Top Right: Bloc9 `#1` outputs `s3/s4`.
+  - Bottom Right: mainly Bloc9 `#1` outputs `s3/s4`, with one Bloc9 `#5_3` output `s3/s4` reaction.
+
+### Crew cabin 2-function unit
+
+- Location entered: `crew cabin`.
+- Payload identity: `52A8DC`.
+- Observed physical mapping:
+  - Top -> mostly button index `2`.
+  - Bottom -> button index `1`.
+- During the Top step, a small number of `index=1` reports were also captured. This is most likely an accidental bottom-button press during the top-button step, but it should be verified if the unit is recaptured.
+- Observed CAN arbitration IDs carrying this identity/status traffic: mostly `0x04001A80` and `0x04001A82`, with `0x04001A83` appearing only once.
+- Reactions observed during the guided session: both top and bottom functions affected Bloc9 `#3_2`, outputs `s3/s4` and `s1/s2`.
+
+### Receiver-path clue
+
+The same payload identity/status can appear under more than one CAN arbitration ID. For example, the bow salon identity `52AB81` was seen under `0x04001A80`, `0x04001A82`, and `0x04001A83`, while the crew cabin identity `52A8DC` was seen mostly under `0x04001A80` and `0x04001A82`. This does **not** mean `52AB81` is an arbitration ID; it means the same wireless transmitter identity was carried by several CAN arbitration IDs. This strengthens the hypothesis that the low-byte variants (`0x80`, `0x82`, `0x83`) may represent receiver paths, retransmission paths, or duplicate-report behavior rather than physical button identity.
 
 ## Deferred: Wired Panel/Key Interface
 
@@ -61,7 +99,12 @@ These are left for future investigation and are intentionally not decoded by the
 
 ## Tooling Direction
 
-The setup UI's Interactions tab guides an operator through a structured capture of one physical Vimar-framed Air Switch (SFSP) unit at a time:
+The setup UI now has two complementary AirSwitch-oriented tools:
+
+- The **Air Switch** tab runs continuous discovery until the user explicitly stops it. This mode persists every confirmed `(payload identity, button index)` observation to `air_switch_discovery.json`, survives browser disconnects, and lets the user progressively name discovered indexes and choose whether each is published to Home Assistant.
+- The **Interactions** tab remains a guided capture/logging tool for structured experiments when mapping a specific physical Vimar-framed unit or investigating anomalies such as `index=5`.
+
+The Interactions tab guides an operator through a structured capture of one physical Vimar-framed Air Switch (SFSP) unit at a time:
 
 1. Enter the physical location and the unit's function count: **2** (a single rocker, divided horizontally into top/bottom) or **4** (two rockers side by side, each also divided horizontally, giving top-left/bottom-left/top-right/bottom-right).
 2. The tool walks through each function in turn (2-function: top, then bottom; 4-function: top-left, bottom-left, top-right, bottom-right) with an explicit instruction to press and release that function several times before moving on. Repetition matters in practice: presses are sometimes missed entirely (weak piezo kinetic energy, or an obstructed radio path to the receiver), and releases are occasionally dropped, which can leave a light stuck mid-dim.

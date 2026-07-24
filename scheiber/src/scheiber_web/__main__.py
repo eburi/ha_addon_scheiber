@@ -58,8 +58,12 @@ def build_settings(args: argparse.Namespace) -> RuntimeSettings:
         state_file = str(Path(args.data_dir) / "scheiber_state.json")
 
     interactions_log_file = None
+    air_switch_discovery_state_file = None
     if args.data_dir:
         interactions_log_file = str(Path(args.data_dir) / "interactions_log.jsonl")
+        air_switch_discovery_state_file = str(
+            Path(args.data_dir) / "air_switch_discovery.json"
+        )
 
     return RuntimeSettings(
         can_interface=args.can_interface,
@@ -71,6 +75,7 @@ def build_settings(args: argparse.Namespace) -> RuntimeSettings:
         config_path=args.config or "/config/scheiber-config.yaml",
         state_file=state_file,
         interactions_log_file=interactions_log_file,
+        air_switch_discovery_state_file=air_switch_discovery_state_file,
         log_level=args.log_level,
         read_only=args.read_only,
         host=args.host,

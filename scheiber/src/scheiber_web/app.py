@@ -13,6 +13,7 @@ from scheiber.config import (
     validate_editor_config,
 )
 
+from .air_switch_discovery import AirSwitchDiscoveryService
 from .bloc7_candidates import build_bloc7_candidate_snapshot
 from .config_ops import ConfigApplyError, apply_editor_config
 from .discovery import Bloc9DiscoveryService
@@ -55,6 +56,7 @@ def create_app(
     frontend_monitor: Optional[FrontendHeartbeatMonitor] = None,
     setup_helper: Optional[SetupHelperService] = None,
     interaction_discovery: Optional[InteractionDiscoveryService] = None,
+    air_switch_discovery: Optional[AirSwitchDiscoveryService] = None,
 ) -> Flask:
     """Create the Scheiber web application."""
     app = Flask(__name__)
@@ -69,6 +71,10 @@ def create_app(
     interaction_discovery = interaction_discovery or InteractionDiscoveryService(
         runtime_controller,
         log_file_path=settings.interactions_log_file,
+    )
+    air_switch_discovery = air_switch_discovery or AirSwitchDiscoveryService(
+        runtime_controller,
+        state_file_path=settings.air_switch_discovery_state_file,
     )
     frontend_monitor.add_idle_callback(discovery_service.stop)
     frontend_monitor.add_idle_callback(inspector.stop)
@@ -88,6 +94,7 @@ def create_app(
     app.config["MCP_SERVER"] = mcp_server
     app.config["SETUP_HELPER"] = setup_helper
     app.config["INTERACTION_DISCOVERY"] = interaction_discovery
+    app.config["AIR_SWITCH_DISCOVERY"] = air_switch_discovery
 
     def require_web_ui() -> None:
         if not settings.web_ui_enabled:
@@ -441,6 +448,125 @@ def create_app(
     def stop_interactions():
         require_web_ui()
         return jsonify(interaction_discovery.stop())
+
+    @app.get("/api/air-switch/discovery")
+    def get_air_switch_discovery():
+        require_web_ui()
+        return jsonify(air_switch_discovery.snapshot())
+
+    @app.post("/api/air-switch/discovery/start")
+    def start_air_switch_discovery():
+        require_web_ui()
+        try:
+            return jsonify(air_switch_discovery.start())
+        except RuntimeError as exc:
+            return jsonify({"error": str(exc), "code": "runtime_not_running"}), 409
+
+    @app.post("/api/air-switch/discovery/stop")
+    def stop_air_switch_discovery():
+        require_web_ui()
+        return jsonify(air_switch_discovery.stop())
+
+    @app.post("/api/air-switch/config/apply")
+    def apply_air_switch_config():
+        require_web_ui()
+        payload = request.get_json(silent=True) or {}
+        updates = payload.get("air_switches") or []
+        if not isinstance(updates, list):
+            return (
+                jsonify(
+                    {"error": "air_switches must be a list", "code": "invalid_request"}
+                ),
+                400,
+            )
+
+        state = load_editor_state(settings.config_path)
+        if state.get("status") == "invalid":
+            return (
+                jsonify(
+                    {
+                        "error": "Existing configuration is invalid",
+                        "code": "validation_failed",
+                        "diagnostics": state.get("diagnostics", {}),
+                    }
+                ),
+                422,
+            )
+
+        config = state.get("config") or {"schema_version": 1, "devices": []}
+        next_config = {**config, "devices": list(config.get("devices", []))}
+        for update in updates:
+            if not isinstance(update, dict):
+                return (
+                    jsonify(
+                        {
+                            "error": "Each AirSwitch update must be an object",
+                            "code": "invalid_request",
+                        }
+                    ),
+                    400,
+                )
+            identity = str(update.get("identity") or "").strip().upper()
+            if not identity:
+                return (
+                    jsonify(
+                        {"error": "identity is required", "code": "invalid_request"}
+                    ),
+                    400,
+                )
+            device = next(
+                (
+                    item
+                    for item in next_config["devices"]
+                    if item.get("type") == "air_switch"
+                    and item.get("identity") == identity
+                ),
+                None,
+            )
+            if device is None:
+                device = {
+                    "type": "air_switch",
+                    "identity": identity,
+                    "name": update.get("name") or f"AirSwitch {identity}",
+                    "description": update.get("description") or "",
+                    "buttons": {},
+                }
+                next_config["devices"].append(device)
+            else:
+                if update.get("name") is not None:
+                    device["name"] = update.get("name")
+                if update.get("description") is not None:
+                    device["description"] = update.get("description")
+                device["buttons"] = dict(device.get("buttons") or {})
+
+            for index, button in (update.get("buttons") or {}).items():
+                if not isinstance(button, dict):
+                    return (
+                        jsonify(
+                            {
+                                "error": "Each button update must be an object",
+                                "code": "invalid_request",
+                            }
+                        ),
+                        400,
+                    )
+                device["buttons"][str(index)] = {
+                    "name": button.get("name") or "",
+                    "published": bool(button.get("published", True)),
+                }
+                if button.get("entity_id"):
+                    device["buttons"][str(index)]["entity_id"] = button["entity_id"]
+
+        try:
+            result = apply_editor_config(
+                settings.config_path,
+                runtime_controller,
+                next_config,
+                base_revision=payload.get("base_revision"),
+            )
+        except ConfigApplyError as exc:
+            return jsonify(exc.to_response()), exc.status_code
+        return jsonify(result)
 
     @app.post("/api/setup-helper/apply")
     def apply_setup_helper_findings():

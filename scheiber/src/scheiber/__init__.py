@@ -153,7 +153,11 @@ def _create_devices(
 
     for device_config in device_configs:
         device_type = device_config.get("type")
-        device_id = device_config.get("bus_id")  # Changed from "id" to "bus_id"
+        if device_type == "air_switch":
+            identity_hex = str(device_config.get("identity") or "").upper()
+            device_id = int(identity_hex, 16) if identity_hex else None
+        else:
+            device_id = device_config.get("bus_id")  # Changed from "id" to "bus_id"
         segment_id = device_config.get("segment_id", 0)
 
         if not device_type or device_id is None:
@@ -162,7 +166,9 @@ def _create_devices(
 
         # Extract device-specific state
         device_route = (
-            f"{device_id}" if segment_id == 0 else f"{device_id}_{segment_id}"
+            identity_hex
+            if device_type == "air_switch"
+            else (f"{device_id}" if segment_id == 0 else f"{device_id}_{segment_id}")
         )
         device_key = f"{device_type}_{device_route}"
         device_state = initial_state.get(device_key, {})
@@ -232,8 +238,7 @@ def _create_devices(
             )
             devices.append(device)
             logger.info(
-                f"Created AirSwitch device: bus_id={device_id}, "
-                f"segment_id={segment_id}, "
+                f"Created AirSwitch device: identity={identity_hex}, "
                 f"{len(device.get_air_switch_buttons())} buttons"
             )
         else:
