@@ -96,18 +96,32 @@ class Output:
         """
         Decode state and brightness from CAN message.
 
-        CAN message format (8 bytes):
+        CAN message format (8 bytes), four bytes per output:
             Bytes 0-3: Lower switch (even switch_nr: 0, 2, 4)
                 - Byte 0: Brightness level
+                - Byte 1: Reserved (always 0x00 observed)
+                - Byte 2, bit 0: Mode/energised bit
                 - Byte 3, bit 0: ON/OFF state bit
             Bytes 4-7: Higher switch (odd switch_nr: 1, 3, 5)
                 - Byte 4: Brightness level
+                - Byte 5: Reserved (always 0x00 observed)
+                - Byte 6, bit 0: Mode/energised bit
                 - Byte 7, bit 0: ON/OFF state bit
+
+        The mode byte mirrors the command mode bytes: 0x00 off, 0x01 full on,
+        0x11 PWM dimming on. Bit 0 means "output energised". A value of 0x10 is
+        "PWM configured but NOT energised" and must be treated as OFF even when
+        the brightness byte carries a stale or ramping setpoint.
+
+        Brightness alone is NOT a reliable ON indicator: a faulty or
+        de-energised output can report a non-zero brightness setpoint
+        indefinitely. Conversely, during a dim ramp the state bit lags behind
+        while the mode bit is already set, so both bits are OR-ed together.
 
         Args:
             msg: CAN message with 8 bytes
             switch_nr: Switch number (0-5)
-            dimming_threshold: Threshold for considering brightness as ON
+            dimming_threshold: Deprecated, retained for signature compatibility
 
         Returns:
             Tuple of (state: bool, brightness: int)
@@ -117,14 +131,20 @@ class Output:
 
         # Use parity to determine which 4 bytes to read
         if switch_nr % 2 == 0:  # Even: S1, S3, S5 (lower switch, bytes 0-3)
-            brightness = msg.data[0]
-            state_bit = (msg.data[3] & 0x01) == 0x01
+            offset = 0
         else:  # Odd: S2, S4, S6 (higher switch, bytes 4-7)
-            brightness = msg.data[4]
-            state_bit = (msg.data[7] & 0x01) == 0x01
+            offset = 4
 
-        # State determination: state bit OR brightness above threshold
-        state = state_bit or brightness > dimming_threshold
+        brightness = msg.data[offset]
+        mode_bit = (msg.data[offset + 2] & 0x01) == 0x01
+        state_bit = (msg.data[offset + 3] & 0x01) == 0x01
+
+        # The device is ON only when it reports itself as energised.
+        state = mode_bit or state_bit
+
+        # Suppress stale/ramping brightness setpoints from de-energised outputs.
+        if not state:
+            brightness = 0
 
         return (state, brightness)
 

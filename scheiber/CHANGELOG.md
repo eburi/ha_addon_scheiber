@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [7.0.1] - 2026-08-07
+
+### Fixed
+- Fixed lights and switches flapping between ON and OFF in Home Assistant while the physical output stayed off. The Bloc9 state decoder inferred ON from the brightness byte alone (`state_bit or brightness > dimming_threshold`), so a de-energised output broadcasting a stale PWM setpoint was reported as ON. The mode byte (byte 2 for S1/S3/S5, byte 6 for S2/S4/S6) is now authoritative: an output counts as ON only when the mode bit or the state bit is set, and brightness is forced to `0` when the output is not energised. Observed on a Bloc9 whose S1 and S3 broadcast `brightness=242, mode=0x10, state=0x00` every 8.55 seconds, which made both entities toggle in the UI roughly every four seconds
+
+### Changed
+- Documented the per-output Bloc9 state payload as `[brightness, reserved, mode_byte, state_byte]`, where mode-byte bit 0 means "output energised" and mirrors the command mode bytes (`0x00` off, `0x01` full on, `0x11` PWM on). The value `0x10` means PWM configured but not energised
+- The mode bit and the state bit are OR-ed rather than either being used alone, because hardware captures show the state bit lagging behind the mode bit during dim ramps
+- `dimming_threshold` no longer affects state determination. It is retained in the `Output.get_state_from_can_message()` signature for compatibility and is scheduled for removal
+
 ## [7.0.0] - 2026-07-24
 
 ### Added

@@ -33,11 +33,11 @@ class TestBloc9SwitchChange:
         light_s5 = device.lights[0]
         light_s6 = device.lights[1]
 
-        # Message: S5 brightness=107 ON, S6 brightness=0 OFF
-        # Data: [s5_brightness, 0, 0, s5_state_bit, s6_brightness, 0, 0, s6_state_bit]
+        # Message: S5 brightness=107 ON (PWM), S6 OFF
+        # Per-output layout: [brightness, reserved, mode_byte, state_byte]
         msg = can.Message(
             arbitration_id=0x021A06B8,
-            data=bytes([0x6B, 0x00, 0x11, 0x01, 0x00, 0x00, 0x01, 0x00]),
+            data=bytes([0x6B, 0x00, 0x11, 0x01, 0x00, 0x00, 0x00, 0x00]),
             is_extended_id=True,
         )
 
@@ -161,8 +161,8 @@ class TestBloc9SwitchChange:
         assert light_s3.get_state() == {"state": True, "brightness": 75}
         assert light_s4.get_state() == {"state": False, "brightness": 0}
 
-    def test_dimming_threshold_below(self):
-        """Test brightness at/below dimming threshold (<=2) without state bit."""
+    def test_brightness_without_mode_bit_is_off(self):
+        """Low brightness with the mode bit clear must decode as OFF."""
         mock_bus = Mock()
         device = Bloc9Device(
             device_id=7,
@@ -172,7 +172,7 @@ class TestBloc9SwitchChange:
 
         light_s5 = device.lights[0]
 
-        # Brightness=2 WITHOUT state bit, but brightness >0 means ON
+        # Brightness=2, mode byte 0x00, state byte 0x00 -> de-energised
         msg = can.Message(
             arbitration_id=0x021A06B8,
             data=bytes([2, 0x00, 0x00, 0x00, 0, 0x00, 0x00, 0x00]),
@@ -181,11 +181,16 @@ class TestBloc9SwitchChange:
 
         device.process_message(msg)
 
-        # Brightness 2 still results in ON (effective_brightness > 0)
-        assert light_s5.get_state() == {"state": True, "brightness": 2}
+        assert light_s5.get_state() == {"state": False, "brightness": 0}
 
-    def test_dimming_threshold_above(self):
-        """Test brightness above dimming threshold results in ON even without state bit."""
+    def test_stale_brightness_with_pwm_mode_off_is_off(self):
+        """Regression: Bloc9 4_3 S1/S3 phantom-ON flapping on Buttercup.
+
+        A de-energised output can broadcast a stale PWM setpoint with mode byte
+        0x10 (PWM configured, bit 0 clear) and state byte 0x00. The old decoder
+        inferred ON from brightness alone, causing the entity to flap between
+        ON/242 and OFF/0 every ~8.5s while the lamp stayed physically off.
+        """
         mock_bus = Mock()
         device = Bloc9Device(
             device_id=7,
@@ -195,16 +200,37 @@ class TestBloc9SwitchChange:
 
         light_s5 = device.lights[0]
 
-        # Brightness=3 without state bit should still be ON due to threshold
         msg = can.Message(
             arbitration_id=0x021A06B8,
-            data=bytes([3, 0x00, 0x00, 0x00, 0, 0x00, 0x00, 0x00]),
+            data=bytes([242, 0x00, 0x10, 0x00, 0, 0x00, 0x00, 0x00]),
             is_extended_id=True,
         )
 
         device.process_message(msg)
 
-        assert light_s5.get_state() == {"state": True, "brightness": 3}
+        assert light_s5.get_state() == {"state": False, "brightness": 0}
+
+    def test_pwm_mode_bit_set_without_state_bit_is_on(self):
+        """During a dim ramp the mode bit leads and the state bit lags."""
+        mock_bus = Mock()
+        device = Bloc9Device(
+            device_id=7,
+            can_bus=mock_bus,
+            lights_config={"s5": {"name": "Light S5", "entity_id": "light_s5"}},
+        )
+
+        light_s5 = device.lights[0]
+
+        # mode byte 0x11 (PWM on), state byte 0x00 -> still ON
+        msg = can.Message(
+            arbitration_id=0x021A06B8,
+            data=bytes([115, 0x00, 0x11, 0x00, 0, 0x00, 0x00, 0x00]),
+            is_extended_id=True,
+        )
+
+        device.process_message(msg)
+
+        assert light_s5.get_state() == {"state": True, "brightness": 115}
 
     def test_state_bit_overrides_brightness_zero(self):
         """Test Bloc9 quirk: state bit ON with brightness 0 becomes brightness 255."""
