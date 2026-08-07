@@ -1,0 +1,5 @@
+{
+  "name": "Scheiber CAN",
+  "render_readme": true,
+  "domains": ["binary_sensor", "button", "event", "light", "sensor", "switch"]
+}

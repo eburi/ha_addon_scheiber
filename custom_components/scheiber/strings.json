@@ -1,0 +1,39 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Scheiber CAN",
+        "description": "Connect Home Assistant directly to a SocketCAN interface. Discovery-only and read-only are enabled by default for safety.",
+        "data": {
+          "can_interface": "CAN interface",
+          "read_only": "Read-only mode",
+          "discovery_only": "Discovery-only mode",
+          "config_path": "Optional Scheiber YAML config path",
+          "state_file": "Optional state file path",
+          "max_message_ids": "Maximum arbitration IDs to track"
+        }
+      }
+    },
+    "error": {
+      "cannot_be_empty": "This field cannot be empty"
+    },
+    "abort": {
+      "already_configured": "This CAN interface is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Scheiber CAN options",
+        "data": {
+          "can_interface": "CAN interface",
+          "read_only": "Read-only mode",
+          "discovery_only": "Discovery-only mode",
+          "config_path": "Optional Scheiber YAML config path",
+          "state_file": "Optional state file path",
+          "max_message_ids": "Maximum arbitration IDs to track"
+        }
+      }
+    }
+  }
+}

@@ -9,6 +9,12 @@ Experimental bridge for Scheiber CAN devices with MQTT integration.
 For the Home Assistant add-on store presentation, see `scheiber/README.md` and
 `scheiber/DOCS.md`.
 
+This repository also contains an experimental native Home Assistant integration
+under `custom_components/scheiber/` for HACS/custom-component installs. It talks
+to SocketCAN directly through `python-can`, starts in read-only discovery mode,
+and exposes discovered Scheiber devices through standard Home Assistant devices,
+entities, diagnostics, and sensor attributes.
+
 ⚠️ **EXPERIMENTAL**: This is an ongoing reverse-engineering project. The Scheiber CAN protocol is not fully documented, and functionality may be incomplete or change significantly.
 
 ## Overview

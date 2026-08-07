@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Scheiber CAN">
+  <rect width="256" height="256" rx="48" fill="#123047"/>
+  <path d="M64 84h128c13.3 0 24 10.7 24 24v40c0 13.3-10.7 24-24 24H64c-13.3 0-24-10.7-24-24v-40c0-13.3 10.7-24 24-24Z" fill="#38bdf8" opacity="0.18"/>
+  <path d="M80 104h96c8.8 0 16 7.2 16 16v16c0 8.8-7.2 16-16 16H80c-8.8 0-16-7.2-16-16v-16c0-8.8 7.2-16 16-16Z" fill="#e0f2fe"/>
+  <path d="M88 128h80" stroke="#123047" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="88" cy="128" r="14" fill="#0ea5e9"/>
+  <circle cx="128" cy="128" r="14" fill="#0ea5e9"/>
+  <circle cx="168" cy="128" r="14" fill="#0ea5e9"/>
+  <path d="M40 128H16M240 128h-24" stroke="#e0f2fe" stroke-width="16" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,152 @@
+"""
+Basic ON/OFF switch component.
+
+Provides simple boolean state control with observer pattern for notifications.
+"""
+
+import logging
+from typing import Any, Callable, Dict, Optional
+
+import can
+
+from .output import Output
+
+
+class Switch(Output):
+    """
+    Basic ON/OFF switch.
+
+    Provides:
+    - Simple set(state) method for ON/OFF control
+    - Observer pattern for state change notifications
+    - State query
+    - CAN message processing
+    """
+
+    def __init__(
+        self,
+        device_id: int,
+        switch_nr: int,
+        name: str,
+        entity_id: str,
+        send_command_func: Callable[[int, bool, Optional[int]], None],
+        segment_id: int = 0,
+        logger: Optional[logging.Logger] = None,
+        dimming_threshold: int = 2,
+    ):
+        """
+        Initialize switch.
+
+        Args:
+            device_id: Parent device ID
+            switch_nr: Switch number (0-indexed)
+            name: Human-readable name (e.g., 's1', 's2')
+            entity_id: Entity ID for Home Assistant (without domain prefix)
+            send_command_func: Callback to send CAN command (switch_nr, state, optional brightness)
+            logger: Optional logger
+            dimming_threshold: Threshold for considering brightness as ON
+        """
+        super().__init__(
+            device_id,
+            switch_nr,
+            name,
+            entity_id,
+            send_command_func,
+            segment_id,
+            logger,
+        )
+        self.send_command_func = send_command_func
+        self.dimming_threshold = dimming_threshold
+
+    def set(self, state: bool) -> None:
+        """
+        Turn switch ON or OFF.
+
+        Sends command to hardware. State will be updated when CAN confirmation
+        message is received via update_state(). This ensures Home Assistant
+        only shows the confirmed state from the hardware.
+
+        Args:
+            state: True for ON, False for OFF
+        """
+        self.logger.info(f"Setting switch to {'ON' if state else 'OFF'}")
+
+        # Send command to hardware - don't update state yet
+        # Wait for CAN confirmation via update_state()
+        self._send_command(state)
+        self.logger.debug(f"Command sent, waiting for CAN confirmation")
+
+    def process_matching_message(self, msg: can.Message) -> None:
+        """
+        Process a CAN message that matched this switch's matcher.
+
+        Extracts state from the message and updates internal state.
+
+        Args:
+            msg: CAN message
+        """
+        state, brightness = self.get_state_from_can_message(
+            msg, self.switch_nr, self.dimming_threshold
+        )
+
+        self.logger.debug(
+            f"Switch '{self.name}' (S{self.switch_nr+1}) received matched message: "
+            f"arbitration_id=0x{msg.arbitration_id:08X}, state={state}"
+        )
+
+        # Switch ignores brightness, only cares about state
+        self.update_state(state)
+
+    def get_state(self) -> bool:
+        """
+        Get current switch state.
+
+        Returns:
+            Current state (True=ON, False=OFF)
+        """
+        return self._state
+
+    def _send_command(self, state: bool) -> None:
+        """
+        Send CAN command to switch device via callback.
+
+        Args:
+            state: Desired state
+        """
+        self._send_command_func(self.switch_nr, state)
+
+    def restore_from_state(self, state: Dict[str, Any]) -> None:
+        """
+        Restore switch state from persisted data.
+
+        Args:
+            state: Dictionary with 'state' key
+        """
+        switch_state = state.get("state", False)
+        # Restore without sending command (will sync on first CAN message)
+        self._state = switch_state
+        self.logger.debug(f"Restored state: {switch_state}")
+
+    def store_to_state(self) -> Dict[str, Any]:
+        """
+        Return current state for persistence.
+
+        Returns:
+            Dictionary with 'state' key
+        """
+        return {"state": self._state}
+
+    def update_state(self, state: bool) -> None:
+        """
+        Update state from received CAN message (without sending command).
+
+        Args:
+            state: New state from CAN bus
+        """
+        self.logger.debug(f"CAN state update received: {state}")
+        if self._state != state:
+            self._state = state
+            self.logger.info(f"State changed from CAN, notifying observers: {state}")
+            self._notify_observers({"state": state})
+        else:
+            self.logger.debug(f"CAN state matches current state: {state}")

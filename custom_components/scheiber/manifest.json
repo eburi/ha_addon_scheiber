@@ -1,0 +1,13 @@
+{
+  "domain": "scheiber",
+  "name": "Scheiber CAN",
+  "after_dependencies": ["logger"],
+  "codeowners": ["@eburi"],
+  "config_flow": true,
+  "documentation": "https://github.com/eburi/ha-addon-scheiber",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/eburi/ha-addon-scheiber/issues",
+  "requirements": ["python-can==4.3.1", "PyYAML==6.0.3"],
+  "version": "0.1.0"
+}
