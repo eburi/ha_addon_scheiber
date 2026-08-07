@@ -69,6 +69,10 @@ class ScheiberSystem:
         # Track unknown arbitration IDs (log once)
         self._unknown_ids = set()
 
+        # Aggregate stale-output tracking (see get_stale_outputs)
+        self._stale_observers: List[Callable[[bool], None]] = []
+        self._stale_active = False
+
         # State persistence
         self._state_dirty = False
         self._state_lock = threading.Lock()
@@ -218,6 +222,68 @@ class ScheiberSystem:
                     f"Unknown CAN ID: 0x{msg.arbitration_id:08X} "
                     f"Data: {msg.data.hex()}"
                 )
+
+        # Re-evaluate the system-wide stale aggregate. Detection happens on output
+        # status frames and recovery on device heartbeats, so this is the one point
+        # that observes both.
+        self._evaluate_stale()
+
+    def get_stale_outputs(self) -> List[str]:
+        """
+        Return entity IDs of all outputs currently reporting a stale setpoint.
+
+        A stale output is one broadcasting a non-zero brightness setpoint while
+        de-energised, which indicates a Bloc9 stuck in its hold-to-dim cycle.
+        """
+        stale: List[str] = []
+        for device in self.devices:
+            getter = getattr(device, "get_stale_outputs", None)
+            if getter is None:
+                continue
+            try:
+                stale.extend(getter())
+            except Exception as e:  # pragma: no cover - defensive
+                self.logger.error(f"Stale query failed for {device}: {e}")
+        return stale
+
+    def has_stale_outputs(self) -> bool:
+        """Return True while any output in the system is stale."""
+        return bool(self.get_stale_outputs())
+
+    def subscribe_to_stale_change(self, callback: Callable[[bool], None]) -> None:
+        """
+        Subscribe to changes of the system-wide stale indicator.
+
+        The callback receives True when at least one output becomes stale and
+        False when the last stale output recovers. It fires on transitions only.
+        """
+        if callback not in self._stale_observers:
+            self._stale_observers.append(callback)
+            # Prime the new subscriber with the current value.
+            try:
+                callback(self._stale_active)
+            except Exception as e:
+                self.logger.error(f"Error in stale observer callback: {e}")
+
+    def _evaluate_stale(self) -> None:
+        """Recompute the stale aggregate and notify observers on transitions."""
+        active = self.has_stale_outputs()
+        if active == self._stale_active:
+            return
+
+        self._stale_active = active
+        if active:
+            self.logger.warning(
+                f"Scheiber system has stale outputs: {', '.join(self.get_stale_outputs())}"
+            )
+        else:
+            self.logger.info("Scheiber system has no stale outputs, indicator cleared")
+
+        for observer in self._stale_observers:
+            try:
+                observer(active)
+            except Exception as e:
+                self.logger.error(f"Error in stale observer callback: {e}")
 
     def _mark_state_dirty(self) -> None:
         """Mark state as dirty (needs saving)."""

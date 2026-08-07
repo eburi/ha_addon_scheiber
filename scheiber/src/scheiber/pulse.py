@@ -46,9 +46,7 @@ class PulseOutput(Output):
         """
         Track observed state changes for diagnostics without publishing HA state.
         """
-        state, _brightness = self.get_state_from_can_message(
-            msg, self.switch_nr, self.dimming_threshold
-        )
+        state, _brightness = self.decode_and_track(msg)
         self._state = state
 
     def restore_from_state(self, state: Dict) -> None:

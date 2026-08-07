@@ -357,3 +357,235 @@ Notes and follow-ups:
 - Separately worth understanding why device 4_3 broadcasts a stale `242` setpoint every
   8.55 s. It is harmless once decoding is correct, but it may indicate a Scheiber panel
   holding a stale scene value for these two outputs.
+
+## Live command test (2026-08-07): Bloc9 4_3 stuck in hold-to-dim cycle
+
+Owner insight: Scheiber air switches implement brightness adjustment as *press and hold* ->
+the Bloc9 runs a continuous dimming cycle until the button is released. Bloc9 4_3 appears
+stuck in that mode.
+
+A controlled test via MQTT confirms this.
+
+### ON command
+
+Published `{"state":"ON","brightness":128}` to `homeassistant/scheiber/bloc9/4_3/s1/set`.
+
+```
+023606A3#00110080              <- bridge command: S1, PWM mode, level 0x80
+021606A3#8000110000000000      <- device accepts, level 0x80, mode 0x11
+021606A3#9400110100000000      <- then ramps up autonomously
+021606A3#A900110100000000
+021606A3#C200110100000000
+021606A3#DF00110100000000
+021606A3#0000010900000000      <- full on (brightness 0 == full, mode 0x01)
+021606A3#F200110900000000      <- then ramps down
+021606A3#D300110900000000
+  ... continuous triangle wave, ~142 ms per step ...
+021606A3#0200110100000000      <- minimum
+021606A3#0300110100000000      <- and back up again, indefinitely
+```
+
+Key points:
+
+- The command **is** received and applied correctly. The device is not deaf.
+- Immediately afterwards the Bloc9 resumes an autonomous triangle-wave dim cycle.
+- Cycle period ~11.3 s (full-on peaks at t+386.05, t+397.32, t+408.59).
+- During the cycle mode is `0x11` and state is `0x01`/`0x09`, i.e. genuinely energised.
+  The lamp physically ramps up and down; the owner confirmed this visually.
+
+### OFF command
+
+```
+023606A3#00000000              <- bridge command: S1 off
+021606A3#0000000000000000      <- device turns off, cycle stops
+021606A3#0F00100000000000
+021606A3#0000000000000000      <- returns to idle phantom pattern
+021606A3#F200100000000000
+```
+
+OFF reliably stops the cycle and returns the output to the idle pattern
+(`mode=0x10`, brightness alternating 0/242 every 8.55 s, de-energised).
+
+### Revised understanding
+
+The idle `mode=0x10` pattern is the stuck dim cycle running while the output is *not*
+energised. Energising the output makes the same cycle visible on the lamp.
+
+This also revises the earlier note that the outputs "cannot be turned on": they can, they
+simply refuse to hold a level. The channel hardware is fine.
+
+The decoder fix behaves correctly in both phases: stable OFF while idle
+(`mode=0x10`), and ON with a ramping brightness while cycling (`mode=0x11`).
+
+### Firmware update not available
+
+Per a Scheiber technician, updating Bloc9 firmware requires special hardware. Debug or
+programming pins have not been identified on a physically damaged spare unit. So a
+firmware fix is not currently an option.
+
+### Proposed remedy procedure (untested)
+
+If the Bloc9 is stuck waiting for an air-switch *release* event, delivering one may end the
+cycle. Two variants, in order of preference:
+
+1. **Physical**: locate the air switch bound to this output, press and release it, and
+   capture the bus. If the cycle stops, record the exact frames as a remedy.
+2. **Synthetic**: once the identity and button index of that air switch are known from
+   step 1, replay the release frame
+   (`0x04001A80/82/83`, 5 bytes, `01 <identity[3]> <index>` with bit 7 clear) to clear the
+   state without physical access. This would make the remedy scriptable.
+
+Note the air switch receivers are alive and healthy on Buttercup
+(`0x00001A80/82/83`, ~1 Hz heartbeat, payload `08 01 00 63 15`, firmware `08.01.00`),
+but no air switches are configured in `scheiber-config.yaml`, and no press frames were
+seen in a 45 s idle capture. A historical press is recorded in `/data/button_capture.log`
+with identity `52AB81`, button index 2.
+
+## RESOLVED: air switch press clears the stuck dim cycle
+
+Date: 2026-08-07. A capture session with the owner pressing the physical air switch
+**cleared the stuck state**. Verified afterwards: a 40 s capture produced **zero**
+`0x021606A3` / `0x021806A3` frames, where previously the phantom cycle emitted four
+frames every 8.55 s. All six outputs of 4_3 now report a stable OFF.
+
+### Remedy procedure
+
+When a Bloc9 output pair is caught in a stuck dim cycle (idle signature:
+`mode=0x10`, brightness alternating between `0` and a stale value on a fixed period,
+output de-energised):
+
+1. Identify the air switch button bound to the affected output (see mapping method below).
+2. Press and release it once. A normal short press is enough.
+3. Confirm the fix by capturing the affected device's status IDs for ~40 s. Silence means
+   the cycle has stopped; the device only emits status frames on change.
+
+A command sent over MQTT/CAN does **not** clear the state, and in fact re-triggers the
+runaway ramp. Only the air switch path cleared it.
+
+### Air switch mapping for transmitter 52B75B (Bloc9 4_3)
+
+| Button index | Bloc9 output | Entity |
+| --- | --- | --- |
+| 1 | S4 | Cabin Entrance Ambient Light |
+| 2 | S5 | Cabin Entrance Light |
+| 3 | S2 | Shower |
+| 4 | **S1 + S3** | Bathroom **and** Bathroom Spot Lights (the stuck pair) |
+| 6 | none observed | unexplained, see below |
+
+Button 4 drives S1 and S3 **together**, which is why exactly those two outputs were stuck
+as a pair. During a press-and-hold both ramp continuously but in **anti-phase**: S1 falls
+while S3 rises, then they reverse. The idle phantom showed the same anti-phase relationship
+(S1 at 242 while S3 at 0), confirming the phantom was this same dim cycle running while
+de-energised.
+
+Release stops the ramp and both outputs hold their current level, so the hold-to-dim
+feature itself works correctly.
+
+### Protocol discovery: receiver relays presses to a targeted Bloc9
+
+Alongside the broadcast press frames on `0x04001A80/82/83`, the receiver emits a
+**device-targeted** relay frame:
+
+```
+0x040806A3#0152B75B8403
+     ^^        ^^^^^^ ^^
+     |         identity  status (0x84 = press, button 4)
+     low byte 0xA3 = bus 4 / segment 3
+```
+
+So the family is `0x04080600 | address_byte`, payload `01 <identity[3]> <status> 03`.
+Other observed targets: `0x04020F81`, `0x040214BB` with a different `00FF..` payload shape.
+
+Only presses are relayed; the relay repeats while the button is held and stops on release.
+This is how hold-to-dim is communicated to the Bloc9.
+
+**This suggests a scriptable remedy**: replaying a single `0x040806A3#0152B75B8403` frame
+may clear a stuck cycle without physical access. Untested, and it would send a real press
+to real hardware, so it needs a deliberate test before being relied upon.
+
+### Air switch reliability
+
+Of the press frames that reached the CAN bus, the Bloc9 reacted almost every time:
+
+| Button | Press frames on bus | Bloc9 reacted | Rate |
+| --- | --- | --- | --- |
+| 1 | 6 | 5 | 83% |
+| 2 | 11 | 10 | 91% |
+| 3 | 7 | 7 | 100% |
+| 4 | 13 | 12 | 92% |
+| 6 | 1 | 0 | 0% |
+
+Important caveat: this only measures presses whose frames **arrived on the bus**. A press
+lost over the radio produces no frame at all and is invisible here. The owner reports the
+two left-hand buttons failing often; assuming a clockwise press order starting top-left,
+those are buttons 2 and 1, which are also the two lowest rates above. The conclusion is
+that the perceived failures are **radio reception**, not a CAN or Bloc9 fault.
+
+Button index 6 appeared four times with no Bloc9 reaction and no relay frame. Note
+`6 == 2 | 4`, so this may be a simultaneous two-button press rather than a distinct
+function. Unresolved.
+
+## CONFIRMED: air switch presses can be simulated on the bus
+
+Date: 2026-08-07. Synthetic frames were injected with `cansend` and verified against the
+physical outputs. **A press is simulated by the broadcast press/release pair only.**
+
+### Working method
+
+```sh
+# button status byte: 0x80 | button_index   (0x81=btn1 ... 0x84=btn4)
+# release status byte: the same with bit 7 cleared
+cansend can1 04001A80#0152B75B84     # press,   transmitter 52B75B, button 4
+cansend can1 04001A83#0152B75B84
+sleep 0.34
+cansend can1 04001A80#0152B75B04     # release
+cansend can1 04001A83#0152B75B04
+```
+
+Both the press **and** the release must be sent. The gap of ~340 ms matches a real short
+press. Only low bytes `0x80` and `0x83` are needed; the physical receivers were observed
+using `0x80`/`0x82`/`0x83` inconsistently and the Bloc9 acts on the first it sees.
+
+### Verification results
+
+Every button toggled its mapped outputs correctly, on and off:
+
+| Simulated | Expected | Observed | Result |
+| --- | --- | --- | --- |
+| btn4 press 1 | S1+S3 ON | `021606A3#FF001100`, `021806A3#FF001100` -> both 255 | pass |
+| btn4 press 2 | S1+S3 OFF | both `mode=0x00` | pass |
+| btn3 press | S2 toggle | `S2 = FF 00 11 01` -> ON 255 | pass |
+| btn2 press 1 | S5 ON | `021A06A3#FF001100` -> ON 255 | pass |
+| btn2 press 2 | S5 OFF | `021A06A3#00000001` -> OFF | pass |
+| btn1 press 1 | S4 ON | `021806A3#...FF001100` -> ON 255 | pass |
+| btn1 press 2 | S4 OFF | `021806A3#...00000001` -> OFF | pass |
+
+This confirms the button-to-output mapping and makes the remedy scriptable.
+
+### Correction: `0x040806A3` is emitted BY the system, not sent to it
+
+An earlier note suggested replaying `0x040806A3#0152B75B8403` as the remedy. That was
+wrong and is retracted:
+
+- When only the broadcast pair is injected, `0x040806A3` **appears on the bus by itself**,
+  emitted in response. It is a reaction, not a stimulus.
+- A real toggle-off was captured with **no** `0x040806A3` frame at all
+  (t=121.219 in the session log), proving it is not required to drive the output.
+- Injecting `0x040806A3` alone did trigger the outputs once, but every repeat was ignored,
+  and a full sequence including it produced no reaction at all. It is not a reliable path.
+
+Use the broadcast pair.
+
+### Caution
+
+These frames are indistinguishable from a real button press, so anything else bound to the
+same transmitter and button will also react. Verify the binding before injecting, and
+remember that a press is a **toggle**: the resulting state depends on the current state.
+
+### Air switch button 6 explained
+
+Button index 6 is very likely a simultaneous press of two stacked buttons: `6 == 2 | 4`,
+and the owner notes the press was made low on the rocker, catching the button below.
+The status byte therefore appears to be a **bitmask of active buttons**, not an ordinal
+index. This also explains why index 6 produced no Bloc9 reaction and no relay frame.
+

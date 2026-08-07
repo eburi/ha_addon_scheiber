@@ -284,9 +284,7 @@ class DimmableLight(Output):
         Args:
             msg: CAN message
         """
-        state, brightness = self.get_state_from_can_message(
-            msg, self.switch_nr, self.dimming_threshold
-        )
+        state, brightness = self.decode_and_track(msg)
 
         self.logger.debug(
             f"Light '{self.name}' (S{self.switch_nr+1}) received matched message: "

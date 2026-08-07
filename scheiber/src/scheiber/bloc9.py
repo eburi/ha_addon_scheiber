@@ -292,6 +292,22 @@ class Bloc9Device(ScheiberCanDevice):
                 f"No outputs for arbitration_id 0x{msg.arbitration_id:08X}"
             )
 
+    def _check_stale_recovery(self) -> None:
+        """Expire stale-setpoint reports on all outputs of this device."""
+        for output in (*self.lights, *self.switches, *self.pulses):
+            try:
+                output.check_stale_recovery()
+            except Exception as e:  # pragma: no cover - defensive
+                self.logger.error(f"Stale recovery check failed for {output}: {e}")
+
+    def get_stale_outputs(self) -> List[str]:
+        """Return entity IDs of outputs currently reporting a stale setpoint."""
+        return [
+            output.entity_id
+            for output in (*self.lights, *self.switches, *self.pulses)
+            if output.is_stale()
+        ]
+
     def _process_switch_change(self, msg: can.Message, outputs: List) -> None:
         """
         Process switch state change message and dispatch to matched outputs.
@@ -320,6 +336,11 @@ class Bloc9Device(ScheiberCanDevice):
         This message is periodic and doesn't contain state changes.
         Use it to publish device info to MQTT.
         """
+        # The heartbeat is the only reliable periodic signal from a Bloc9: output
+        # status frames are sent on change only, so a recovered output goes silent
+        # rather than announcing itself. Use this ~1 Hz tick to expire stale reports.
+        self._check_stale_recovery()
+
         # Build output info dict - include all 6 outputs
         outputs = {}
 

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [7.1.0] - 2026-08-07
+
+### Added
+- Added a system-wide **Stale Outputs** binary sensor (`binary_sensor.scheiber_stale_outputs`, `device_class: problem`, diagnostic category) that turns ON while any Bloc9 output anywhere on the bus is stale, and OFF when the last one recovers. Intended as a trigger for a Home Assistant notification automation. It attaches to the existing single Scheiber device and publishes retained state, so it survives restarts
+- Added runtime detection of Bloc9 outputs that have gone stale. A Bloc9 can get stuck in the hold-to-dim cycle that air switches use for brightness adjustment, after which it keeps broadcasting a brightness setpoint while the output stays de-energised and the lamp stays dark. Such an output is now reported with a single `WARNING` naming the device, output, entity and the stale brightness value, and again with an `INFO` when it recovers
+- Detection requires three stale observations within a 120 second sliding window, so a single unusual frame cannot trip it. A stuck Bloc9 repeats the pattern roughly every 8.5 seconds, so a genuine fault is reported within about 25 seconds
+- Recovery is expired from the Bloc9 heartbeat (~1 Hz) after 60 seconds without a stale observation. Output status frames are only sent on change, so a recovered output goes silent rather than announcing itself and cannot be detected from its own traffic
+- Added `ScheiberSystem.get_stale_outputs()`, `has_stale_outputs()` and `subscribe_to_stale_change()` for the bus-wide aggregate, plus `Bloc9Device.get_stale_outputs()` and `Output.is_stale()` for per-device and per-output inspection
+- Added `Output.decode_output_frame()`, which exposes the raw per-output `brightness`, `mode_byte`, `state_byte` and derived `energised` flag from a Bloc9 status frame
+- The native `custom_components/scheiber` integration gained the equivalent **Stale outputs** diagnostic binary sensor on the CAN network device
+
+### Changed
+- `DimmableLight`, `Switch` and `PulseOutput` now decode status frames through `Output.decode_and_track()` so every observed frame feeds the detector. Decoded state and brightness are unchanged
+- The alternating clean-off frame that forms half of a stuck dim cycle no longer resets the detector, which would otherwise prevent a stuck output from ever being reported
+
 ## [7.0.1] - 2026-08-07
 
 ### Fixed

@@ -121,6 +121,7 @@ class ScheiberRuntime:
         self.system: Any | None = None
         self.connected = False
         self.last_error: str | None = None
+        self.stale_outputs = False
         self.stats: dict[str, Any] = {}
         self.discovered_devices: dict[str, DiscoveredDevice] = {}
         self.message_summaries: OrderedDict[int, MessageSummary] = OrderedDict()
@@ -171,6 +172,7 @@ class ScheiberRuntime:
             read_only=self.read_only,
         )
         self.system.subscribe_to_stats(self._handle_stats_threadsafe)
+        self.system.subscribe_to_stale_change(self._handle_stale_threadsafe)
         if self.discovery_only:
             self.system.can_bus.start_listening(self._handle_message_threadsafe)
         else:
@@ -246,6 +248,15 @@ class ScheiberRuntime:
         self.stats = stats
         self.connected = True
         self._notify("network")
+
+    def _handle_stale_threadsafe(self, active: bool) -> None:
+        """Move stale-aggregate update from CAN thread into HA event loop."""
+        self.hass.loop.call_soon_threadsafe(self._async_handle_stale, active)
+
+    @callback
+    def _async_handle_stale(self, active: bool) -> None:
+        self.stale_outputs = active
+        self._notify("stale")
 
     def _handle_message_threadsafe(self, msg: can.Message) -> None:
         """Move raw message observation from CAN thread into HA event loop."""

@@ -24,6 +24,7 @@ from .button import MQTTButton
 from .light import MQTTLight
 from .logical_entity import MQTTLogicalButton, MQTTLogicalLight, MQTTLogicalSwitch
 from .sensor import MQTTSensor
+from .stale_indicator import MQTTStaleIndicator
 from .switch import MQTTSwitch
 
 
@@ -102,6 +103,10 @@ class MQTTBridge:
         # Track MQTT entities (lights and switches)
         self._mqtt_entities: List[Any] = []
 
+        # System-level diagnostic entity. Kept out of _mqtt_entities because it
+        # has no command topic and must not join the command dispatch path.
+        self._stale_indicator: Optional[MQTTStaleIndicator] = None
+
     def start(self):
         """Start the bridge."""
         if self._running:
@@ -115,6 +120,7 @@ class MQTTBridge:
         for device in devices:
             self._setup_sensor_device(device)
         self._setup_air_switch_buttons(devices)
+        self._setup_stale_indicator()
 
         # Subscribe to CAN statistics
         self.system.subscribe_to_stats(self._on_can_stats)
@@ -299,6 +305,18 @@ class MQTTBridge:
             mqtt_sensor.publish_state()
             self._mqtt_entities.append(mqtt_sensor)
 
+    def _setup_stale_indicator(self):
+        """Create the system-wide stale-output diagnostic binary sensor."""
+        self._stale_indicator = MQTTStaleIndicator(
+            system=self.system,
+            mqtt_client=self.mqtt_client,
+            mqtt_topic_prefix=self.mqtt_topic_prefix,
+        )
+        self._stale_indicator.publish_discovery()
+        self._stale_indicator.publish_availability(True)
+        self._stale_indicator.publish_state()
+        self.logger.info("Setting up MQTT stale-output indicator")
+
     def _setup_air_switch_buttons(self, devices):
         """Create MQTT event entities for configured wireless Air Switch buttons."""
         for device in devices:
@@ -326,6 +344,12 @@ class MQTTBridge:
             for entity in self._mqtt_entities:
                 entity.subscribe_to_commands()
                 self.logger.debug(f"Resubscribed to {entity.unique_id}")
+
+            # Republish the diagnostic entity: it is retained but a broker
+            # restart would otherwise leave it absent until the next transition.
+            if self._stale_indicator is not None:
+                self._stale_indicator.publish_availability(True)
+                self._stale_indicator.publish_state()
         else:
             self.logger.error(f"Failed to connect to MQTT broker: {rc}")
 
