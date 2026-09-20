@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [7.1.1] - 2026-09-20
+
+### Fixed
+- The add-on no longer fails to start when a CAN interface it does not use is faulty. The startup script brought up `can0` and `can1` unconditionally, regardless of `can_interface`, and aborted on the first error. On a host where `can0` (e.g. an NMEA 2000 port) could not be brought up, the bridge exited with `RTNETLINK answers: Operation timed out` before ever configuring its own healthy `can1`, taking all Scheiber lights and switches offline. Only the interface named by `can_interface` is configured now
+- Starting or restarting the add-on no longer bounces the link of the other CAN interface, which interrupted whatever add-on was using it
+- A missing interface, or one that cannot be brought up, is now reported with an explicit error naming the interface instead of a bare `RTNETLINK` message
+
 ## [7.1.0] - 2026-08-07
 
 ### Added

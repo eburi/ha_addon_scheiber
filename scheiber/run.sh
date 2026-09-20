@@ -54,20 +54,21 @@ export DATA_DIR="${DATA_DIR}"
 export CONFIG_FILE="${CONFIG_FILE}"
 
 bashio::log.info "---------------------------------------------------------------------------"
-bashio::log.info "Setting up CAN interface..."
+bashio::log.info "Setting up CAN interface ${CAN_IFACE}..."
 ## Setup
-# Use the CAN_IFACE value and configure just that device
-# Init can0
-ip link set can0 down 2>/dev/null
-ip link set can0 type can bitrate 250000 fd off restart-ms 100
-ip link set can0 up
-ifconfig can0 txqueuelen 10000
+# Configure only the configured interface. Other CAN interfaces on the host
+# belong to other add-ons (e.g. an NMEA 2000 gateway on can0): touching them
+# bounces their link, and a fault on one of them must not stop this bridge.
+if ! ip link show "${CAN_IFACE}" > /dev/null 2>&1; then
+    bashio::exit.nok "CAN interface ${CAN_IFACE} does not exist on the host"
+fi
 
-# Init can1
-ip link set can1 down 2>/dev/null
-ip link set can1 type can bitrate 250000 fd off restart-ms 100
-ip link set can1 up
-ifconfig can1 txqueuelen 10000
+ip link set "${CAN_IFACE}" down 2>/dev/null || true
+ip link set "${CAN_IFACE}" type can bitrate 250000 fd off restart-ms 100
+if ! ip link set "${CAN_IFACE}" up; then
+    bashio::exit.nok "Could not bring up CAN interface ${CAN_IFACE}; check the host kernel log for its CAN controller"
+fi
+ifconfig "${CAN_IFACE}" txqueuelen 10000
 
 bashio::log.info "---------------------------------------------------------------------------"
 bashio::log.info "Running migrations..."

@@ -38,7 +38,7 @@ Home Assistant for:
 
 | Option | Description | Default |
 |---|---|---|
-| `can_interface` | SocketCAN interface to monitor and control | `can1` |
+| `can_interface` | SocketCAN interface to monitor and control. The add-on brings up only this interface (250 kbit/s) and leaves other CAN interfaces alone | `can1` |
 | `mqtt_host` | MQTT broker hostname | `localhost` |
 | `mqtt_port` | MQTT broker port | `1883` |
 | `mqtt_user` | MQTT username | `mqtt_user` |
