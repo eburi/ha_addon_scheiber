@@ -21,6 +21,7 @@ from scheiber import ScheiberSystem, create_scheiber_system
 
 from .air_switch_button import MQTTAirSwitchButton
 from .button import MQTTButton
+from .generator import create_generator_entities
 from .light import MQTTLight
 from .logical_entity import MQTTLogicalButton, MQTTLogicalLight, MQTTLogicalSwitch
 from .sensor import MQTTSensor
@@ -119,6 +120,7 @@ class MQTTBridge:
         self._setup_bloc9_outputs(devices)
         for device in devices:
             self._setup_sensor_device(device)
+        self._setup_generator_devices(devices)
         self._setup_air_switch_buttons(devices)
         self._setup_stale_indicator()
 
@@ -304,6 +306,37 @@ class MQTTBridge:
             mqtt_sensor.subscribe_to_updates()
             mqtt_sensor.publish_state()
             self._mqtt_entities.append(mqtt_sensor)
+
+    def _setup_generator_devices(self, devices):
+        """Create switch, buttons, running and phase entities for generators."""
+        for device in devices:
+            generators = getattr(device, "get_generators", lambda: [])()
+            if not generators:
+                continue
+            device_type = device.__class__.__name__.lower().replace("device", "")
+            device_id = device.device_id
+            segment_id = getattr(device, "segment_id", 0)
+            if not isinstance(segment_id, int):
+                segment_id = 0
+            for generator in generators:
+                self.logger.info(
+                    f"Setting up MQTT generator control {generator.entity_id} on "
+                    f"{device_type} {device.route_slug}"
+                )
+                for entity in create_generator_entities(
+                    generator=generator,
+                    device_type=device_type,
+                    device_id=device_id,
+                    mqtt_client=self.mqtt_client,
+                    segment_id=segment_id,
+                    mqtt_topic_prefix=self.mqtt_topic_prefix,
+                    read_only=self.read_only,
+                ):
+                    entity.publish_discovery()
+                    entity.publish_availability(True)
+                    entity.subscribe_to_commands()
+                    entity.publish_initial_state()
+                    self._mqtt_entities.append(entity)
 
     def _setup_stale_indicator(self):
         """Create the system-wide stale-output diagnostic binary sensor."""

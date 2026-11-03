@@ -150,7 +150,7 @@ The setup UI and MCP server can suggest provisional Bloc7 sensor drafts from obs
 
 ### SourceSelector
 
-SourceSelector devices are supported as read-only AC measurement sensors. They can expose voltage and frequency values from matcher-bound frames such as the observed `0x02040Bxx` family. The bridge does not send SourceSelector relay or source-selection commands.
+SourceSelector devices are supported as AC measurement sensors. They can expose voltage and frequency values from matcher-bound frames such as the observed `0x02040Bxx` family. The bridge does not send SourceSelector relay or source-selection commands, with one exception: the optional `generator` section described below.
 
 ```yaml
 devices:
@@ -182,6 +182,48 @@ devices:
           endian: little
           scale: 1.0
 ```
+
+### Generator control (SourceSelector `generator` section)
+
+On installations where the Scheiber control panel starts and stops the generator, the SourceSelector node wired to the generator drives two relay outputs connected to the generator's remote start and stop lines (Onan/Cummins style impulse control). The panel sends a one-byte command frame and the node pulses the relay itself:
+
+| Action | Command frame | Node reaction |
+| --- | --- | --- |
+| Start | `0x02460Bxx` data `01` | Start relay closed for 30 s |
+| Stop | `0x02460Bxx` data `02` | Stop relay closed for 60 s |
+
+Add a `generator` section to the SourceSelector device to let the add-on send those commands and decode the node's status frames. `bus_id` is the node's address (`0x88` on the bus is `bus_id: 1`, `segment_id: 0`).
+
+```yaml
+devices:
+  - type: source_selector
+    bus_id: 1
+    name: Generator interface
+    generator:
+      name: Generator
+      entity_id: generator
+```
+
+This publishes:
+
+| Entity | Purpose |
+| --- | --- |
+| `switch.generator` | ON sends start, OFF sends stop; state follows the node's running flag |
+| `button.generator_start`, `button.generator_stop` | explicit one-shot commands for automations |
+| `binary_sensor.generator_running` | `device_class: running` |
+| `sensor.generator_phase` | diagnostic: `starting`, `running`, `stopping`, `stopped` |
+| `sensor.generator_voltage`, `sensor.generator_frequency` | generator AC output, from `0x02040Bxx` bytes 0-3 |
+| `sensor.generator_battery_voltage` | generator starter battery, from `0x02060Bxx` |
+
+The entity ids `<entity_id>_start`, `_stop`, `_running`, `_phase`, `_voltage`, `_frequency` and `_battery_voltage` are reserved for these entities and may not be used elsewhere in the configuration.
+
+Safety behaviour:
+
+- Commands are sent through the same bus wrapper as Bloc9 commands, so `read_only` mode blocks them.
+- A software interlock refuses a start while the generator is running, a stop while it is stopped, and either command while the node still holds a relay pulse or while the generator state is unknown (no frames from the node yet). A refused switch command snaps the Home Assistant toggle back to the real state.
+- Retained MQTT commands are never executed. A broker replay after a restart cannot start or stop the engine.
+
+Protocol details and the captured timelines are in `plan/generator-control.md`.
 
 ## MQTT Topic Structure
 

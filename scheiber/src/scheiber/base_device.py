@@ -139,6 +139,15 @@ class ScheiberCanDevice(ABC):
         """
         return []
 
+    def get_generators(self) -> List:
+        """
+        Return list of generator control objects (if any).
+
+        Returns:
+            List of GeneratorControl objects (empty by default)
+        """
+        return []
+
     def get_air_switch_buttons(self) -> List:
         """
         Return list of wireless Air Switch buttons (if any).

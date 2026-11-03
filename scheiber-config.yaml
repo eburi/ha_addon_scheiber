@@ -233,3 +233,14 @@ devices:
       5:
         name: "Both Bottom?"
         published: false
+
+  # Generator interface: the SourceSelector node wired to the generator's
+  # remote start/stop lines (CAN address 0x88 = bus_id 1). The generator
+  # section adds switch/button/running/phase entities plus voltage,
+  # frequency and starter-battery sensors. See README "Generator control".
+  # - type: source_selector
+  #   bus_id: 1
+  #   name: "Generator interface"
+  #   generator:
+  #     name: "Generator"
+  #     entity_id: "generator"
