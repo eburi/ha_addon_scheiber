@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [7.2.0] - 2026-11-02
+
+### Added
+- Generator start/stop control through the Scheiber SourceSelector node that is wired to the generator's remote start and stop lines. Add a `generator:` section (`name`, `entity_id`) to a `source_selector` device and the add-on publishes `switch.<entity_id>` (ON starts, OFF stops), `button.<entity_id>_start` / `_stop`, `binary_sensor.<entity_id>_running` and a diagnostic `sensor.<entity_id>_phase`. The command frame is `0x02460Bxx` with data `01` (start) or `02` (stop); the node then pulses its start relay for 30 s or its stop relay for 60 s, exactly as the control panel does. Verified live on seven start/stop cycles
+- Built-in generator measurements on the same node: `sensor.<entity_id>_voltage` and `sensor.<entity_id>_frequency` from the `0x02040Bxx` AC frame (bytes 0-3, 16-bit big-endian) and `sensor.<entity_id>_battery_voltage` from the `0x02060Bxx` frame (0.1 V). Frequency transients outside 40-70 Hz, which the node emits for one frame after a stop, are ignored
+- The node's relay output state (`0x02160Bxx`), engine state (`0x02140Bxx`, bit 0 = running) and control phase (`0x02440Bxx`) frames are decoded and no longer logged as unknown arbitration IDs
+- Software interlock: a start is refused while the generator runs, a stop while it is stopped, and both while a relay pulse is still active or the state is unknown. `read_only` mode blocks the command frames as it does for Bloc9. Retained MQTT commands on the generator topics are cleared and never executed
+- Config validation for the `generator` section, including reservation of the derived entity ids, with round-trip support through the setup UI converters
+- Capture and analysis helpers in `src/tools/`: a raw-socket CAN recorder for hosts without `can-utils`, a Home Assistant entity poller, a windowed candump analyser and a generator cycle tabulator
+
+### Changed
+- `SourceSelectorDevice` gained `get_generators()`; `ScheiberCanDevice` has a default `get_generators()` returning an empty list
+- `SensorOutput.set_value()` factored out of `process_message()` so decoded values can be pushed from device-specific decoders
+
+
 ## [7.1.1] - 2026-09-20
 
 ### Fixed

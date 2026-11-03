@@ -37,6 +37,17 @@ BLOC7_SENSOR_TYPES = {
     "raw",
 }
 BLOC7_ENDIAN_OPTIONS = {"little", "big"}
+GENERATOR_DEVICE_TYPE = "source_selector"
+# Entity-id suffixes derived from a generator entity_id by the MQTT bridge.
+GENERATOR_DERIVED_SUFFIXES = (
+    "_start",
+    "_stop",
+    "_running",
+    "_phase",
+    "_voltage",
+    "_frequency",
+    "_battery_voltage",
+)
 
 
 class ConfigValidationError(ValueError):
@@ -248,6 +259,115 @@ def load_editor_state(config_path: str) -> Dict[str, Any]:
     }
 
 
+def _validate_generator_section(
+    generator: Any,
+    device_type: str,
+    generator_path: List[Any],
+    seen_entity_ids: Dict[str, Dict[str, Any]],
+    errors: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """Validate the optional ``generator`` section of a SourceSelector device."""
+    if device_type != GENERATOR_DEVICE_TYPE:
+        errors.append(
+            make_error(
+                "generator_not_supported",
+                f"generator is only supported on {GENERATOR_DEVICE_TYPE} devices",
+                generator_path,
+            )
+        )
+        return None
+    if not isinstance(generator, dict):
+        errors.append(
+            make_error(
+                "invalid_generator",
+                "generator must be an object with name and entity_id",
+                generator_path,
+            )
+        )
+        return None
+
+    allowed_keys = {"name", "entity_id"}
+    for key in generator.keys():
+        if key not in allowed_keys:
+            errors.append(
+                make_error(
+                    "unknown_generator_key",
+                    f"Unsupported generator key '{key}'",
+                    generator_path + [key],
+                )
+            )
+
+    name = generator.get("name", "Generator")
+    if not isinstance(name, str) or not name.strip():
+        errors.append(
+            make_error(
+                "invalid_generator_name",
+                "generator.name must be a non-empty string",
+                generator_path + ["name"],
+            )
+        )
+        name = "Generator"
+    name = name.strip()
+
+    entity_id = generator.get("entity_id", "")
+    if not isinstance(entity_id, str) or not entity_id.strip():
+        errors.append(
+            make_error(
+                "missing_entity_id",
+                "generator requires an entity_id",
+                generator_path + ["entity_id"],
+            )
+        )
+        return None
+    entity_id = entity_id.strip()
+    if "." in entity_id:
+        errors.append(
+            make_error(
+                "entity_id_with_domain",
+                "entity_id must not include a Home Assistant domain prefix",
+                generator_path + ["entity_id"],
+            )
+        )
+        return None
+    if not ENTITY_ID_RE.match(entity_id):
+        errors.append(
+            make_error(
+                "invalid_entity_id",
+                "entity_id must contain only lowercase letters, numbers, and underscores",
+                generator_path + ["entity_id"],
+            )
+        )
+        return None
+
+    # The bridge publishes several entities derived from this id; reserve them.
+    derived_ids = [entity_id] + [
+        f"{entity_id}{suffix}" for suffix in GENERATOR_DERIVED_SUFFIXES
+    ]
+    conflict = False
+    for derived_id in derived_ids:
+        if derived_id in seen_entity_ids:
+            existing = seen_entity_ids[derived_id]
+            errors.append(
+                make_error(
+                    "duplicate_entity_id",
+                    f"entity_id '{derived_id}' is already used",
+                    generator_path + ["entity_id"],
+                    details={"conflicts_with": existing.get("paths", [])},
+                )
+            )
+            conflict = True
+    if conflict:
+        return None
+    for derived_id in derived_ids:
+        seen_entity_ids[derived_id] = {
+            "kind": "generator",
+            "role": None,
+            "paths": [generator_path + ["entity_id"]],
+        }
+
+    return {"name": name, "entity_id": entity_id}
+
+
 def validate_editor_config(
     config: Optional[Dict[str, Any]],
 ) -> Tuple[Dict[str, Any], List[str]]:
@@ -307,6 +427,7 @@ def validate_editor_config(
             "outputs",
             "sensors",
             "buttons",
+            "generator",
         }
         for key in device.keys():
             if key not in allowed_device_keys:
@@ -876,6 +997,19 @@ def validate_editor_config(
                 )
 
             normalized_device["sensors"] = normalized_sensors
+
+            generator = device.get("generator")
+            if generator is not None:
+                generator_path = device_path + ["generator"]
+                normalized_generator = _validate_generator_section(
+                    generator,
+                    device_type,
+                    generator_path,
+                    seen_entity_ids,
+                    errors,
+                )
+                if normalized_generator is not None:
+                    normalized_device["generator"] = normalized_generator
         elif device_type == AIR_SWITCH_DEVICE_TYPE:
             buttons = device.get("buttons", {})
             if buttons is None:
@@ -1195,16 +1329,25 @@ def runtime_to_editor_config(runtime_config: Dict[str, Any]) -> Dict[str, Any]:
                     }
                 )
 
-            editor_devices.append(
-                {
-                    "type": device_type,
-                    "bus_id": device.get("bus_id"),
-                    "segment_id": device.get("segment_id", 0),
-                    "name": device.get("name", ""),
-                    "description": device.get("description", ""),
-                    "sensors": sensors,
-                }
-            )
+            editor_device = {
+                "type": device_type,
+                "bus_id": device.get("bus_id"),
+                "segment_id": device.get("segment_id", 0),
+                "name": device.get("name", ""),
+                "description": device.get("description", ""),
+                "sensors": sensors,
+            }
+            generator = device.get("generator")
+            if generator is not None:
+                editor_device["generator"] = (
+                    {
+                        "name": generator.get("name", "Generator"),
+                        "entity_id": generator.get("entity_id", ""),
+                    }
+                    if isinstance(generator, dict)
+                    else generator
+                )
+            editor_devices.append(editor_device)
             continue
 
         if device_type == AIR_SWITCH_DEVICE_TYPE:
@@ -1436,6 +1579,12 @@ def editor_to_runtime_config(editor_config: Dict[str, Any]) -> Dict[str, Any]:
                     }
                 )
             runtime_device["sensors"] = sensors
+            generator = device.get("generator")
+            if isinstance(generator, dict) and generator.get("entity_id"):
+                runtime_device["generator"] = {
+                    "name": generator.get("name", "Generator"),
+                    "entity_id": generator["entity_id"],
+                }
         elif device["type"] == AIR_SWITCH_DEVICE_TYPE:
             runtime_device["identity"] = device["identity"]
             buttons = {}

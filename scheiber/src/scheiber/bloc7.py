@@ -70,14 +70,19 @@ class SensorOutput:
         """Process a CAN message and update the sensor value if it matches."""
         if self.matcher.matches(msg):
             new_value = self.value_config.extract_value(msg.data)
-            if self.value != new_value:
-                self.value = new_value
-                logger.info(
-                    f"Sensor '{self.name}' updated to {self.value} {self.unit_of_measurement}"
-                )
-                self.notify_observers()
-                return True
+            return self.set_value(new_value)
         return False
+
+    def set_value(self, new_value: Any) -> bool:
+        """Update the value and notify observers when it changed."""
+        if self.value == new_value:
+            return False
+        self.value = new_value
+        logger.info(
+            f"Sensor '{self.name}' updated to {self.value} {self.unit_of_measurement}"
+        )
+        self.notify_observers()
+        return True
 
     def get_value(self):
         """Get current sensor value."""

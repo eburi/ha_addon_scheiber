@@ -226,7 +226,8 @@ def _create_devices(
             logger.info(
                 f"Created SourceSelector device: bus_id={device_id}, "
                 f"segment_id={segment_id}, "
-                f"{len(device.get_sensors())} sensors"
+                f"{len(device.get_sensors())} sensors, "
+                f"{len(device.get_generators())} generator controls"
             )
         elif device_type == "air_switch":
             device = AirSwitchDevice(
